@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://archangel-halo.replit.app/api/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

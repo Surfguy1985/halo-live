@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+/* Halo Live — fixed-seed foundations */
+@theme {
+  --color-ink: #080D1A;
+  --color-ink-raised: #101C33;
+  --color-ink-hover: #16243F;
+  --color-ink-line: #1E2E4C;
+  --color-paper: #F4F4F0;
+  --color-white: #FFFFFF;
+  --color-line: #E4E4DC;
+  --color-gold: #E3B85C;
+  --color-gold-deep: #A8791F;
+  --color-live: #B4FF44;
+  --color-live-dark: #4E7A08;
+  --color-ok: #22C55E;
+  --color-warn: #F59E0B;
+  --color-danger: #E11D48;
+  --color-slate: #94A3BE;
+  --color-slate-dim: #5C6B85;
+  --color-text-muted: #56606F;
+  --font-sans: "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Martian Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  background: #080D1A;
+  color: #F2F5FA;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible { outline: 2px solid #E3B85C; outline-offset: 2px; }
+button, a { -webkit-tap-highlight-color: transparent; }
+.press:active { transform: scale(0.98); transition: transform 0.08s cubic-bezier(0.2, 0.7, 0.2, 1); }
+
+.leaflet-container { background: #0a1018 !important; font: inherit; }
+.halo-marker { background: transparent !important; border: none !important; }
+.leaflet-bottom { display: none; }
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.page-enter { animation: fade-up 0.2s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.live-dot { animation: live-pulse 1.6s ease-in-out infinite; background: #B4FF44; }
+
+@keyframes cure-shimmer {
+  0% { background-position: 0% 0; }
+  100% { background-position: 200% 0; }
+}
+.cure-band {
+  background: linear-gradient(
+    100deg,
+    #101C33 0%,
+    #1a2a48 25%,
+    #243656 50%,
+    #1a2a48 75%,
+    #101C33 100%
+  );
+  background-size: 220% 100%;
+  animation: cure-shimmer 4s ease-in-out infinite;
+}
+.theme-light .cure-band {
+  background: linear-gradient(
+    100deg,
+    #F4F4F0 0%,
+    #EEEDE6 25%,
+    #E8E6DC 50%,
+    #EEEDE6 75%,
+    #F4F4F0 100%
+  );
+  background-size: 220% 100%;
+  animation: cure-shimmer 4s ease-in-out infinite;
+}
+
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+.theme-light { background: #F4F4F0; color: #080D1A; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+
+/* Space for fixed AppTabs */
+.tab-safe { padding-bottom: calc(4.5rem + env(safe-area-inset-bottom)); }
