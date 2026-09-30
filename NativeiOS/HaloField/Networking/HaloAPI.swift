@@ -28,6 +28,14 @@ struct TurnHandoff: Identifiable, Hashable, Sendable {
     let createdAt: String?
 }
 
+struct HaloProofPair: Identifiable, Hashable, Sendable {
+    let id: String
+    let area: String?
+    let beforeURL: String?
+    let afterURL: String?
+    let proofPairs: [HaloProofPair]
+}
+
 struct HaloMessageAttachment: Identifiable, Hashable, Sendable {
     let id: String
     let kind: String
@@ -806,7 +814,20 @@ actor HaloAPI {
                 actionTitle: string(snapshot?["action_title"]),
                 actionSummary: string(snapshot?["action_summary"]),
                 beforeURL: string(snapshot?["before_url"]),
-                afterURL: string(snapshot?["after_url"])
+                afterURL: string(snapshot?["after_url"]),
+                proofPairs: proofPairs(snapshot?["pairs"])
+            )
+        }
+    }
+
+    nonisolated private static func proofPairs(_ value: Any?) -> [HaloProofPair] {
+        guard let rows = value as? [[String: Any]] else { return [] }
+        return rows.enumerated().map { index, row in
+            HaloProofPair(
+                id: "\(index)-\(string(row["area"]) ?? string(row["service"]) ?? "proof")",
+                area: string(row["area"]) ?? string(row["service"]),
+                beforeURL: string(row["before"]) ?? string(row["before_url"]),
+                afterURL: string(row["after"]) ?? string(row["after_url"])
             )
         }
     }
