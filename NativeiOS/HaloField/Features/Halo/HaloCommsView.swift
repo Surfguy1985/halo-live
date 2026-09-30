@@ -14,6 +14,8 @@ struct HaloCommsView: View {
     @State private var sharing = Set<String>()
     @State private var lastSent: [String: Date] = [:]
     @State private var selectedJobID: String?
+    @State private var selectedThreadChannel: String?
+    @State private var selectedThreadName: String?
     @State private var draft = ""
     @State private var isLoading = false
     @State private var isSending = false
@@ -203,6 +205,17 @@ struct HaloCommsView: View {
                     ForEach(messages.sorted(by: { ($0.at ?? "") < ($1.at ?? "") })) { message in
                         messageBubble(message)
                             .id(message.id)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                if message.channel.hasPrefix("group:") {
+                                    selectedThreadChannel = message.channel
+                                    selectedThreadName = message.threadName
+                                    if let unitID = message.unitID {
+                                        selectedJobID = unitID
+                                    }
+                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                }
+                            }
                     }
                 }
             }
@@ -447,10 +460,22 @@ struct HaloCommsView: View {
             sectionLabel("REPLY TO OFFICE")
 
             Menu {
-                Button("General message") { selectedJobID = nil }
+                Button("General message") {
+                    selectedJobID = nil
+                    selectedThreadChannel = nil
+                    selectedThreadName = nil
+                }
+
+                if let selectedThreadName, selectedThreadChannel != nil {
+                    Button("Reply in \(selectedThreadName)") {
+                        selectedJobID = nil
+                    }
+                }
                 ForEach(store.jobs.filter { !$0.isClosed }) { job in
                     Button("Unit \(job.unit) · \(job.propertyName)") {
                         selectedJobID = job.id
+                        selectedThreadChannel = nil
+                        selectedThreadName = nil
                     }
                 }
             } label: {
@@ -505,6 +530,9 @@ struct HaloCommsView: View {
     }
 
     private var selectedJobLabel: String {
+        if let selectedThreadName, selectedThreadChannel != nil {
+            return "Thread · \(selectedThreadName)"
+        }
         guard let selectedJobID, let job = store.jobs.first(where: { $0.id == selectedJobID }) else {
             return "General · Office"
         }
@@ -613,7 +641,12 @@ struct HaloCommsView: View {
 
         Task {
             do {
-                try await HaloAPI.shared.sendMessage(text: text, jobID: selectedJobID, activationToken: token)
+                try await HaloAPI.shared.sendMessage(
+                    text: text,
+                    jobID: selectedJobID,
+                    channel: selectedThreadChannel,
+                    activationToken: token
+                )
                 await MainActor.run {
                     draft = ""
                     isSending = false
