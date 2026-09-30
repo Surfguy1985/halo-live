@@ -49,6 +49,7 @@ final class JobStore: ObservableObject {
         if jobs.isEmpty, let snapshot = try? await cache.load(token: activationToken) {
             withAnimation(.snappy(duration: 0.22)) {
                 jobs = snapshot.jobs
+                HaloIntentStore.save(nextJob)
             }
             lastSyncedAt = snapshot.savedAt
             loadedToken = activationToken
@@ -74,6 +75,7 @@ final class JobStore: ObservableObject {
             let live = try await api.fetchJobs(activationToken: activationToken)
             withAnimation(.snappy(duration: 0.28)) {
                 jobs = live
+                HaloIntentStore.save(nextJob)
             }
             syncError = nil
             lastSyncedAt = .now
@@ -95,6 +97,7 @@ final class JobStore: ObservableObject {
     func loadPreview() {
         withAnimation(.snappy(duration: 0.28)) {
             jobs = HaloPreviewData.jobs
+            HaloIntentStore.save(nextJob)
         }
         syncError = nil
         lastSyncedAt = .now
@@ -106,6 +109,7 @@ final class JobStore: ObservableObject {
 
     func clear() {
         jobs = []
+        HaloIntentStore.save(nil)
         syncError = nil
         lastSyncedAt = nil
         selectedJobID = nil
@@ -120,6 +124,7 @@ final class JobStore: ObservableObject {
         guard let index = jobs.firstIndex(where: { $0.id == jobID }) else { return }
         withAnimation(.snappy(duration: 0.35)) {
             jobs[index].state = state
+            HaloIntentStore.save(nextJob)
         }
     }
 
@@ -139,6 +144,7 @@ final class JobStore: ObservableObject {
 
         withAnimation(.snappy(duration: 0.35)) {
             jobs[index].state = next
+            HaloIntentStore.save(nextJob)
         }
     }
 
@@ -153,6 +159,7 @@ final class JobStore: ObservableObject {
         guard let index = jobs.firstIndex(where: { $0.id == jobID }) else { return }
         withAnimation(.snappy(duration: 0.25)) {
             jobs[index].photoCount += 1
+            HaloIntentStore.save(nextJob)
         }
     }
 
@@ -161,6 +168,7 @@ final class JobStore: ObservableObject {
               let t = jobs[j].tasks.firstIndex(where: { $0.id == taskID }) else { return }
         withAnimation(.snappy) {
             jobs[j].tasks[t].isComplete.toggle()
+            HaloIntentStore.save(nextJob)
         }
     }
 }
