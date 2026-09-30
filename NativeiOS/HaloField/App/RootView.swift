@@ -199,6 +199,10 @@ private struct ProfileView: View {
                 Label("Crew profile", systemImage: "person.2.fill")
                 Label("Settings", systemImage: "gearshape.fill")
                 Button(role: .destructive) {
+                    let token = session.activationToken
+                    Task {
+                        await notifications.unregisterRemoteDevice(activationToken: token)
+                    }
                     store.clear(removeCache: true)
                     session.deactivate()
                 } label: {
