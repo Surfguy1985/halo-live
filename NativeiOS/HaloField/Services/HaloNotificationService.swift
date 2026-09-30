@@ -1,9 +1,17 @@
 import Foundation
 import UserNotifications
+import UIKit
 
 @MainActor
 final class HaloNotificationService: ObservableObject {
     @Published private(set) var authorizationStatus: UNAuthorizationStatus = .notDetermined
+    @Published private(set) var remoteRegistrationError: String?
+
+    private let tokenKey = "halo.apns.device-token"
+
+    var deviceToken: String? {
+        UserDefaults.standard.string(forKey: tokenKey)
+    }
 
     init() {
         Task { await refreshAuthorization() }
@@ -20,6 +28,9 @@ final class HaloNotificationService: ObservableObject {
                 options: [.alert, .badge, .sound]
             )
             await refreshAuthorization()
+            if granted {
+                UIApplication.shared.registerForRemoteNotifications()
+            }
             return granted
         } catch {
             await refreshAuthorization()
@@ -47,6 +58,57 @@ final class HaloNotificationService: ObservableObject {
         let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
 
         try? await UNUserNotificationCenter.current().add(request)
+    }
+
+    func handleDeviceToken(_ token: String, activationToken: String?) async {
+        UserDefaults.standard.set(token, forKey: tokenKey)
+        remoteRegistrationError = nil
+        guard let activationToken, !activationToken.isEmpty else { return }
+
+        do {
+            try await HaloAPI.shared.registerNativeDevice(
+                deviceToken: token,
+                activationToken: activationToken
+            )
+        } catch {
+            remoteRegistrationError = error.localizedDescription
+        }
+    }
+
+    func syncRemoteDevice(activationToken: String?) async {
+        guard let token = deviceToken,
+              let activationToken,
+              !activationToken.isEmpty else { return }
+
+        do {
+            try await HaloAPI.shared.registerNativeDevice(
+                deviceToken: token,
+                activationToken: activationToken
+            )
+            remoteRegistrationError = nil
+        } catch {
+            remoteRegistrationError = error.localizedDescription
+        }
+    }
+
+    func unregisterRemoteDevice(activationToken: String?) async {
+        guard let token = deviceToken,
+              let activationToken,
+              !activationToken.isEmpty else {
+            UserDefaults.standard.removeObject(forKey: tokenKey)
+            return
+        }
+
+        do {
+            try await HaloAPI.shared.unregisterNativeDevice(
+                deviceToken: token,
+                activationToken: activationToken
+            )
+        } catch {
+            remoteRegistrationError = error.localizedDescription
+        }
+
+        UserDefaults.standard.removeObject(forKey: tokenKey)
     }
 
     func clearDelivered() async {
