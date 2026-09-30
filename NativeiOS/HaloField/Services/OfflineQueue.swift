@@ -19,6 +19,7 @@ final class PendingFieldAction {
     var lastError: String?
     var nextAttemptAt: Date?
     var ownerKey: String?
+    var requiresAttention: Bool?
 
     init(jobID: String, kind: String, payload: Data, ownerKey: String?) {
         self.id = UUID()
@@ -30,6 +31,7 @@ final class PendingFieldAction {
         self.lastError = nil
         self.nextAttemptAt = nil
         self.ownerKey = ownerKey
+        self.requiresAttention = false
     }
 }
 
@@ -70,10 +72,21 @@ final class OfflineQueue {
         )
     }
 
-    func count(in context: ModelContext, activationToken: String?) -> Int {
-        guard let activationToken, !activationToken.isEmpty else { return 0 }
+    func counts(in context: ModelContext, activationToken: String?) -> (pending: Int, attention: Int) {
+        guard let activationToken, !activationToken.isEmpty else { return (0, 0) }
         let key = Self.ownerKey(for: activationToken)
-        return (try? pending(in: context).filter { $0.ownerKey == key }.count) ?? 0
+        let scoped = (try? pending(in: context).filter { $0.ownerKey == key }) ?? []
+        return (
+            scoped.filter { $0.requiresAttention != true }.count,
+            scoped.filter { $0.requiresAttention == true }.count
+        )
+    }
+
+    func markPermanentFailure(_ action: PendingFieldAction, error: String, context: ModelContext) {
+        action.lastError = error
+        action.requiresAttention = true
+        action.nextAttemptAt = nil
+        try? context.save()
     }
 
     func markRetry(_ action: PendingFieldAction, error: String, context: ModelContext) {
@@ -92,7 +105,7 @@ final class OfflineQueue {
     ) throws -> [PendingFieldAction] {
         let key = Self.ownerKey(for: activationToken)
         return try pending(in: context).filter { action in
-            guard action.ownerKey == key else { return false }
+            guard action.ownerKey == key, action.requiresAttention != true else { return false }
             guard let retryAt = action.nextAttemptAt else { return true }
             return retryAt <= now
         }
