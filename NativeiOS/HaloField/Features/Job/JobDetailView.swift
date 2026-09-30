@@ -4,6 +4,7 @@ import SwiftUI
 struct JobDetailView: View {
     @EnvironmentObject private var store: JobStore
     @EnvironmentObject private var location: LocationService
+    @EnvironmentObject private var session: HaloSessionStore
     @Environment(\.modelContext) private var modelContext
     let jobID: String
 
@@ -127,6 +128,7 @@ struct JobDetailView: View {
                                     "taskID": task.id,
                                     "isComplete": String(!task.isComplete)
                                 ],
+                                activationToken: session.activationToken,
                                 context: modelContext
                             )
                         } label: {
@@ -228,6 +230,7 @@ struct JobDetailView: View {
                     jobID: job.id,
                     kind: .workflowState,
                     payload: ["from": from, "to": to],
+                    activationToken: session.activationToken,
                     context: modelContext
                 )
             }
