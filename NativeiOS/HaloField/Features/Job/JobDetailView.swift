@@ -12,6 +12,7 @@ struct JobDetailView: View {
     @State private var showRoute = false
     @State private var showArrivalVerification = false
     @State private var showAdditionalWork = false
+    @State private var showMessages = false
     @State private var proofPhase: String?
     @State private var proofTask: JobTask?
 
@@ -23,6 +24,7 @@ struct JobDetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
                         jobHeader(job)
+                        fieldJourney(job)
                         progress(job)
                         taskList(job)
                         proof(job)
@@ -72,6 +74,13 @@ struct JobDetailView: View {
                     AdditionalWorkView(job: job)
                         .presentationDetents([.large])
                         .presentationDragIndicator(.visible)
+                }
+                .sheet(isPresented: $showMessages) {
+                    NavigationStack {
+                        HaloCommsView(initialJobID: job.id)
+                    }
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
                 }
                 .fullScreenCover(isPresented: Binding(
                     get: { proofPhase != nil },
@@ -153,6 +162,52 @@ struct JobDetailView: View {
             }.buttonStyle(.plain)
         }
         .padding(.top, 8)
+    }
+
+    private func fieldJourney(_ job: FieldJob) -> some View {
+        let workDone = !job.tasks.isEmpty && job.completedTasks == job.tasks.count
+        let steps: [(String, String, Bool, Bool)] = [
+            ("Before", "camera.fill", job.beforePhotoCount > 0, job.beforePhotoCount == 0),
+            ("Work", "wrench.and.screwdriver.fill", workDone, job.beforePhotoCount > 0 && !workDone),
+            ("After", "camera.fill", job.afterPhotoCount > 0, workDone && job.afterPhotoCount == 0),
+            ("Submit", "checkmark.seal.fill", job.state == .review || job.state == .complete, job.afterPhotoCount > 0 && job.state != .review && job.state != .complete)
+        ]
+
+        return VStack(alignment: .leading, spacing: 11) {
+            Text("JOB FLOW")
+                .font(HaloType.body(10, weight: .bold))
+                .tracking(1.7)
+                .foregroundStyle(.white.opacity(0.42))
+
+            HStack(spacing: 7) {
+                ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                    VStack(spacing: 8) {
+                        ZStack {
+                            Circle()
+                                .fill(step.2 ? HaloTheme.lime : (step.3 ? HaloTheme.actionBlue : Color.white.opacity(0.06)))
+                                .frame(width: 34, height: 34)
+                            Image(systemName: step.2 ? "checkmark" : step.1)
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(step.2 ? HaloTheme.ink : .white)
+                        }
+
+                        Text(step.0)
+                            .font(HaloType.body(9, weight: .bold))
+                            .foregroundStyle(step.2 ? HaloTheme.lime : (step.3 ? .white : .white.opacity(0.36)))
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    if index < steps.count - 1 {
+                        Capsule()
+                            .fill(step.2 ? HaloTheme.lime.opacity(0.55) : Color.white.opacity(0.08))
+                            .frame(width: 16, height: 2)
+                            .offset(y: -9)
+                    }
+                }
+            }
+            .padding(14)
+            .haloDarkCard()
+        }
     }
 
     private func progress(_ job: FieldJob) -> some View {
@@ -248,8 +303,8 @@ struct JobDetailView: View {
             }
 
             HStack(spacing: 12) {
-                proofTile(job: job, title: "Before", count: max(job.photoCount - 3, 0), done: job.photoCount >= 5)
-                proofTile(job: job, title: "After", count: min(job.photoCount, 3), done: false)
+                proofTile(job: job, title: "Before", count: job.beforePhotoCount, done: job.beforePhotoCount > 0)
+                proofTile(job: job, title: "After", count: job.afterPhotoCount, done: job.afterPhotoCount > 0)
             }
         }
     }
@@ -324,13 +379,44 @@ struct JobDetailView: View {
 
     private func propertyNotes(_ job: FieldJob) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("PROPERTY NOTES").font(HaloType.body(10, weight: .bold)).tracking(1.7).foregroundStyle(.white.opacity(0.42))
-            Label("Gate 3142 · Keybox 8821", systemImage: "key.fill")
-            Label("Flag additional work from any task", systemImage: "flag.fill")
+            HStack {
+                Text("FIELD CONTEXT")
+                    .font(HaloType.body(10, weight: .bold))
+                    .tracking(1.7)
+                    .foregroundStyle(.white.opacity(0.42))
+                Spacer()
+                Text("BACK OFFICE LIVE")
+                    .font(HaloType.body(8, weight: .bold))
+                    .tracking(1.1)
+                    .foregroundStyle(HaloTheme.fieldLive)
+            }
+
+            Label(job.propertyName, systemImage: "building.2.fill")
+            Label("Unit \(job.unit)", systemImage: "door.left.hand.open")
+
+            if !job.services.isEmpty {
+                Label(job.services.prefix(3).joined(separator: " · "), systemImage: "wrench.and.screwdriver.fill")
+                    .lineLimit(2)
+            }
+
+            Button {
+                showMessages = true
+            } label: {
+                HStack {
+                    Label("Message Office", systemImage: "message.fill")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                }
+                .font(HaloType.body(12, weight: .bold))
+                .foregroundStyle(HaloTheme.lime)
+                .padding(.top, 4)
+            }
+            .buttonStyle(.plain)
         }
         .font(HaloType.body(12, weight: .medium))
         .foregroundStyle(.white.opacity(0.62))
-        .padding(18).haloDarkCard()
+        .padding(18)
+        .haloDarkCard()
     }
 
     private func primaryAction(_ job: FieldJob) -> some View {
