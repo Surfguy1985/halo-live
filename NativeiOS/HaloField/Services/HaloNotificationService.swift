@@ -34,9 +34,6 @@ final class HaloNotificationService: ObservableObject {
                 options: [.alert, .badge, .sound]
             )
             await refreshAuthorization()
-            if granted {
-                UIApplication.shared.registerForRemoteNotifications()
-            }
             return granted
         } catch {
             await refreshAuthorization()
