@@ -14,7 +14,7 @@ final class HaloAPITests: XCTestCase {
 
     func testFetchJobsMapsLiveHaloShape() async throws {
         let payload = """
-        [
+        {"jobs":[
           {
             "id":"c5c766ff-56e2-43d3-a3dc-4c4cf5b8bc29",
             "jobNo":"B44-816",
@@ -31,11 +31,11 @@ final class HaloAPITests: XCTestCase {
             "crewLeaderName":"Marco",
             "createdAt":"2026-09-30T12:00:00.000Z"
           }
-        ]
+        ]}
         """.data(using: .utf8)!
 
         let api = makeAPI(status: 200, data: payload)
-        let jobs = try await api.fetchJobs()
+        let jobs = try await api.fetchJobs(activationToken: "test-token-1234567890")
 
         XCTAssertEqual(jobs.count, 1)
         let job = try XCTUnwrap(jobs.first)
@@ -51,10 +51,10 @@ final class HaloAPITests: XCTestCase {
 
     func testCompletedJobsMapClosed() async throws {
         let payload = """
-        [{"id":"job-2","propertyName":"Avalon","unitNo":"927","description":"Cabinet Paint","status":"complete"}]
+        {"jobs":[{"id":"job-2","propertyName":"Avalon","unitNo":"927","description":"Cabinet Paint","status":"complete"}]}
         """.data(using: .utf8)!
 
-        let jobs = try await makeAPI(status: 200, data: payload).fetchJobs()
+        let jobs = try await makeAPI(status: 200, data: payload).fetchJobs(activationToken: "test-token-1234567890")
 
         XCTAssertEqual(jobs.first?.state, .complete)
         XCTAssertEqual(jobs.first?.isClosed, true)
@@ -65,7 +65,7 @@ final class HaloAPITests: XCTestCase {
         let payload = #"{"error":"Jobs unavailable"}"#.data(using: .utf8)!
 
         do {
-            _ = try await makeAPI(status: 503, data: payload).fetchJobs()
+            _ = try await makeAPI(status: 503, data: payload).fetchJobs(activationToken: "test-token-1234567890")
             XCTFail("Expected fetchJobs to throw")
         } catch {
             XCTAssertTrue(error.localizedDescription.contains("Jobs unavailable"))
@@ -74,13 +74,13 @@ final class HaloAPITests: XCTestCase {
 
     func testInvalidRowsAreDroppedWithoutCrashingValidJobs() async throws {
         let payload = """
-        [
+        {"jobs":[
           {"propertyName":"Missing ID"},
           {"id":"job-3","propertyName":"The Emerson","unitNo":"803","description":"Final clean","status":"active"}
-        ]
+        ]}
         """.data(using: .utf8)!
 
-        let jobs = try await makeAPI(status: 200, data: payload).fetchJobs()
+        let jobs = try await makeAPI(status: 200, data: payload).fetchJobs(activationToken: "test-token-1234567890")
 
         XCTAssertEqual(jobs.count, 1)
         XCTAssertEqual(jobs[0].id, "job-3")
@@ -94,6 +94,7 @@ final class HaloAPITests: XCTestCase {
 
         MockURLProtocol.handler = { request in
             XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/json")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-token-1234567890")
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: status,
