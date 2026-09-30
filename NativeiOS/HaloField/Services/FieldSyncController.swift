@@ -87,6 +87,24 @@ final class FieldSyncController: ObservableObject {
                 activationToken: activationToken
             )
 
+        case .turnHandoff:
+            guard
+                let summary = raw["summary"] as? String,
+                let detail = raw["detail"] as? String,
+                let urgency = raw["urgency"] as? String,
+                let materialEstimate = raw["materialEstimate"] as? String
+            else { throw HaloAPIError.malformedPayload }
+
+            try await api.createTurnHandoff(
+                handoffID: action.id,
+                sourceJobID: action.jobID,
+                summary: summary,
+                detail: detail,
+                urgency: urgency,
+                materialEstimate: materialEstimate,
+                activationToken: activationToken
+            )
+
         case .proofCaptured:
             guard
                 let imagePath = raw["imagePath"] as? String,
