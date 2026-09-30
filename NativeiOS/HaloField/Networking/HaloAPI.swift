@@ -90,6 +90,13 @@ struct HaloClockStatus: Hashable, Sendable {
     let entry: HaloClockEntry?
 }
 
+struct HaloActivationInfo: Hashable, Sendable {
+    let crewID: String
+    let crewName: String
+    let expiresAt: String?
+    let nativePushDeliveryConfigured: Bool
+}
+
 actor HaloAPI {
     static let shared = HaloAPI()
 
@@ -102,6 +109,34 @@ actor HaloAPI {
     ) {
         self.baseURL = baseURL
         self.session = session
+    }
+
+    func validateActivation(token: String) async throws -> HaloActivationInfo {
+        let body = try JSONSerialization.data(withJSONObject: ["action": "validate"])
+        let data = try await request(
+            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            method: "POST",
+            body: body,
+            bearerToken: token
+        )
+
+        guard
+            let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            (root["ok"] as? Bool) == true,
+            let crew = root["crew"] as? [String: Any],
+            let crewID = Self.string(crew["id"]),
+            let crewName = Self.string(crew["name"])
+        else {
+            throw HaloAPIError.malformedPayload
+        }
+
+        let capabilities = root["capabilities"] as? [String: Any]
+        return HaloActivationInfo(
+            crewID: crewID,
+            crewName: crewName,
+            expiresAt: Self.string(root["expiresAt"]),
+            nativePushDeliveryConfigured: (capabilities?["nativePushDeliveryConfigured"] as? Bool) ?? false
+        )
     }
 
     func fetchJobs(activationToken: String) async throws -> [FieldJob] {
