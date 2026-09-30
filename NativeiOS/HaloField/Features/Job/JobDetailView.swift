@@ -5,6 +5,7 @@ struct JobDetailView: View {
     @EnvironmentObject private var store: JobStore
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var session: HaloSessionStore
+    @EnvironmentObject private var liveActivity: HaloLiveActivityController
     @Environment(\.modelContext) private var modelContext
     let jobID: String
 
@@ -78,9 +79,33 @@ struct JobDetailView: View {
                 )) {
                     CameraProofView(job: job, phase: proofPhase ?? "Proof", task: proofTask)
                 }
+                .task {
+                    liveActivity.restoreState()
+                    if shouldShowLiveActivity(for: job) {
+                        await liveActivity.startOrUpdate(job: job)
+                    }
+                }
+                .onChange(of: job) { _, updated in
+                    Task {
+                        if updated.state == .complete {
+                            await liveActivity.end(job: updated)
+                        } else if shouldShowLiveActivity(for: updated) {
+                            await liveActivity.startOrUpdate(job: updated)
+                        }
+                    }
+                }
             } else {
                 ContentUnavailableView("Job unavailable", systemImage: "exclamationmark.triangle")
             }
+        }
+    }
+
+    private func shouldShowLiveActivity(for job: FieldJob) -> Bool {
+        switch job.state {
+        case .enRoute, .arrived, .active, .proof, .review:
+            true
+        case .scheduled, .complete, .hold:
+            false
         }
     }
 
