@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UIKit
 
 struct RootView: View {
     @EnvironmentObject private var session: HaloSessionStore
@@ -146,9 +147,11 @@ private struct ProfileView: View {
                 HStack {
                     Label(network.isConnected ? "Field sync" : "Offline mode", systemImage: network.isConnected ? "arrow.triangle.2.circlepath" : "wifi.slash")
                     Spacer()
-                    Text(fieldSync.pendingCount == 0 ? "Up to date" : "\(fieldSync.pendingCount) pending")
+                    Text(fieldSync.attentionCount > 0
+                         ? "\(fieldSync.attentionCount) need attention"
+                         : (fieldSync.pendingCount == 0 ? "Up to date" : "\(fieldSync.pendingCount) pending"))
                         .font(.caption)
-                        .foregroundStyle(fieldSync.pendingCount == 0 ? HaloTheme.fieldLive : HaloTheme.warning)
+                        .foregroundStyle(fieldSync.pendingCount == 0 && fieldSync.attentionCount == 0 ? HaloTheme.fieldLive : HaloTheme.warning)
                 }
                 Label("Location verification", systemImage: "location.fill")
                 Label("Notifications", systemImage: "bell.fill")
@@ -161,6 +164,13 @@ private struct ProfileView: View {
                     session.deactivate()
                 } label: {
                     Label("Deactivate this iPhone", systemImage: "rectangle.portrait.and.arrow.right")
+                }
+                .disabled(fieldSync.pendingCount > 0 || fieldSync.attentionCount > 0)
+
+                if fieldSync.pendingCount > 0 || fieldSync.attentionCount > 0 {
+                    Text("Sync or resolve saved field work before deactivating this iPhone.")
+                        .font(.caption)
+                        .foregroundStyle(HaloTheme.warning)
                 }
             }
         }
