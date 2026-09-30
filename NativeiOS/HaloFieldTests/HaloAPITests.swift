@@ -29,6 +29,21 @@ final class HaloAPITests: XCTestCase {
             "scheduledTime":"08:00",
             "crewLeaderId":"crew-1",
             "crewLeaderName":"Marco",
+            "tasks":[
+              {
+                "id":"11111111-1111-1111-1111-111111111111",
+                "title":"Wall Prep & Paint (2 BR)",
+                "detail":"EA",
+                "isComplete":false,
+                "requiresPhoto":true
+              },
+              {
+                "id":"22222222-2222-2222-2222-222222222222",
+                "title":"Cabinet Paint (2 BR)",
+                "isComplete":true,
+                "requiresPhoto":true
+              }
+            ],
             "createdAt":"2026-09-30T12:00:00.000Z"
           }
         ]}
@@ -45,8 +60,11 @@ final class HaloAPITests: XCTestCase {
         XCTAssertEqual(job.unit, "816")
         XCTAssertEqual(job.state, .scheduled)
         XCTAssertEqual(job.crewLeaderName, "Marco")
-        XCTAssertEqual(job.tasks.count, 3)
+        XCTAssertEqual(job.tasks.count, 2)
+        XCTAssertEqual(job.tasks[0].id, "11111111-1111-1111-1111-111111111111")
         XCTAssertEqual(job.tasks[0].title, "Wall Prep & Paint (2 BR)")
+        XCTAssertEqual(job.tasks[0].detail, "EA")
+        XCTAssertEqual(job.tasks[1].isComplete, true)
     }
 
     func testCompletedJobsMapClosed() async throws {
