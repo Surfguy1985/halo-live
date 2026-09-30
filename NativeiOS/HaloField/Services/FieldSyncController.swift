@@ -49,7 +49,8 @@ final class FieldSyncController: ObservableObject {
                 queue.remove(action, context: context)
             } catch {
                 let message = error.localizedDescription
-                if case let HaloAPIError.http(status, _) = error,
+                if let apiError = error as? HaloAPIError,
+                   case let .http(status, _) = apiError,
                    status >= 400, status < 500,
                    status != 401, status != 408, status != 429 {
                     queue.markPermanentFailure(action, error: message, context: context)
