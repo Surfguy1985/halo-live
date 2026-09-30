@@ -1,12 +1,24 @@
 import SwiftUI
 
 struct RootView: View {
+    @EnvironmentObject private var session: HaloSessionStore
+
     init() {
         UITabBar.appearance().unselectedItemTintColor = UIColor.white.withAlphaComponent(0.45)
         UITabBar.appearance().backgroundColor = UIColor(red: 9/255, green: 23/255, blue: 34/255, alpha: 0.98)
     }
 
     var body: some View {
+        Group {
+            if session.isActivated {
+                tabShell
+            } else {
+                ActivationView()
+            }
+        }
+    }
+
+    private var tabShell: some View {
         TabView {
             NavigationStack { TodayView() }
                 .tabItem { Label("Today", systemImage: "bolt.fill") }
