@@ -159,6 +159,25 @@ private struct ProfileView: View {
     @EnvironmentObject private var store: JobStore
     @EnvironmentObject private var fieldSync: FieldSyncController
     @EnvironmentObject private var network: NetworkMonitor
+    @EnvironmentObject private var notifications: HaloNotificationService
+
+    private var notificationStatusText: String {
+        switch notifications.authorizationStatus {
+        case .authorized, .provisional, .ephemeral: "On"
+        case .denied: "Off"
+        case .notDetermined: "Set up"
+        @unknown default: "Unknown"
+        }
+    }
+
+    private var notificationStatusColor: Color {
+        switch notifications.authorizationStatus {
+        case .authorized, .provisional, .ephemeral: HaloTheme.fieldLive
+        case .denied: HaloTheme.warning
+        case .notDetermined: .secondary
+        @unknown default: .secondary
+        }
+    }
 
     var body: some View {
         List {
@@ -173,7 +192,25 @@ private struct ProfileView: View {
                         .foregroundStyle(fieldSync.pendingCount == 0 && fieldSync.attentionCount == 0 ? HaloTheme.fieldLive : HaloTheme.warning)
                 }
                 Label("Location verification", systemImage: "location.fill")
-                Label("Notifications", systemImage: "bell.fill")
+
+                Button {
+                    Task {
+                        if notifications.authorizationStatus == .notDetermined {
+                            _ = await notifications.requestAuthorization()
+                        } else {
+                            await notifications.refreshAuthorization()
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Label("Notifications", systemImage: "bell.fill")
+                        Spacer()
+                        Text(notificationStatusText)
+                            .font(.caption)
+                            .foregroundStyle(notificationStatusColor)
+                    }
+                }
+                .buttonStyle(.plain)
             }
             Section("Account") {
                 Label("Crew profile", systemImage: "person.2.fill")
