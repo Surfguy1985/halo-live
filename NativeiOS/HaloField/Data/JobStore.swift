@@ -116,6 +116,13 @@ final class JobStore: ObservableObject {
 #endif
     }
 
+    func setState(_ state: JobState, for jobID: String) {
+        guard let index = jobs.firstIndex(where: { $0.id == jobID }) else { return }
+        withAnimation(.snappy(duration: 0.35)) {
+            jobs[index].state = state
+        }
+    }
+
     func advance(_ jobID: String) {
         guard let index = jobs.firstIndex(where: { $0.id == jobID }) else { return }
         let current = jobs[index].state
