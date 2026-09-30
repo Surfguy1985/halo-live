@@ -24,7 +24,7 @@ struct HaloFieldApp: App {
                 .environmentObject(liveActivity)
                 .preferredColorScheme(.dark)
                 .onOpenURL { url in
-                    session.handle(url: url)
+                    Task { await session.handle(url: url) }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .haloAPNSDeviceToken)) { note in
                     guard let token = note.object as? String else { return }
