@@ -30,20 +30,25 @@ final class JobStore: ObservableObject {
         jobs.filter { $0.state == .hold || $0.flaggedCount > 0 }.count
     }
 
-    func loadIfNeeded() async {
+    func loadIfNeeded(activationToken: String?) async {
         guard !hasLoaded else { return }
-        await refresh(initial: true)
+        await refresh(activationToken: activationToken, initial: true)
     }
 
-    func refresh(initial: Bool = false) async {
+    func refresh(activationToken: String?, initial: Bool = false) async {
         if initial { isLoading = true } else { isRefreshing = true }
         defer {
             isLoading = false
             isRefreshing = false
         }
 
+        guard let activationToken, !activationToken.isEmpty else {
+            syncError = "This iPhone is not activated for a HALO crew."
+            return
+        }
+
         do {
-            let live = try await api.fetchJobs()
+            let live = try await api.fetchJobs(activationToken: activationToken)
             withAnimation(.snappy(duration: 0.28)) {
                 jobs = live
             }
