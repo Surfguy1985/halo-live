@@ -228,7 +228,7 @@ actor HaloAPI {
             "jobId": metadata.jobID,
             "phase": metadata.phase.lowercased() == "after" ? "after" : "before",
             "imageBase64": bytes.base64EncodedString(),
-            "capturedAt": ISO8601DateFormatter().string(from: metadata.capturedAt)
+            "capturedAt": metadata.capturedAt
         ]
         if let lat = metadata.latitude { object["lat"] = lat }
         if let lng = metadata.longitude { object["lng"] = lng }
