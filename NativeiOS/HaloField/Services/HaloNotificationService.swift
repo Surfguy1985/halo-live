@@ -49,8 +49,8 @@ final class HaloNotificationService: ObservableObject {
         try? await UNUserNotificationCenter.current().add(request)
     }
 
-    func clearDelivered() {
+    func clearDelivered() async {
         UNUserNotificationCenter.current().removeAllDeliveredNotifications()
-        UNUserNotificationCenter.current().setBadgeCount(0)
+        try? await UNUserNotificationCenter.current().setBadgeCount(0)
     }
 }
