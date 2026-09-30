@@ -50,9 +50,14 @@ actor HaloAPI {
         .sorted(by: Self.sortJobs)
     }
 
-    func updateJobStatus(id: String, status: String) async throws {
+    func updateJobStatus(id: String, status: String, activationToken: String) async throws {
         let body = try JSONSerialization.data(withJSONObject: ["status": status])
-        _ = try await request(path: "/api/jobs/\(id)", method: "PATCH", body: body)
+        _ = try await request(
+            path: "/api/jobs/\(id)",
+            method: "PATCH",
+            body: body,
+            bearerToken: activationToken
+        )
     }
 
     private func request(path: String, method: String = "GET", body: Data? = nil, bearerToken: String? = nil) async throws -> Data {
