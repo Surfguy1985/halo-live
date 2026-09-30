@@ -195,11 +195,17 @@ private struct ProfileView: View {
                 Label("Location verification", systemImage: "location.fill")
 
                 Button {
-                    Task {
-                        if notifications.authorizationStatus == .notDetermined {
-                            _ = await notifications.requestAuthorization()
-                        } else {
-                            await notifications.refreshAuthorization()
+                    if notifications.authorizationStatus == .denied {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
+                    } else {
+                        Task {
+                            if notifications.authorizationStatus == .notDetermined {
+                                _ = await notifications.requestAuthorization()
+                            } else {
+                                await notifications.refreshAuthorization()
+                            }
                         }
                     }
                 } label: {
