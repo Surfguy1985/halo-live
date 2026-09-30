@@ -137,11 +137,19 @@ private struct HaloAssistantView: View {
 private struct ProfileView: View {
     @EnvironmentObject private var session: HaloSessionStore
     @EnvironmentObject private var store: JobStore
+    @EnvironmentObject private var fieldSync: FieldSyncController
+    @EnvironmentObject private var network: NetworkMonitor
 
     var body: some View {
         List {
             Section("Field") {
-                Label("Offline sync", systemImage: "arrow.triangle.2.circlepath")
+                HStack {
+                    Label(network.isConnected ? "Field sync" : "Offline mode", systemImage: network.isConnected ? "arrow.triangle.2.circlepath" : "wifi.slash")
+                    Spacer()
+                    Text(fieldSync.pendingCount == 0 ? "Up to date" : "\(fieldSync.pendingCount) pending")
+                        .font(.caption)
+                        .foregroundStyle(fieldSync.pendingCount == 0 ? HaloTheme.fieldLive : HaloTheme.warning)
+                }
                 Label("Location verification", systemImage: "location.fill")
                 Label("Notifications", systemImage: "bell.fill")
             }
