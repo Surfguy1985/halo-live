@@ -26,6 +26,11 @@ jobs:
         working-directory: NativeiOS
         run: xcodegen generate
 
+      - name: Validate WidgetKit extension metadata
+        working-directory: NativeiOS
+        run: |
+          test "$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' HaloFieldWidgets/Info.plist)" = "com.apple.widgetkit-extension"
+
       - name: Pick available iPhone simulator
         id: simulator
         run: |
