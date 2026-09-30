@@ -5,6 +5,7 @@ struct ActivationView: View {
     @EnvironmentObject private var store: JobStore
     @State private var token = ""
     @State private var error: String?
+    @State private var isActivating = false
 
     var body: some View {
         ZStack {
@@ -50,14 +51,33 @@ struct ActivationView: View {
                         }
 
                     Button {
-                        do {
-                            try session.activate(token: token)
-                            error = nil
-                        } catch {
-                            self.error = error.localizedDescription
+                        let candidate = token.trimmingCharacters(in: .whitespacesAndNewlines)
+                        isActivating = true
+                        error = nil
+
+                        Task {
+                            do {
+                                _ = try await session.activateValidated(token: candidate)
+                                await MainActor.run {
+                                    isActivating = false
+                                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                                }
+                            } catch {
+                                await MainActor.run {
+                                    isActivating = false
+                                    self.error = error.localizedDescription
+                                    UINotificationFeedbackGenerator().notificationOccurred(.error)
+                                }
+                            }
                         }
                     } label: {
-                        Text("Activate this iPhone")
+                        HStack {
+                            Text(isActivating ? "Verifying with HALO…" : "Activate this iPhone")
+                            if isActivating {
+                                Spacer()
+                                ProgressView().tint(HaloTheme.ink)
+                            }
+                        }
                             .font(HaloType.body(15, weight: .bold))
                             .frame(maxWidth: .infinity)
                             .frame(height: 56)
@@ -65,8 +85,8 @@ struct ActivationView: View {
                             .foregroundStyle(HaloTheme.ink)
                             .clipShape(Capsule())
                     }
-                    .disabled(token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .opacity(token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
+                    .disabled(token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isActivating)
+                    .opacity(token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isActivating ? 0.45 : 1)
 
                     if let error {
                         Text(error)
