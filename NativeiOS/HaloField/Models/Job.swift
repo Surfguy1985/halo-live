@@ -23,7 +23,7 @@ enum JobState: String, Codable, CaseIterable {
 }
 
 struct JobTask: Identifiable, Codable, Hashable {
-    let id: UUID
+    let id: String
     var title: String
     var detail: String?
     var isComplete: Bool
@@ -31,22 +31,32 @@ struct JobTask: Identifiable, Codable, Hashable {
 }
 
 struct FieldJob: Identifiable, Codable, Hashable {
-    let id: UUID
+    let id: String
+    var jobNo: String?
+    var propertyID: String?
     var propertyName: String
     var unit: String
     var kind: JobKind
     var title: String
+    var services: [String]
     var state: JobState
+    var rawStatus: String
+    var scheduledDate: String?
     var scheduledWindow: String
     var travelMinutes: Int?
     var address: String
+    var crewLeaderID: String?
+    var crewLeaderName: String?
     var tasks: [JobTask]
     var photoCount: Int
     var flaggedCount: Int
+    var updatedAt: String?
 
     var completedTasks: Int { tasks.filter(\.isComplete).count }
     var progress: Double {
         guard !tasks.isEmpty else { return 0 }
         return Double(completedTasks) / Double(tasks.count)
     }
+
+    var isClosed: Bool { state == .complete }
 }
