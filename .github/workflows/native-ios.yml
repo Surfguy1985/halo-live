@@ -1,0 +1,52 @@
+name: Native iOS CI
+
+on:
+  push:
+    branches:
+      - ios-swift-native-v1
+    paths:
+      - "NativeiOS/**"
+      - ".github/workflows/native-ios.yml"
+  pull_request:
+    paths:
+      - "NativeiOS/**"
+
+jobs:
+  test:
+    runs-on: macos-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: NativeiOS
+        run: xcodegen generate
+
+      - name: Pick available iPhone simulator
+        id: simulator
+        run: |
+          DEVICE_ID=$(python3 - <<'PY'
+          import json, subprocess
+          data=json.loads(subprocess.check_output(["xcrun","simctl","list","devices","available","--json"]))
+          for runtime, devices in data["devices"].items():
+              for d in devices:
+                  if d["isAvailable"] and d["name"].startswith("iPhone"):
+                      print(d["udid"])
+                      raise SystemExit
+          raise SystemExit("No available iPhone simulator")
+          PY
+          )
+          echo "id=$DEVICE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Build and test
+        working-directory: NativeiOS
+        run: |
+          xcodebuild test \
+            -project HaloField.xcodeproj \
+            -scheme HaloField \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}" \
+            CODE_SIGNING_ALLOWED=NO
