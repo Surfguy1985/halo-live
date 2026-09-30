@@ -15,13 +15,13 @@ final class FieldSyncController: ObservableObject {
         self.queue = queue
     }
 
-    func refreshPendingCount(context: ModelContext) {
-        pendingCount = queue.count(in: context)
+    func refreshPendingCount(context: ModelContext, activationToken: String?) {
+        pendingCount = queue.count(in: context, activationToken: activationToken)
     }
 
     func flush(context: ModelContext, activationToken: String?) async {
         guard let activationToken, !activationToken.isEmpty, !isSyncing else {
-            refreshPendingCount(context: context)
+            refreshPendingCount(context: context, activationToken: activationToken)
             return
         }
 
@@ -29,12 +29,12 @@ final class FieldSyncController: ObservableObject {
         lastError = nil
         defer {
             isSyncing = false
-            refreshPendingCount(context: context)
+            refreshPendingCount(context: context, activationToken: activationToken)
         }
 
         let actions: [PendingFieldAction]
         do {
-            actions = try queue.ready(in: context)
+            actions = try queue.ready(in: context, activationToken: activationToken)
         } catch {
             lastError = error.localizedDescription
             return
