@@ -40,6 +40,13 @@ struct HaloCommsView: View {
             .task(id: session.activationToken) {
                 if selectedJobID == nil { selectedJobID = initialJobID }
                 await refresh()
+
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(15))
+                    if network.isConnected {
+                        await refresh()
+                    }
+                }
             }
             .onReceive(location.$location) { fix in
                 guard let fix else { return }
@@ -482,6 +489,8 @@ struct HaloCommsView: View {
         return date.formatted(date: .omitted, time: .shortened)
     }
 
+    // Foreground refresh keeps Back Office messages and location requests feeling live
+    // without requiring a permanent socket connection.
     private func refresh() async {
         guard network.isConnected, let token = session.activationToken, !token.isEmpty else { return }
         isLoading = true
