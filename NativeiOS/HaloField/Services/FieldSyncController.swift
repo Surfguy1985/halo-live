@@ -124,6 +124,9 @@ final class FieldSyncController: ObservableObject {
                 bytes: bytes,
                 activationToken: activationToken
             )
+
+            try? FileManager.default.removeItem(at: imageURL)
+            try? FileManager.default.removeItem(at: metadataURL)
         }
     }
 }
