@@ -18,6 +18,8 @@ enum HaloPreviewData {
             scheduledWindow: "8:00 AM",
             travelMinutes: 8,
             address: "Thornbury at Chase Oaks, Plano, TX",
+            propertyLatitude: nil,
+            propertyLongitude: nil,
             crewLeaderID: "preview-crew",
             crewLeaderName: "Archangel Crew 01",
             tasks: [
@@ -44,6 +46,8 @@ enum HaloPreviewData {
             scheduledWindow: "10:30 AM",
             travelMinutes: 14,
             address: "Avalon, Plano, TX",
+            propertyLatitude: nil,
+            propertyLongitude: nil,
             crewLeaderID: "preview-crew",
             crewLeaderName: "Archangel Crew 01",
             tasks: [
@@ -69,6 +73,8 @@ enum HaloPreviewData {
             scheduledWindow: "1:00 PM",
             travelMinutes: 11,
             address: "The Emerson, Frisco, TX",
+            propertyLatitude: nil,
+            propertyLongitude: nil,
             crewLeaderID: "preview-crew",
             crewLeaderName: "Archangel Crew 01",
             tasks: [
