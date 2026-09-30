@@ -116,6 +116,13 @@ final class JobStore: ObservableObject {
         }
     }
 
+    func recordLocalProof(jobID: String) {
+        guard let index = jobs.firstIndex(where: { $0.id == jobID }) else { return }
+        withAnimation(.snappy(duration: 0.25)) {
+            jobs[index].photoCount += 1
+        }
+    }
+
     func toggleTask(jobID: String, taskID: String) {
         guard let j = jobs.firstIndex(where: { $0.id == jobID }),
               let t = jobs[j].tasks.firstIndex(where: { $0.id == taskID }) else { return }
