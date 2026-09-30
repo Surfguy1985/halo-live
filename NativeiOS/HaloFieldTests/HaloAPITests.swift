@@ -71,6 +71,53 @@ final class HaloAPITests: XCTestCase {
         XCTAssertEqual(job.tasks[1].isComplete, true)
     }
 
+
+    func testFetchJobsMapsProofReworkAndCloseoutState() async throws {
+        let payload = """
+        {"jobs":[
+          {
+            "id":"job-rework-1",
+            "propertyName":"Thornbury at Chase Oaks",
+            "unitNo":"2418",
+            "description":"Make Ready",
+            "status":"active",
+            "photoCount":7,
+            "beforePhotoCount":4,
+            "afterPhotoCount":3,
+            "flaggedCount":1,
+            "rework":true,
+            "reworkNotes":"Touch up paint near entry.",
+            "reworkItems":[
+              {"id":"job-rework-1:rework:0","index":0,"text":"Touch up paint","checked":false},
+              {"id":"job-rework-1:rework:1","index":1,"text":"Replace switch plate","checked":true}
+            ],
+            "closeoutStage":"needs_attention",
+            "closeoutBlockers":["PO missing"],
+            "readyForWalk":true,
+            "walkVerified":false
+          }
+        ]}
+        """.data(using: .utf8)!
+
+        let jobs = try await makeAPI(status: 200, data: payload).fetchJobs(
+            activationToken: "test-token-1234567890"
+        )
+
+        let job = try XCTUnwrap(jobs.first)
+        XCTAssertEqual(job.photoCount, 7)
+        XCTAssertEqual(job.beforePhotoCount, 4)
+        XCTAssertEqual(job.afterPhotoCount, 3)
+        XCTAssertEqual(job.flaggedCount, 1)
+        XCTAssertEqual(job.needsRework, true)
+        XCTAssertEqual(job.reworkNotes, "Touch up paint near entry.")
+        XCTAssertEqual(job.reworkItems?.count, 2)
+        XCTAssertEqual(job.unresolvedReworkCount, 1)
+        XCTAssertEqual(job.closeoutStage, "needs_attention")
+        XCTAssertEqual(job.closeoutBlockers, ["PO missing"])
+        XCTAssertEqual(job.readyForWalk, true)
+        XCTAssertEqual(job.walkVerified, false)
+    }
+
     func testCompletedJobsMapClosed() async throws {
         let payload = """
         {"jobs":[{"id":"job-2","propertyName":"Avalon","unitNo":"927","description":"Cabinet Paint","status":"complete"}]}
