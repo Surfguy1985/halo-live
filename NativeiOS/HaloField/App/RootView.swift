@@ -18,7 +18,10 @@ struct RootView: View {
             }
         }
         .task(id: session.activationToken) {
-            guard session.isActivated else { return }
+            guard session.isActivated else {
+                store.clear()
+                return
+            }
             await store.loadIfNeeded(activationToken: session.activationToken)
         }
     }
@@ -88,6 +91,9 @@ private struct HaloAssistantView: View {
 }
 
 private struct ProfileView: View {
+    @EnvironmentObject private var session: HaloSessionStore
+    @EnvironmentObject private var store: JobStore
+
     var body: some View {
         List {
             Section("Field") {
@@ -98,6 +104,12 @@ private struct ProfileView: View {
             Section("Account") {
                 Label("Crew profile", systemImage: "person.2.fill")
                 Label("Settings", systemImage: "gearshape.fill")
+                Button(role: .destructive) {
+                    store.clear()
+                    session.deactivate()
+                } label: {
+                    Label("Deactivate this iPhone", systemImage: "rectangle.portrait.and.arrow.right")
+                }
             }
         }
         .scrollContentBackground(.hidden)
