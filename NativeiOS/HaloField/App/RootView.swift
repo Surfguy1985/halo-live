@@ -11,8 +11,15 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
-        UITabBar.appearance().unselectedItemTintColor = UIColor.white.withAlphaComponent(0.45)
-        UITabBar.appearance().backgroundColor = UIColor(red: 9/255, green: 23/255, blue: 34/255, alpha: 0.98)
+        let appearance = UITabBarAppearance()
+        appearance.configureWithDefaultBackground()
+        appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterialDark)
+        appearance.backgroundColor = UIColor(red: 9/255, green: 23/255, blue: 34/255, alpha: 0.72)
+        appearance.shadowColor = UIColor.white.withAlphaComponent(0.06)
+
+        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().scrollEdgeAppearance = appearance
+        UITabBar.appearance().unselectedItemTintColor = UIColor.white.withAlphaComponent(0.42)
     }
 
     var body: some View {
