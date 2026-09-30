@@ -119,15 +119,9 @@ final class FieldSyncController: ObservableObject {
                 from: Data(contentsOf: metadataURL)
             )
 
-            let upload = try await api.requestProofUpload(
-                jobID: action.jobID,
-                size: bytes.count,
-                activationToken: activationToken
-            )
-            try await api.uploadProofBytes(bytes, to: upload.uploadURL)
-            try await api.registerProof(
+            try await api.uploadProof(
                 metadata: metadata,
-                objectPath: upload.objectPath,
+                bytes: bytes,
                 activationToken: activationToken
             )
         }
