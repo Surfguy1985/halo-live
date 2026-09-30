@@ -11,6 +11,10 @@ on:
     paths:
       - "NativeiOS/**"
 
+concurrency:
+  group: native-ios-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: macos-latest
