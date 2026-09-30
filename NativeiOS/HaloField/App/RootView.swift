@@ -199,7 +199,7 @@ private struct ProfileView: View {
                 Label("Crew profile", systemImage: "person.2.fill")
                 Label("Settings", systemImage: "gearshape.fill")
                 Button(role: .destructive) {
-                    store.clear()
+                    store.clear(removeCache: true)
                     session.deactivate()
                 } label: {
                     Label("Deactivate this iPhone", systemImage: "rectangle.portrait.and.arrow.right")
