@@ -2,7 +2,12 @@ import SwiftUI
 
 struct JobDetailView: View {
     @EnvironmentObject private var store: JobStore
+    @EnvironmentObject private var location: LocationService
     let jobID: UUID
+
+    @State private var showRoute = false
+    @State private var proofPhase: String?
+    @State private var proofTask: JobTask?
 
     private var job: FieldJob? { store.jobs.first(where: { $0.id == jobID }) }
 
@@ -20,11 +25,22 @@ struct JobDetailView: View {
                     .padding(.horizontal, HaloTheme.horizontal)
                     .padding(.bottom, 112)
                 }
-                .background(HaloTheme.paper.ignoresSafeArea())
-                .safeAreaInset(edge: .bottom) {
-                    primaryAction(job)
-                }
+                .background(
+                    ZStack {
+                        HaloTheme.fieldBackground
+                        RadialGradient(colors: [HaloTheme.actionBlue.opacity(0.12), .clear], center: .topTrailing, startRadius: 0, endRadius: 320)
+                    }.ignoresSafeArea()
+                )
+                .safeAreaInset(edge: .bottom) { primaryAction(job) }
                 .navigationBarTitleDisplayMode(.inline)
+                .toolbarColorScheme(.dark, for: .navigationBar)
+                .sheet(isPresented: $showRoute) { JobRouteView(job: job) }
+                .fullScreenCover(isPresented: Binding(
+                    get: { proofPhase != nil },
+                    set: { if !$0 { proofPhase = nil; proofTask = nil } }
+                )) {
+                    CameraProofView(job: job, phase: proofPhase ?? "Proof", task: proofTask)
+                }
             } else {
                 ContentUnavailableView("Job unavailable", systemImage: "exclamationmark.triangle")
             }
@@ -32,136 +48,184 @@ struct JobDetailView: View {
     }
 
     private func jobHeader(_ job: FieldJob) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 13) {
             HStack {
                 Text(job.kind.rawValue)
-                    .font(.caption2.weight(.black)).tracking(1.2)
+                    .font(HaloType.body(9, weight: .bold)).tracking(1.4)
                     .padding(.horizontal, 10).padding(.vertical, 6)
-                    .background(HaloTheme.ink).foregroundStyle(.white).clipShape(Capsule())
+                    .background(HaloTheme.lime).foregroundStyle(HaloTheme.ink).clipShape(Capsule())
                 Spacer()
-                Text(job.state.rawValue.uppercased())
-                    .font(.caption.weight(.bold)).foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Circle().fill(job.state == .complete ? HaloTheme.success : HaloTheme.fieldLive).frame(width: 7, height: 7)
+                    Text(job.state.rawValue.uppercased())
+                        .font(HaloType.body(10, weight: .bold)).tracking(1.1).foregroundStyle(.white.opacity(0.55))
+                }
             }
+
             Text("Unit \(job.unit)")
-                .font(.system(size: 38, weight: .bold, design: .rounded)).tracking(-1)
-            Text(job.title).font(.title3.weight(.semibold))
-            Label(job.propertyName, systemImage: "building.2.fill")
-                .font(.subheadline).foregroundStyle(.secondary)
-            Label(job.address, systemImage: "location.fill")
-                .font(.subheadline).foregroundStyle(.secondary)
+                .font(HaloType.display(40, weight: .semibold))
+                .tracking(-1.8)
+                .foregroundStyle(.white)
+            Text(job.title).font(HaloType.card(19, weight: .semibold)).foregroundStyle(.white.opacity(0.82))
+
+            Button { showRoute = true } label: {
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Label(job.propertyName, systemImage: "building.2.fill")
+                        Label(job.address, systemImage: "location.fill")
+                    }
+                    .font(HaloType.body(12, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.52))
+                    Spacer()
+                    Image(systemName: "arrow.up.right").foregroundStyle(HaloTheme.lime)
+                }
+                .padding(16).haloDarkCard()
+            }.buttonStyle(.plain)
         }
         .padding(.top, 8)
     }
 
     private func progress(_ job: FieldJob) -> some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 15) {
             ZStack {
-                Circle().stroke(HaloTheme.hairline, lineWidth: 7)
+                Circle().stroke(Color.white.opacity(0.08), lineWidth: 7)
                 Circle()
                     .trim(from: 0, to: job.progress)
                     .stroke(HaloTheme.lime, style: StrokeStyle(lineWidth: 7, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                Text("\(Int(job.progress * 100))%").font(.caption.weight(.bold))
-            }
-            .frame(width: 54, height: 54)
-            VStack(alignment: .leading, spacing: 2) {
+                Text("\(Int(job.progress * 100))%")
+                    .font(HaloType.body(10, weight: .bold))
+                    .foregroundStyle(.white)
+            }.frame(width: 56, height: 56)
+
+            VStack(alignment: .leading, spacing: 3) {
                 Text("\(job.completedTasks) of \(job.tasks.count) tasks")
-                    .font(.headline)
-                Text(job.completedTasks == job.tasks.count ? "Ready for proof" : "Keep moving — HALO tracks the rest.")
-                    .font(.subheadline).foregroundStyle(.secondary)
+                    .font(HaloType.body(15, weight: .bold)).foregroundStyle(.white)
+                Text(job.completedTasks == job.tasks.count ? "Ready for proof" : "HALO keeps the next required step obvious.")
+                    .font(HaloType.body(12)).foregroundStyle(.white.opacity(0.46))
             }
             Spacer()
         }
-        .padding(18).haloCard()
+        .padding(18).haloDarkCard()
     }
 
     private func taskList(_ job: FieldJob) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Scope").font(.title3.weight(.semibold))
+            Text("SCOPE").font(HaloType.body(10, weight: .bold)).tracking(1.7).foregroundStyle(.white.opacity(0.42))
+
             VStack(spacing: 0) {
                 ForEach(job.tasks) { task in
-                    Button {
-                        store.toggleTask(jobID: job.id, taskID: task.id)
-                    } label: {
-                        HStack(alignment: .top, spacing: 14) {
+                    HStack(alignment: .top, spacing: 14) {
+                        Button { store.toggleTask(jobID: job.id, taskID: task.id) } label: {
                             Image(systemName: task.isComplete ? "checkmark.circle.fill" : "circle")
-                                .font(.title3).foregroundStyle(task.isComplete ? HaloTheme.ink : .secondary)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(task.title).font(.body.weight(.semibold)).foregroundStyle(HaloTheme.ink)
-                                if let detail = task.detail {
-                                    Text(detail).font(.subheadline).foregroundStyle(.secondary)
-                                }
-                            }
-                            Spacer()
-                            if task.requiresPhoto {
-                                Image(systemName: "camera.fill").foregroundStyle(.secondary)
+                                .font(.title3)
+                                .foregroundStyle(task.isComplete ? HaloTheme.lime : .white.opacity(0.32))
+                        }
+                        .buttonStyle(.plain)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(task.title).font(HaloType.body(14, weight: .semibold)).foregroundStyle(.white)
+                            if let detail = task.detail {
+                                Text(detail).font(HaloType.body(12)).foregroundStyle(.white.opacity(0.42))
                             }
                         }
-                        .padding(.vertical, 14)
+
+                        Spacer()
+
+                        if task.requiresPhoto {
+                            Button {
+                                proofPhase = task.isComplete ? "After" : "Before"
+                                proofTask = task
+                            } label: {
+                                Image(systemName: "camera.fill")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .frame(width: 38, height: 38)
+                                    .background(Color.white.opacity(0.07))
+                                    .foregroundStyle(HaloTheme.lime)
+                                    .clipShape(Circle())
+                            }
+                        }
                     }
-                    .buttonStyle(.plain)
-                    if task.id != job.tasks.last?.id { Divider().opacity(0.6) }
+                    .padding(.vertical, 14)
+                    if task.id != job.tasks.last?.id {
+                        Divider().overlay(Color.white.opacity(0.08))
+                    }
                 }
             }
-            .padding(.horizontal, 16).haloCard()
+            .padding(.horizontal, 16)
+            .haloDarkCard()
         }
     }
 
     private func proof(_ job: FieldJob) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Proof").font(.title3.weight(.semibold))
+                Text("PROOF").font(HaloType.body(10, weight: .bold)).tracking(1.7).foregroundStyle(.white.opacity(0.42))
                 Spacer()
-                Text("\(job.photoCount) photos").font(.subheadline).foregroundStyle(.secondary)
+                Text("\(job.photoCount) PHOTOS").font(HaloType.body(9, weight: .bold)).tracking(1.1).foregroundStyle(.white.opacity(0.35))
             }
+
             HStack(spacing: 12) {
-                proofTile(title: "Before", count: max(job.photoCount - 3, 0), done: job.photoCount >= 5)
-                proofTile(title: "After", count: min(job.photoCount, 3), done: false)
+                proofTile(job: job, title: "Before", count: max(job.photoCount - 3, 0), done: job.photoCount >= 5)
+                proofTile(job: job, title: "After", count: min(job.photoCount, 3), done: false)
             }
         }
     }
 
-    private func proofTile(title: String, count: Int, done: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Image(systemName: done ? "checkmark.seal.fill" : "camera.fill")
-                .font(.title2).foregroundStyle(done ? HaloTheme.lime : HaloTheme.ink)
-            Text(title).font(.headline)
-            Text("\(count) captured").font(.caption).foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(18).haloCard()
+    private func proofTile(job: FieldJob, title: String, count: Int, done: Bool) -> some View {
+        Button {
+            proofPhase = title
+            proofTask = nil
+        } label: {
+            VStack(alignment: .leading, spacing: 12) {
+                Image(systemName: done ? "checkmark.seal.fill" : "camera.fill")
+                    .font(.title2).foregroundStyle(done ? HaloTheme.lime : .white)
+                Text(title).font(HaloType.card(15, weight: .semibold)).foregroundStyle(.white)
+                Text("\(count) captured").font(HaloType.body(10)).foregroundStyle(.white.opacity(0.4))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(18).haloDarkCard()
+        }.buttonStyle(.plain)
     }
 
     private func propertyNotes(_ job: FieldJob) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Property notes").font(.title3.weight(.semibold))
+        VStack(alignment: .leading, spacing: 12) {
+            Text("PROPERTY NOTES").font(HaloType.body(10, weight: .bold)).tracking(1.7).foregroundStyle(.white.opacity(0.42))
             Label("Gate 3142 · Keybox 8821", systemImage: "key.fill")
-                .font(.subheadline)
             Label("Flag additional work from any task", systemImage: "flag.fill")
-                .font(.subheadline)
         }
-        .padding(18).haloCard()
+        .font(HaloType.body(12, weight: .medium))
+        .foregroundStyle(.white.opacity(0.62))
+        .padding(18).haloDarkCard()
     }
 
     private func primaryAction(_ job: FieldJob) -> some View {
         Button {
-            store.advance(job.id)
+            if job.state == .scheduled {
+                showRoute = true
+            } else {
+                if job.state == .arrived {
+                    location.requestPermission()
+                    location.refresh()
+                }
+                store.advance(job.id)
+            }
         } label: {
             HStack {
                 Text(job.state.actionTitle)
                 Spacer()
-                Image(systemName: "arrow.right")
+                Image(systemName: job.state == .scheduled ? "location.fill" : "arrow.right")
             }
-            .font(.headline)
-            .padding(.horizontal, 20)
+            .font(HaloType.body(15, weight: .bold))
+            .padding(.horizontal, 22)
             .frame(height: 58)
-            .background(job.state == .complete ? Color.gray.opacity(0.2) : HaloTheme.ink)
-            .foregroundStyle(job.state == .complete ? .secondary : .white)
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .background(job.state == .complete ? Color.white.opacity(0.08) : HaloTheme.lime)
+            .foregroundStyle(job.state == .complete ? .white.opacity(0.35) : HaloTheme.ink)
+            .clipShape(Capsule())
         }
         .disabled(job.state == .complete)
         .padding(.horizontal, HaloTheme.horizontal)
         .padding(.top, 10).padding(.bottom, 8)
-        .background(.ultraThinMaterial)
+        .background(.ultraThinMaterial.opacity(0.94))
     }
 }
