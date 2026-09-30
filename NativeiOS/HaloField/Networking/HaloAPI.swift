@@ -592,7 +592,15 @@ actor HaloAPI {
             beforePhotoCount: int(row["beforePhotoCount"]) ?? 0,
             afterPhotoCount: int(row["afterPhotoCount"]) ?? 0,
             flaggedCount: int(row["flaggedCount"]) ?? (rawStatus == "hold" || rawStatus == "flagged" ? 1 : 0),
-            updatedAt: string(row["updatedAt"]) ?? string(row["createdAt"])
+            updatedAt: string(row["updatedAt"]) ?? string(row["createdAt"]),
+            needsRework: (row["rework"] as? Bool) ?? false,
+            reworkNotes: string(row["reworkNotes"]),
+            reworkItems: reworkArray(row["reworkItems"]),
+            closeoutStage: string(row["closeoutStage"]),
+            closeoutBlockers: stringArray(row["closeoutBlockers"]),
+            finalWalkAt: string(row["finalWalkAt"]),
+            readyForWalk: (row["readyForWalk"] as? Bool) ?? false,
+            walkVerified: (row["walkVerified"] as? Bool) ?? false
         )
     }
 
@@ -680,6 +688,23 @@ actor HaloAPI {
                 detail: string(row["detail"]),
                 isComplete: (row["isComplete"] as? Bool) ?? false,
                 requiresPhoto: (row["requiresPhoto"] as? Bool) ?? true
+            )
+        }
+    }
+
+    nonisolated private static func reworkArray(_ value: Any?) -> [ReworkItem] {
+        guard let items = value as? [[String: Any]] else { return [] }
+        return items.compactMap { row in
+            guard
+                let id = string(row["id"]),
+                let index = int(row["index"]),
+                let text = string(row["text"])
+            else { return nil }
+            return ReworkItem(
+                id: id,
+                index: index,
+                text: text,
+                isComplete: (row["checked"] as? Bool) ?? false
             )
         }
     }
