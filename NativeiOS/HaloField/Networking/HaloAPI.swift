@@ -32,7 +32,7 @@ actor HaloAPI {
 
     func fetchJobs(activationToken: String) async throws -> [FieldJob] {
         let data = try await request(
-            path: "/api/native/field-feed",
+            path: "/api/native/v1/field-feed",
             bearerToken: activationToken
         )
         guard
