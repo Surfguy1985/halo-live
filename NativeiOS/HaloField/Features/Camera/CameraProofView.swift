@@ -90,6 +90,19 @@ struct CameraProofView: View {
                         .font(HaloType.body(13, weight: .semibold))
                         .foregroundStyle(.white)
                         .multilineTextAlignment(.center)
+
+                    if camera.authorization == .denied || camera.authorization == .restricted {
+                        Button {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        } label: {
+                            Label("Camera Settings", systemImage: "gearshape.fill")
+                                .font(HaloType.body(11, weight: .bold))
+                                .frame(minHeight: 44)
+                        }
+                        .foregroundStyle(HaloTheme.lime)
+                    }
                 }
                 .padding(22)
                 .background(.black.opacity(0.76))
