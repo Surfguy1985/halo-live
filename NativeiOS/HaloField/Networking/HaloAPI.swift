@@ -99,6 +99,8 @@ actor HaloAPI {
         guard let id = string(row["id"]), !id.isEmpty else { return nil }
 
         let propertyName = string(row["propertyName"]) ?? "Property"
+        let propertyAddress = string(row["propertyAddress"])
+        let propertyCity = string(row["propertyCity"])
         let unit = string(row["unitNo"]) ?? string(row["unit"]) ?? "—"
         let category = string(row["category"])
         let description = string(row["description"]) ?? category ?? "Job"
@@ -142,7 +144,9 @@ actor HaloAPI {
             scheduledDate: scheduledOn,
             scheduledWindow: window,
             travelMinutes: nil,
-            address: propertyName,
+            address: [propertyAddress, propertyCity].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ").isEmpty
+                ? propertyName
+                : [propertyAddress, propertyCity].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", "),
             crewLeaderID: string(row["crewLeaderId"]),
             crewLeaderName: string(row["crewLeaderName"]),
             tasks: tasks.isEmpty ? [
