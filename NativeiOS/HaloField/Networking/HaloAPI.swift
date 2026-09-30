@@ -34,7 +34,7 @@ actor HaloAPI {
     private let session: URLSession
 
     init(
-        baseURL: URL = URL(string: "https://archangel-halo.replit.app")!,
+        baseURL: URL = URL(string: "https://app.base44.com")!,
         session: URLSession = .shared
     ) {
         self.baseURL = baseURL
@@ -42,8 +42,11 @@ actor HaloAPI {
     }
 
     func fetchJobs(activationToken: String) async throws -> [FieldJob] {
+        let body = try JSONSerialization.data(withJSONObject: ["action": "feed"])
         let data = try await request(
-            path: "/api/native/v1/field-feed",
+            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            method: "POST",
+            body: body,
             bearerToken: activationToken
         )
         guard
@@ -181,14 +184,17 @@ actor HaloAPI {
         payload: [String: Any],
         activationToken: String
     ) async throws {
-        let body = try JSONSerialization.data(withJSONObject: [
+        var object: [String: Any] = [
             "id": id.uuidString,
             "jobId": jobID,
-            "kind": kind,
-            "payload": payload
-        ])
+            "action": kind
+        ]
+        for (key, value) in payload {
+            object[key] = value
+        }
+        let body = try JSONSerialization.data(withJSONObject: object)
         _ = try await request(
-            path: "/api/native/v1/actions",
+            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
             method: "POST",
             body: body,
             bearerToken: activationToken
