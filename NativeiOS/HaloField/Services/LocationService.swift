@@ -48,6 +48,9 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
 
     func startLiveSharing() {
         errorMessage = nil
+        if authorization == .authorizedWhenInUse {
+            manager.requestAlwaysAuthorization()
+        }
         manager.desiredAccuracy = kCLLocationAccuracyBest
         manager.distanceFilter = 20
         manager.pausesLocationUpdatesAutomatically = false
