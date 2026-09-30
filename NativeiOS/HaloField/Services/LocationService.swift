@@ -46,6 +46,24 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
 
     func stopJobTracking() { manager.stopUpdatingLocation() }
 
+    func startLiveSharing() {
+        errorMessage = nil
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+        manager.distanceFilter = 20
+        manager.pausesLocationUpdatesAutomatically = false
+        manager.allowsBackgroundLocationUpdates = true
+        manager.showsBackgroundLocationIndicator = true
+        manager.startUpdatingLocation()
+    }
+
+    func stopLiveSharing() {
+        manager.stopUpdatingLocation()
+        manager.allowsBackgroundLocationUpdates = false
+        manager.showsBackgroundLocationIndicator = false
+        manager.pausesLocationUpdatesAutomatically = true
+        manager.distanceFilter = kCLDistanceFilterNone
+    }
+
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         Task { @MainActor in authorization = manager.authorizationStatus }
     }
