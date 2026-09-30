@@ -11,9 +11,9 @@ final class FieldSyncController: ObservableObject {
     private let api: HaloAPI
     private let queue: OfflineQueue
 
-    init(api: HaloAPI = .shared, queue: OfflineQueue = .shared) {
+    init(api: HaloAPI = .shared) {
         self.api = api
-        self.queue = queue
+        self.queue = OfflineQueue.shared
     }
 
     func refreshPendingCount(context: ModelContext, activationToken: String?) {
