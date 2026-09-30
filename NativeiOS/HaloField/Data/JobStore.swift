@@ -142,6 +142,13 @@ final class JobStore: ObservableObject {
         }
     }
 
+    func recordHandoff(jobID: String) {
+        guard let index = jobs.firstIndex(where: { $0.id == jobID }) else { return }
+        withAnimation(.snappy(duration: 0.25)) {
+            jobs[index].flaggedCount += 1
+        }
+    }
+
     func recordLocalProof(jobID: String) {
         guard let index = jobs.firstIndex(where: { $0.id == jobID }) else { return }
         withAnimation(.snappy(duration: 0.25)) {
