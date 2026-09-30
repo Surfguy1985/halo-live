@@ -10,6 +10,7 @@ struct JobDetailView: View {
 
     @State private var showRoute = false
     @State private var showArrivalVerification = false
+    @State private var showAdditionalWork = false
     @State private var proofPhase: String?
     @State private var proofTask: JobTask?
 
@@ -24,6 +25,9 @@ struct JobDetailView: View {
                         progress(job)
                         taskList(job)
                         proof(job)
+                        if job.kind == .maintenance && !job.isClosed {
+                            additionalWork(job)
+                        }
                         propertyNotes(job)
                     }
                     .padding(.horizontal, HaloTheme.horizontal)
@@ -64,6 +68,11 @@ struct JobDetailView: View {
                             store.setState(.active, for: job.id)
                         }
                     )
+                }
+                .sheet(isPresented: $showAdditionalWork) {
+                    AdditionalWorkView(job: job)
+                        .presentationDetents([.large])
+                        .presentationDragIndicator(.visible)
                 }
                 .fullScreenCover(isPresented: Binding(
                     get: { proofPhase != nil },
@@ -228,6 +237,58 @@ struct JobDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(18).haloDarkCard()
         }.buttonStyle(.plain)
+    }
+
+
+    private func additionalWork(_ job: FieldJob) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("ADDITIONAL WORK")
+                    .font(HaloType.body(10, weight: .bold))
+                    .tracking(1.7)
+                    .foregroundStyle(.white.opacity(0.42))
+                Spacer()
+                if job.flaggedCount > 0 {
+                    Label("\(job.flaggedCount) sent", systemImage: "checkmark.circle.fill")
+                        .font(HaloType.body(9, weight: .bold))
+                        .foregroundStyle(HaloTheme.lime)
+                }
+            }
+
+            Button {
+                showAdditionalWork = true
+            } label: {
+                HStack(spacing: 14) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(HaloTheme.lime.opacity(0.10))
+                            .frame(width: 48, height: 48)
+                        Image(systemName: "arrow.right.square.fill")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(HaloTheme.lime)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Send to Turn Team")
+                            .font(HaloType.body(14, weight: .bold))
+                            .foregroundStyle(.white)
+                        Text("Flag what you found once. HALO carries the unit and job context forward.")
+                            .font(HaloType.body(11))
+                            .foregroundStyle(.white.opacity(0.42))
+                            .multilineTextAlignment(.leading)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.28))
+                }
+                .padding(16)
+                .haloDarkCard()
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     private func propertyNotes(_ job: FieldJob) -> some View {
