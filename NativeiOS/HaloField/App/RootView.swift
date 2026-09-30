@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var session: HaloSessionStore
+    @EnvironmentObject private var store: JobStore
 
     init() {
         UITabBar.appearance().unselectedItemTintColor = UIColor.white.withAlphaComponent(0.45)
@@ -15,6 +16,10 @@ struct RootView: View {
             } else {
                 ActivationView()
             }
+        }
+        .task(id: session.activationToken) {
+            guard session.isActivated else { return }
+            await store.loadIfNeeded(activationToken: session.activationToken)
         }
     }
 
