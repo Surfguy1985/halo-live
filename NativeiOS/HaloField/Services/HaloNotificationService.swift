@@ -20,6 +20,12 @@ final class HaloNotificationService: ObservableObject {
     func refreshAuthorization() async {
         let settings = await UNUserNotificationCenter.current().notificationSettings()
         authorizationStatus = settings.authorizationStatus
+
+        if authorizationStatus == .authorized ||
+            authorizationStatus == .provisional ||
+            authorizationStatus == .ephemeral {
+            UIApplication.shared.registerForRemoteNotifications()
+        }
     }
 
     func requestAuthorization() async -> Bool {
