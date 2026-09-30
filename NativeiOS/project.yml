@@ -15,11 +15,11 @@ targets:
     sources:
       - HaloFieldWidgets
       - HaloShared
+    info:
+      path: HaloFieldWidgets/Info.plist
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.archangel.halofield.widgets
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_NSExtension_NSExtensionPointIdentifier: com.apple.widgetkit-extension
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
 
