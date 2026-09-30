@@ -3,6 +3,7 @@ import SwiftUI
 import UIKit
 
 struct HaloCommsView: View {
+    var initialJobID: String? = nil
     @EnvironmentObject private var session: HaloSessionStore
     @EnvironmentObject private var network: NetworkMonitor
     @EnvironmentObject private var location: LocationService
@@ -36,7 +37,10 @@ struct HaloCommsView: View {
             .navigationTitle("Halo")
             .toolbarColorScheme(.dark, for: .navigationBar)
             .refreshable { await refresh() }
-            .task(id: session.activationToken) { await refresh() }
+            .task(id: session.activationToken) {
+                if selectedJobID == nil { selectedJobID = initialJobID }
+                await refresh()
+            }
             .onReceive(location.$location) { fix in
                 guard let fix else { return }
                 sendLiveLocation(fix)
