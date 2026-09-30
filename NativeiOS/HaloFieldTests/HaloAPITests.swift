@@ -20,6 +20,8 @@ final class HaloAPITests: XCTestCase {
             "jobNo":"B44-816",
             "propertyId":"49dec4b1-1dc5-4b59-8025-0c0bc14d35ce",
             "propertyName":"Thornbury at Chase Oaks",
+            "propertyLatitude":33.0198,
+            "propertyLongitude":-96.6989,
             "unitNo":"816",
             "category":"Wall Prep & Paint (2 BR)",
             "description":"Wall Prep & Paint (2 BR), Cabinet Paint (2 BR), Make Ready Package",
@@ -57,6 +59,8 @@ final class HaloAPITests: XCTestCase {
         XCTAssertEqual(job.id, "c5c766ff-56e2-43d3-a3dc-4c4cf5b8bc29")
         XCTAssertEqual(job.jobNo, "B44-816")
         XCTAssertEqual(job.propertyName, "Thornbury at Chase Oaks")
+        XCTAssertEqual(job.propertyLatitude, 33.0198)
+        XCTAssertEqual(job.propertyLongitude, -96.6989)
         XCTAssertEqual(job.unit, "816")
         XCTAssertEqual(job.state, .scheduled)
         XCTAssertEqual(job.crewLeaderName, "Marco")
