@@ -28,6 +28,20 @@ struct TurnHandoff: Identifiable, Hashable, Sendable {
     let createdAt: String?
 }
 
+struct HaloMessageAttachment: Identifiable, Hashable, Sendable {
+    let id: String
+    let kind: String
+    let url: String?
+    let name: String?
+    let caption: String?
+    let title: String?
+    let status: String?
+    let actionTitle: String?
+    let actionSummary: String?
+    let beforeURL: String?
+    let afterURL: String?
+}
+
 struct HaloMessage: Identifiable, Hashable, Sendable {
     let id: String
     let channel: String
@@ -38,6 +52,7 @@ struct HaloMessage: Identifiable, Hashable, Sendable {
     let unitLabel: String?
     let at: String?
     let read: Bool
+    let attachments: [HaloMessageAttachment]
 }
 
 struct HaloGPSSession: Identifiable, Hashable, Sendable {
@@ -286,7 +301,8 @@ actor HaloAPI {
                 unitID: Self.string(row["unitId"]),
                 unitLabel: Self.string(row["unitLabel"]),
                 at: Self.string(row["at"]),
-                read: (row["read"] as? Bool) ?? false
+                read: (row["read"] as? Bool) ?? false,
+                attachments: Self.messageAttachments(row["attachments"])
             )
         }
     }
@@ -688,6 +704,26 @@ actor HaloAPI {
                 detail: string(row["detail"]),
                 isComplete: (row["isComplete"] as? Bool) ?? false,
                 requiresPhoto: (row["requiresPhoto"] as? Bool) ?? true
+            )
+        }
+    }
+
+    nonisolated private static func messageAttachments(_ value: Any?) -> [HaloMessageAttachment] {
+        guard let rows = value as? [[String: Any]] else { return [] }
+        return rows.enumerated().map { index, row in
+            let snapshot = row["snapshot"] as? [String: Any]
+            return HaloMessageAttachment(
+                id: string(row["url"]) ?? string(row["name"]) ?? "attachment-\(index)",
+                kind: string(row["kind"]) ?? "file",
+                url: string(row["url"]),
+                name: string(row["name"]),
+                caption: string(row["caption"]),
+                title: string(snapshot?["title"]) ?? string(row["name"]),
+                status: string(snapshot?["status"]) ?? string(snapshot?["stage"]),
+                actionTitle: string(snapshot?["action_title"]),
+                actionSummary: string(snapshot?["action_summary"]),
+                beforeURL: string(snapshot?["before_url"]),
+                afterURL: string(snapshot?["after_url"])
             )
         }
     }
