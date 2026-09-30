@@ -92,6 +92,31 @@ actor HaloAPI {
         )
     }
 
+    func createTurnHandoff(
+        handoffID: UUID,
+        sourceJobID: String,
+        summary: String,
+        detail: String,
+        urgency: String,
+        materialEstimate: String,
+        activationToken: String
+    ) async throws {
+        let body = try JSONSerialization.data(withJSONObject: [
+            "handoffId": handoffID.uuidString,
+            "jobId": sourceJobID,
+            "summary": summary,
+            "detail": detail,
+            "urgency": urgency,
+            "materialEstimate": materialEstimate
+        ])
+        _ = try await request(
+            path: "/api/native/v1/handoffs",
+            method: "POST",
+            body: body,
+            bearerToken: activationToken
+        )
+    }
+
     func sendFieldAction(
         id: UUID,
         jobID: String,
