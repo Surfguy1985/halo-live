@@ -9,6 +9,7 @@ struct CameraProofView: View {
 
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var location: LocationService
+    @EnvironmentObject private var store: JobStore
 
     @StateObject private var camera = HaloCameraController()
     @State private var pickerItem: PhotosPickerItem?
@@ -286,6 +287,7 @@ struct CameraProofView: View {
                 )
                 await MainActor.run {
                     savedProof = proof
+                    store.recordLocalProof(jobID: job.id)
                     isSaving = false
                 }
                 try? await Task.sleep(for: .milliseconds(450))
