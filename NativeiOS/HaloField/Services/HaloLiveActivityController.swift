@@ -1,6 +1,5 @@
 import ActivityKit
 import Foundation
-import HaloShared
 
 @MainActor
 final class HaloLiveActivityController: ObservableObject {
