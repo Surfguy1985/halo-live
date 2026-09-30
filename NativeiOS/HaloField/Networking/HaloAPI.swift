@@ -140,6 +140,7 @@ actor HaloAPI {
         longitude: Double,
         accuracy: Double,
         capturedAt: Date,
+        requestID: UUID,
         activationToken: String
     ) async throws -> CheckInResult {
         let formatter = ISO8601DateFormatter()
@@ -152,7 +153,7 @@ actor HaloAPI {
         ])
         var object = try JSONSerialization.jsonObject(with: body) as? [String: Any] ?? [:]
         object["action"] = "checkIn"
-        object["idempotencyKey"] = UUID().uuidString
+        object["idempotencyKey"] = requestID.uuidString
         let payload = try JSONSerialization.data(withJSONObject: object)
         let data = try await request(
             path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
