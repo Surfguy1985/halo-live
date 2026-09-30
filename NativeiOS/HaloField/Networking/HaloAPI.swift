@@ -353,9 +353,15 @@ actor HaloAPI {
         }
     }
 
-    func sendMessage(text: String, jobID: String?, activationToken: String) async throws {
+    func sendMessage(
+        text: String,
+        jobID: String?,
+        channel: String? = nil,
+        activationToken: String
+    ) async throws {
         var object: [String: Any] = ["action": "messageSend", "text": text]
         if let jobID, !jobID.isEmpty { object["jobId"] = jobID }
+        if let channel, !channel.isEmpty { object["channel"] = channel }
         let body = try JSONSerialization.data(withJSONObject: object)
         _ = try await request(
             path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
