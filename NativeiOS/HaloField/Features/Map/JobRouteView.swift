@@ -3,6 +3,7 @@ import MapKit
 
 struct JobRouteView: View {
     let job: FieldJob
+    var onStartRoute: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
     @State private var position: MapCameraPosition = .automatic
 
@@ -28,7 +29,7 @@ struct JobRouteView: View {
                     }
                 }.padding(18)
 
-                Button { openInMaps(job) } label: {
+                Button { onStartRoute(); openInMaps(job) } label: {
                     HStack { Text("Start Route"); Spacer(); Image(systemName: "location.fill") }
                         .font(HaloType.body(15, weight: .bold))
                         .padding(.horizontal, 20).frame(height: 56)
@@ -53,10 +54,20 @@ struct JobRouteView: View {
     }
 
     private func openInMaps(_ job: FieldJob) {
+        if let latitude = job.propertyLatitude, let longitude = job.propertyLongitude {
+            let placemark = MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude))
+            MKMapItem(placemark: placemark).openInMaps(
+                launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving]
+            )
+            return
+        }
+
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = "\(job.propertyName), \(job.address)"
         MKLocalSearch(request: request).start { response, _ in
-            response?.mapItems.first?.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
+            response?.mapItems.first?.openInMaps(
+                launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving]
+            )
         }
     }
 }
