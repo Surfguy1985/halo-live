@@ -9,24 +9,12 @@ settings:
     PRODUCT_BUNDLE_IDENTIFIER: com.archangel.halofield
 
 targets:
-  HaloShared:
-    type: framework
-    platform: iOS
-    sources:
-      - HaloShared
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.archangel.halofield.shared
-        GENERATE_INFOPLIST_FILE: YES
-        SKIP_INSTALL: YES
-
   HaloFieldWidgets:
     type: app-extension
     platform: iOS
     sources:
       - HaloFieldWidgets
-    dependencies:
-      - target: HaloShared
+      - HaloShared
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.archangel.halofield.widgets
@@ -40,8 +28,8 @@ targets:
     platform: iOS
     sources:
       - HaloField
+      - HaloShared
     dependencies:
-      - target: HaloShared
       - target: HaloFieldWidgets
         embed: true
     info:
