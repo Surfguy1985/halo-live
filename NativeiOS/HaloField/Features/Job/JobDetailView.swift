@@ -61,9 +61,7 @@ struct JobDetailView: View {
                 .sheet(isPresented: $showArrivalVerification) {
                     ArrivalVerificationView(
                         job: job,
-#if DEBUG
-                        previewMode: store.isPreviewMode,
-#endif
+                        previewMode: debugPreviewMode,
                         onVerified: { _ in
                             store.setState(.active, for: job.id)
                         }
@@ -84,6 +82,14 @@ struct JobDetailView: View {
                 ContentUnavailableView("Job unavailable", systemImage: "exclamationmark.triangle")
             }
         }
+    }
+
+    private var debugPreviewMode: Bool {
+#if DEBUG
+        store.isPreviewMode
+#else
+        false
+#endif
     }
 
     private func jobHeader(_ job: FieldJob) -> some View {
