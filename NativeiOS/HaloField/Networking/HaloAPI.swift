@@ -50,6 +50,48 @@ actor HaloAPI {
         .sorted(by: Self.sortJobs)
     }
 
+    struct CheckInResult: Sendable {
+        let distanceMeters: Int
+        let allowedRadiusMeters: Int
+        let accuracyMeters: Double
+        let verifiedAt: String
+    }
+
+    func verifyCheckIn(
+        jobID: String,
+        latitude: Double,
+        longitude: Double,
+        accuracy: Double,
+        capturedAt: Date,
+        activationToken: String
+    ) async throws -> CheckInResult {
+        let formatter = ISO8601DateFormatter()
+        let body = try JSONSerialization.data(withJSONObject: [
+            "jobId": jobID,
+            "lat": latitude,
+            "lng": longitude,
+            "accuracy": accuracy,
+            "capturedAt": formatter.string(from: capturedAt)
+        ])
+        let data = try await request(
+            path: "/api/native/v1/check-in",
+            method: "POST",
+            body: body,
+            bearerToken: activationToken
+        )
+        guard
+            let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            (root["verified"] as? Bool) == true
+        else { throw HaloAPIError.malformedPayload }
+
+        return CheckInResult(
+            distanceMeters: (root["distanceMeters"] as? NSNumber)?.intValue ?? 0,
+            allowedRadiusMeters: (root["allowedRadiusMeters"] as? NSNumber)?.intValue ?? 300,
+            accuracyMeters: (root["accuracyMeters"] as? NSNumber)?.doubleValue ?? accuracy,
+            verifiedAt: root["verifiedAt"] as? String ?? formatter.string(from: .now)
+        )
+    }
+
     func sendFieldAction(
         id: UUID,
         jobID: String,
@@ -242,6 +284,8 @@ actor HaloAPI {
             address: [propertyAddress, propertyCity].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ").isEmpty
                 ? propertyName
                 : [propertyAddress, propertyCity].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", "),
+            propertyLatitude: double(row["propertyLatitude"]),
+            propertyLongitude: double(row["propertyLongitude"]),
             crewLeaderID: string(row["crewLeaderId"]),
             crewLeaderName: string(row["crewLeaderName"]),
             tasks: tasks.isEmpty ? [
@@ -339,6 +383,12 @@ actor HaloAPI {
                 requiresPhoto: (row["requiresPhoto"] as? Bool) ?? true
             )
         }
+    }
+
+    nonisolated private static func double(_ value: Any?) -> Double? {
+        if let n = value as? NSNumber { return n.doubleValue }
+        if let s = value as? String { return Double(s) }
+        return nil
     }
 
     nonisolated private static func int(_ value: Any?) -> Int? {
