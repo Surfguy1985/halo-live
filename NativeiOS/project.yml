@@ -31,6 +31,9 @@ targets:
     sources:
       - HaloField
       - HaloShared
+    dependencies:
+      - target: HaloFieldWidgets
+        embed: true
     info:
       path: HaloField/Info.plist
       properties:
