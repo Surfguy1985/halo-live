@@ -231,6 +231,15 @@ struct HaloCommsView: View {
                     .foregroundStyle(outgoing ? HaloTheme.ink : .white)
                     .multilineTextAlignment(outgoing ? .trailing : .leading)
 
+                if !message.attachments.isEmpty {
+                    VStack(spacing: 8) {
+                        ForEach(message.attachments) { attachment in
+                            attachmentView(attachment, outgoing: outgoing)
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+
                 if let at = message.at {
                     Text(displayTime(at))
                         .font(HaloType.body(8, weight: .medium))
@@ -250,6 +259,145 @@ struct HaloCommsView: View {
 
             if !outgoing { Spacer(minLength: 52) }
         }
+    }
+
+    @ViewBuilder
+    private func attachmentView(_ attachment: HaloMessageAttachment, outgoing: Bool) -> some View {
+        if let before = attachment.beforeURL, let after = attachment.afterURL {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(attachment.title ?? "Before & After")
+                    .font(HaloType.body(10, weight: .bold))
+                    .foregroundStyle(outgoing ? HaloTheme.ink.opacity(0.72) : .white.opacity(0.78))
+
+                HStack(spacing: 6) {
+                    proofImage(urlString: before, label: "Before")
+                    proofImage(urlString: after, label: "After")
+                }
+            }
+            .padding(9)
+            .background(outgoing ? Color.black.opacity(0.07) : Color.white.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        } else if attachment.kind == "image", let url = attachment.url {
+            VStack(alignment: .leading, spacing: 5) {
+                AsyncImage(url: URL(string: url)) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 160)
+                            .clipped()
+                    default:
+                        ZStack {
+                            Color.white.opacity(0.06)
+                            ProgressView()
+                                .tint(outgoing ? HaloTheme.ink : .white)
+                        }
+                        .frame(height: 160)
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                if let caption = attachment.caption {
+                    Text(caption.uppercased())
+                        .font(HaloType.body(8, weight: .bold))
+                        .tracking(0.9)
+                        .foregroundStyle(outgoing ? HaloTheme.ink.opacity(0.50) : .white.opacity(0.42))
+                }
+            }
+        } else if attachment.kind == "card" || attachment.kind == "module" {
+            HStack(alignment: .top, spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .fill(outgoing ? Color.black.opacity(0.08) : HaloTheme.lime.opacity(0.10))
+                        .frame(width: 38, height: 38)
+                    Image(systemName: cardIcon(for: attachment))
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(outgoing ? HaloTheme.ink : HaloTheme.lime)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(attachment.title ?? attachment.name ?? "HALO update")
+                        .font(HaloType.body(11, weight: .bold))
+                        .foregroundStyle(outgoing ? HaloTheme.ink : .white)
+
+                    if let summary = attachment.actionSummary, !summary.isEmpty {
+                        Text(summary)
+                            .font(HaloType.body(9, weight: .medium))
+                            .foregroundStyle(outgoing ? HaloTheme.ink.opacity(0.54) : .white.opacity(0.46))
+                    }
+
+                    HStack(spacing: 7) {
+                        if let status = attachment.status, !status.isEmpty {
+                            Text(status.replacingOccurrences(of: "_", with: " ").uppercased())
+                                .font(HaloType.body(8, weight: .bold))
+                                .tracking(0.6)
+                                .foregroundStyle(outgoing ? HaloTheme.ink.opacity(0.56) : HaloTheme.fieldLive)
+                        }
+                        if let action = attachment.actionTitle, !action.isEmpty {
+                            Text(action)
+                                .font(HaloType.body(8, weight: .bold))
+                                .foregroundStyle(outgoing ? HaloTheme.ink.opacity(0.70) : HaloTheme.lime)
+                        }
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(10)
+            .background(outgoing ? Color.black.opacity(0.06) : Color.white.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        } else if let name = attachment.name {
+            Label(name, systemImage: "doc.fill")
+                .font(HaloType.body(10, weight: .semibold))
+                .foregroundStyle(outgoing ? HaloTheme.ink.opacity(0.72) : .white.opacity(0.70))
+                .padding(10)
+                .background(outgoing ? Color.black.opacity(0.06) : Color.white.opacity(0.05))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+    }
+
+    private func proofImage(urlString: String, label: String) -> some View {
+        VStack(spacing: 5) {
+            AsyncImage(url: URL(string: urlString)) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                default:
+                    ZStack {
+                        Color.white.opacity(0.05)
+                        Image(systemName: "photo")
+                            .foregroundStyle(.white.opacity(0.28))
+                    }
+                }
+            }
+            .frame(height: 110)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            Text(label.uppercased())
+                .font(HaloType.body(8, weight: .bold))
+                .tracking(0.8)
+                .foregroundStyle(.white.opacity(0.40))
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func cardIcon(for attachment: HaloMessageAttachment) -> String {
+        let haystack = [
+            attachment.title,
+            attachment.status,
+            attachment.actionTitle,
+            attachment.actionSummary
+        ].compactMap { $0 }.joined(separator: " ").lowercased()
+
+        if haystack.contains("approval") || haystack.contains("approve") { return "checkmark.seal.fill" }
+        if haystack.contains("flag") { return "flag.fill" }
+        if haystack.contains("photo") { return "photo.on.rectangle.angled" }
+        if haystack.contains("rework") { return "arrow.counterclockwise.circle.fill" }
+        return "rectangle.stack.fill"
     }
 
     private var composer: some View {
