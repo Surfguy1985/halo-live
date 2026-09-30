@@ -705,6 +705,8 @@ actor HaloAPI {
         switch status {
         case "complete", "completed", "paid", "cleared": return .complete
         case "hold", "flagged", "cancelled", "canceled": return .hold
+        case "enroute", "en_route": return .enRoute
+        case "arrived": return .arrived
         case "active", "in_progress", "on_site", "dispatched": return .active
         case "review", "billing": return .review
         default:
