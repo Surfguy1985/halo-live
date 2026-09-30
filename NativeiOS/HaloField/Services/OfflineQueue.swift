@@ -6,6 +6,7 @@ enum PendingActionKind: String, Codable {
     case workflowState
     case taskToggle
     case proofCaptured
+    case turnHandoff
 }
 
 @Model
