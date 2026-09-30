@@ -17,7 +17,26 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     func requestPermission() { manager.requestWhenInUseAuthorization() }
-    func refresh() { manager.requestLocation() }
+    func refresh() {
+        errorMessage = nil
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+        manager.requestLocation()
+    }
+
+    var hasLocationPermission: Bool {
+        authorization == .authorizedWhenInUse || authorization == .authorizedAlways
+    }
+
+    var isDeniedOrRestricted: Bool {
+        authorization == .denied || authorization == .restricted
+    }
+
+    func freshLocation(maxAge: TimeInterval = 120, requiredAccuracy: CLLocationAccuracy = 100) -> CLLocation? {
+        guard let location else { return nil }
+        guard abs(location.timestamp.timeIntervalSinceNow) <= maxAge else { return nil }
+        guard location.horizontalAccuracy >= 0, location.horizontalAccuracy <= requiredAccuracy else { return nil }
+        return location
+    }
 
     func startJobTracking() {
         manager.desiredAccuracy = kCLLocationAccuracyBest
