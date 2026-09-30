@@ -3,6 +3,7 @@ import SwiftUI
 struct TodayView: View {
     @EnvironmentObject private var store: JobStore
     @EnvironmentObject private var session: HaloSessionStore
+    @EnvironmentObject private var network: NetworkMonitor
 
     var body: some View {
         ScrollView {
@@ -83,13 +84,23 @@ struct TodayView: View {
                 Spacer()
                 HStack(spacing: 7) {
                     Circle()
-                        .fill(store.syncError == nil ? HaloTheme.fieldLive : HaloTheme.warning)
+                        .fill(!network.isConnected ? HaloTheme.warning : (store.syncError == nil ? HaloTheme.fieldLive : HaloTheme.warning))
                         .frame(width: 7, height: 7)
-                    Text(store.isRefreshing ? "SYNCING" : "LIVE")
+                    Text(!network.isConnected ? "OFFLINE" : (store.isRefreshing ? "SYNCING" : "LIVE"))
                         .font(HaloType.body(10, weight: .bold))
                         .tracking(1.2)
                         .foregroundStyle(.white.opacity(0.6))
                 }
+            }
+
+            if !network.isConnected {
+                HStack(spacing: 8) {
+                    Image(systemName: "wifi.slash")
+                    Text("OFFLINE MODE · YOUR LAST SYNCED JOBS STAY AVAILABLE")
+                }
+                .font(HaloType.body(9, weight: .bold))
+                .tracking(1.1)
+                .foregroundStyle(HaloTheme.warning)
             }
 
             VStack(alignment: .leading, spacing: 4) {
