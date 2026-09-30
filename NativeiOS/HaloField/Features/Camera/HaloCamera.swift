@@ -1,4 +1,4 @@
-import AVFoundation
+@preconcurrency import AVFoundation
 import SwiftUI
 import UIKit
 
@@ -9,8 +9,8 @@ final class HaloCameraController: NSObject, ObservableObject, AVCapturePhotoCapt
     @Published private(set) var isReady = false
     @Published private(set) var errorMessage: String?
 
-    let session = AVCaptureSession()
-    private let output = AVCapturePhotoOutput()
+    nonisolated(unsafe) let session = AVCaptureSession()
+    nonisolated(unsafe) private let output = AVCapturePhotoOutput()
     private let queue = DispatchQueue(label: "com.archangel.halofield.camera")
 
     func start() {
