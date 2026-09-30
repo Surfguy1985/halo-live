@@ -1,5 +1,4 @@
 import ActivityKit
-import HaloShared
 import SwiftUI
 import WidgetKit
 
