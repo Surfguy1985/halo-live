@@ -161,14 +161,18 @@ private struct ProfileView: View {
     var body: some View {
         List {
             Section("Field") {
-                HStack {
-                    Label(network.isConnected ? "Field sync" : "Offline mode", systemImage: network.isConnected ? "arrow.triangle.2.circlepath" : "wifi.slash")
-                    Spacer()
-                    Text(fieldSync.attentionCount > 0
-                         ? "\(fieldSync.attentionCount) need attention"
-                         : (fieldSync.pendingCount == 0 ? "Up to date" : "\(fieldSync.pendingCount) pending"))
-                        .font(.caption)
-                        .foregroundStyle(fieldSync.pendingCount == 0 && fieldSync.attentionCount == 0 ? HaloTheme.fieldLive : HaloTheme.warning)
+                NavigationLink {
+                    SyncIssuesView()
+                } label: {
+                    HStack {
+                        Label(network.isConnected ? "Field sync" : "Offline mode", systemImage: network.isConnected ? "arrow.triangle.2.circlepath" : "wifi.slash")
+                        Spacer()
+                        Text(fieldSync.attentionCount > 0
+                             ? "\(fieldSync.attentionCount) need attention"
+                             : (fieldSync.pendingCount == 0 ? "Up to date" : "\(fieldSync.pendingCount) pending"))
+                            .font(.caption)
+                            .foregroundStyle(fieldSync.pendingCount == 0 && fieldSync.attentionCount == 0 ? HaloTheme.fieldLive : HaloTheme.warning)
+                    }
                 }
                 Label("Location verification", systemImage: "location.fill")
 
