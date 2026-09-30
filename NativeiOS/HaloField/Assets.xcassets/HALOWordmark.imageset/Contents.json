@@ -1,11 +1,5 @@
 {
-  "images" : [
-    {
-      "filename" : "HALO-Wordmark.png",
-      "idiom" : "universal",
-      "scale" : "1x"
-    }
-  ],
+  "images" : [],
   "info" : {
     "author" : "xcode",
     "version" : 1
