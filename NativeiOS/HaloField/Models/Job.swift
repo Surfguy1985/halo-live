@@ -11,7 +11,7 @@ enum JobState: String, Codable, CaseIterable {
     var actionTitle: String {
         switch self {
         case .scheduled: "Start Route"
-        case .enRoute: "I’ve Arrived"
+        case .enRoute: "Verify Arrival"
         case .arrived: "Check In"
         case .active: "Continue Job"
         case .proof: "Finish Proof"
