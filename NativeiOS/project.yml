@@ -47,6 +47,7 @@ targets:
         NSSupportsLiveActivities: YES
         NSCameraUsageDescription: HALO uses the camera to document verified field work.
         NSLocationWhenInUseUsageDescription: HALO uses your location to verify job check-in and route you to assigned work.
+        NSLocationAlwaysAndWhenInUseUsageDescription: HALO uses background location only while you explicitly share live crew location with the office.
         NSPhotoLibraryUsageDescription: HALO lets you attach existing job photos when needed.
         UIBackgroundModes:
           - location
