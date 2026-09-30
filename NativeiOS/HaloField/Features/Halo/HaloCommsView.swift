@@ -270,7 +270,36 @@ struct HaloCommsView: View {
 
     @ViewBuilder
     private func attachmentView(_ attachment: HaloMessageAttachment, outgoing: Bool) -> some View {
-        if let before = attachment.beforeURL, let after = attachment.afterURL {
+        if !attachment.proofPairs.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(attachment.title ?? "Before & After")
+                    .font(HaloType.body(10, weight: .bold))
+                    .foregroundStyle(outgoing ? HaloTheme.ink.opacity(0.72) : .white.opacity(0.78))
+
+                ForEach(attachment.proofPairs.prefix(6)) { pair in
+                    VStack(alignment: .leading, spacing: 6) {
+                        if let area = pair.area, !area.isEmpty {
+                            Text(area.uppercased())
+                                .font(HaloType.body(8, weight: .bold))
+                                .tracking(0.8)
+                                .foregroundStyle(outgoing ? HaloTheme.ink.opacity(0.44) : .white.opacity(0.38))
+                        }
+
+                        HStack(spacing: 6) {
+                            if let before = pair.beforeURL {
+                                proofImage(urlString: before, label: "Before")
+                            }
+                            if let after = pair.afterURL {
+                                proofImage(urlString: after, label: "After")
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(9)
+            .background(outgoing ? Color.black.opacity(0.07) : Color.white.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        } else if let before = attachment.beforeURL, let after = attachment.afterURL {
             VStack(alignment: .leading, spacing: 8) {
                 Text(attachment.title ?? "Before & After")
                     .font(HaloType.body(10, weight: .bold))
