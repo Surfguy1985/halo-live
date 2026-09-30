@@ -1,31 +1,58 @@
 import SwiftUI
 
 enum HaloTheme {
-    static let ink = Color(red: 8/255, green: 13/255, blue: 26/255)
-    static let paper = Color(red: 246/255, green: 247/255, blue: 244/255)
-    static let lime = Color(red: 180/255, green: 1, blue: 68/255)
-    static let gold = Color(red: 227/255, green: 184/255, blue: 92/255)
-    static let muted = Color.black.opacity(0.52)
-    static let hairline = Color.black.opacity(0.08)
-
-    static let cardRadius: CGFloat = 24
-    static let controlRadius: CGFloat = 18
+    static let navy = Color(red: 0.035, green: 0.039, blue: 0.047)
+    static let ink = Color(red: 0.043, green: 0.051, blue: 0.071)
+    static let lime = Color(red: 185/255, green: 1, blue: 102/255)
+    static let limePressed = Color(red: 197/255, green: 1, blue: 128/255)
+    static let actionBlue = Color(red: 23/255, green: 105/255, blue: 1)
+    static let fieldBackground = Color(red: 7/255, green: 16/255, blue: 29/255)
+    static let fieldChrome = Color(red: 9/255, green: 20/255, blue: 29/255)
+    static let fieldCard = Color(red: 11/255, green: 24/255, blue: 34/255)
+    static let fieldBorder = Color(red: 23/255, green: 51/255, blue: 71/255)
+    static let fieldLive = Color(red: 53/255, green: 233/255, blue: 138/255)
+    static let paper = Color(red: 0.957, green: 0.957, blue: 0.941)
+    static let card = Color.white
+    static let text = Color(red: 0.043, green: 0.051, blue: 0.071)
+    static let secondaryText = Color(red: 102/255, green: 112/255, blue: 133/255)
+    static let softBorder = Color(red: 224/255, green: 229/255, blue: 232/255)
+    static let success = Color(red: 52/255, green: 199/255, blue: 89/255)
+    static let warning = Color(red: 1, green: 159/255, blue: 10/255)
+    static let danger = Color(red: 1, green: 59/255, blue: 48/255)
+    static let cardRadius: CGFloat = 20
+    static let heroRadius: CGFloat = 24
+    static let controlRadius: CGFloat = 14
     static let horizontal: CGFloat = 20
 }
 
-struct HaloCardModifier: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .background(.white)
-            .clipShape(RoundedRectangle(cornerRadius: HaloTheme.cardRadius, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: HaloTheme.cardRadius, style: .continuous)
-                    .stroke(HaloTheme.hairline, lineWidth: 1)
-            }
-            .shadow(color: .black.opacity(0.05), radius: 18, y: 8)
+enum HaloType {
+    static func body(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        .custom("Inter", size: size, relativeTo: .body).weight(weight)
+    }
+    static func display(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
+        .custom("Inter", size: size, relativeTo: .title).weight(weight)
+    }
+    static func card(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
+        .custom("Sora", size: size, relativeTo: .title2).weight(weight)
     }
 }
 
+struct HaloLightCardModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content.background(HaloTheme.card)
+            .clipShape(RoundedRectangle(cornerRadius: HaloTheme.cardRadius, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: HaloTheme.cardRadius, style: .continuous).stroke(HaloTheme.softBorder, lineWidth: 1) }
+            .shadow(color: .black.opacity(0.035), radius: 18, y: 8)
+    }
+}
+struct HaloDarkCardModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content.background(HaloTheme.fieldCard)
+            .clipShape(RoundedRectangle(cornerRadius: HaloTheme.heroRadius, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: HaloTheme.heroRadius, style: .continuous).stroke(HaloTheme.fieldBorder, lineWidth: 1) }
+    }
+}
 extension View {
-    func haloCard() -> some View { modifier(HaloCardModifier()) }
+    func haloCard() -> some View { modifier(HaloLightCardModifier()) }
+    func haloDarkCard() -> some View { modifier(HaloDarkCardModifier()) }
 }
