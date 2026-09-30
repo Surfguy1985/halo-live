@@ -12,6 +12,7 @@ final class JobStore: ObservableObject {
 
     private let api: HaloAPI
     private var hasLoaded = false
+    private var loadedToken: String?
 
     init(api: HaloAPI = .shared) {
         self.api = api
@@ -31,7 +32,14 @@ final class JobStore: ObservableObject {
     }
 
     func loadIfNeeded(activationToken: String?) async {
-        guard !hasLoaded else { return }
+        guard let activationToken, !activationToken.isEmpty else {
+            clear()
+            return
+        }
+        guard !hasLoaded || loadedToken != activationToken else { return }
+        if loadedToken != nil && loadedToken != activationToken {
+            clear()
+        }
         await refresh(activationToken: activationToken, initial: true)
     }
 
@@ -55,9 +63,19 @@ final class JobStore: ObservableObject {
             syncError = nil
             lastSyncedAt = .now
             hasLoaded = true
+            loadedToken = activationToken
         } catch {
             syncError = error.localizedDescription
         }
+    }
+
+    func clear() {
+        jobs = []
+        syncError = nil
+        lastSyncedAt = nil
+        selectedJobID = nil
+        hasLoaded = false
+        loadedToken = nil
     }
 
     func advance(_ jobID: String) {
