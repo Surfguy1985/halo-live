@@ -9,6 +9,7 @@ struct HaloFieldApp: App {
     @StateObject private var network = NetworkMonitor()
     @StateObject private var fieldSync = FieldSyncController()
     @StateObject private var notifications = HaloNotificationService()
+    @StateObject private var liveActivity = HaloLiveActivityController()
 
     var body: some Scene {
         WindowGroup {
@@ -19,6 +20,7 @@ struct HaloFieldApp: App {
                 .environmentObject(network)
                 .environmentObject(fieldSync)
                 .environmentObject(notifications)
+                .environmentObject(liveActivity)
                 .preferredColorScheme(.dark)
                 .onOpenURL { url in
                     session.handle(url: url)
