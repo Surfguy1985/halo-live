@@ -1,8 +1,10 @@
+import SwiftData
 import SwiftUI
 
 struct JobDetailView: View {
     @EnvironmentObject private var store: JobStore
     @EnvironmentObject private var location: LocationService
+    @Environment(\.modelContext) private var modelContext
     let jobID: String
 
     @State private var showRoute = false
@@ -116,7 +118,18 @@ struct JobDetailView: View {
             VStack(spacing: 0) {
                 ForEach(job.tasks) { task in
                     HStack(alignment: .top, spacing: 14) {
-                        Button { store.toggleTask(jobID: job.id, taskID: task.id) } label: {
+                        Button {
+                            store.toggleTask(jobID: job.id, taskID: task.id)
+                            OfflineQueue.shared.enqueue(
+                                jobID: job.id,
+                                kind: .taskToggle,
+                                payload: [
+                                    "taskID": task.id,
+                                    "isComplete": String(!task.isComplete)
+                                ],
+                                context: modelContext
+                            )
+                        } label: {
                             Image(systemName: task.isComplete ? "checkmark.circle.fill" : "circle")
                                 .font(.title3)
                                 .foregroundStyle(task.isComplete ? HaloTheme.lime : .white.opacity(0.32))
@@ -208,7 +221,15 @@ struct JobDetailView: View {
                     location.requestPermission()
                     location.refresh()
                 }
+                let from = job.state.rawValue
                 store.advance(job.id)
+                let to = store.jobs.first(where: { $0.id == job.id })?.state.rawValue ?? from
+                OfflineQueue.shared.enqueue(
+                    jobID: job.id,
+                    kind: .workflowState,
+                    payload: ["from": from, "to": to],
+                    context: modelContext
+                )
             }
         } label: {
             HStack {
