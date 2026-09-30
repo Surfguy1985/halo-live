@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TodayView: View {
     @EnvironmentObject private var store: JobStore
+    @EnvironmentObject private var session: HaloSessionStore
 
     var body: some View {
         ScrollView {
@@ -71,8 +72,8 @@ struct TodayView: View {
             .ignoresSafeArea()
         )
         .toolbar(.hidden, for: .navigationBar)
-        .task { await store.loadIfNeeded() }
-        .refreshable { await store.refresh() }
+        .task { await store.loadIfNeeded(activationToken: session.activationToken) }
+        .refreshable { await store.refresh(activationToken: session.activationToken) }
     }
 
     private var header: some View {
@@ -153,7 +154,7 @@ struct TodayView: View {
             }
             Spacer()
             Button("Retry") {
-                Task { await store.refresh() }
+                Task { await store.refresh(activationToken: session.activationToken) }
             }
             .font(HaloType.body(11, weight: .bold))
             .foregroundStyle(HaloTheme.lime)
