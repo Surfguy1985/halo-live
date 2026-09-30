@@ -86,7 +86,7 @@ struct RootView: View {
             NavigationStack { JobsView() }
                 .tabItem { Label("Jobs", systemImage: "square.stack.3d.up.fill") }
 
-            NavigationStack { HaloAssistantView() }
+            NavigationStack { HaloCommsView() }
                 .tabItem { Label("Halo", systemImage: "sparkles") }
 
             NavigationStack { ProfileView() }
@@ -129,34 +129,6 @@ private struct JobsView: View {
         }
         .background(HaloTheme.fieldBackground.ignoresSafeArea())
         .navigationTitle("Jobs")
-        .toolbarColorScheme(.dark, for: .navigationBar)
-    }
-}
-
-private struct HaloAssistantView: View {
-    @State private var text = ""
-    var body: some View {
-        VStack(spacing: 18) {
-            HaloLogo(height: 30)
-            Spacer()
-            Image(systemName: "sparkles").font(.system(size: 38, weight: .medium)).foregroundStyle(HaloTheme.lime)
-            Text("Ask HALO").font(HaloType.display(30, weight: .semibold)).foregroundStyle(.white)
-            Text("Jobs, instructions, property notes, handoffs, or what to do next.")
-                .font(HaloType.body(14)).multilineTextAlignment(.center).foregroundStyle(.white.opacity(0.5))
-            Spacer()
-            HStack {
-                TextField("Ask about your work…", text: $text).foregroundStyle(.white)
-                Button { } label: {
-                    Image(systemName: "arrow.up").fontWeight(.bold)
-                        .frame(width: 40, height: 40)
-                        .background(HaloTheme.lime).foregroundStyle(HaloTheme.ink).clipShape(Circle())
-                }
-            }
-            .padding(10).background(Color.white.opacity(0.06)).clipShape(Capsule())
-            .overlay(Capsule().stroke(HaloTheme.fieldBorder))
-        }
-        .padding(HaloTheme.horizontal)
-        .background(HaloTheme.fieldBackground.ignoresSafeArea())
         .toolbarColorScheme(.dark, for: .navigationBar)
     }
 }
