@@ -222,6 +222,12 @@ struct HaloCommsView: View {
 
             VStack(alignment: outgoing ? .trailing : .leading, spacing: 5) {
                 HStack(spacing: 6) {
+                    if let thread = message.threadName, !thread.isEmpty {
+                        Text(thread.uppercased())
+                            .font(HaloType.body(8, weight: .bold))
+                            .tracking(0.8)
+                            .foregroundStyle(outgoing ? HaloTheme.ink.opacity(0.52) : HaloTheme.actionBlue)
+                    }
                     if let unit = message.unitLabel, !unit.isEmpty {
                         Text(unit)
                             .font(HaloType.body(8, weight: .bold))
