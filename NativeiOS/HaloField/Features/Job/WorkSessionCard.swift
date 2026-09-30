@@ -251,6 +251,7 @@ private struct WorkPunchView: View {
     @StateObject private var camera: HaloCameraController
     @State private var isSubmitting = false
     @State private var errorMessage: String?
+    @State private var requestID = UUID()
 
     init(job: FieldJob, kind: String, onComplete: @escaping () -> Void) {
         self.job = job
@@ -545,7 +546,7 @@ private struct WorkPunchView: View {
                     jobID: job.id,
                     imageData: jpeg,
                     location: fix,
-                    requestID: UUID(),
+                    requestID: requestID,
                     activationToken: token
                 )
                 await MainActor.run {
