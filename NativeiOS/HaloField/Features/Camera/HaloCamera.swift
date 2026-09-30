@@ -12,6 +12,12 @@ final class HaloCameraController: NSObject, ObservableObject, AVCapturePhotoCapt
     nonisolated(unsafe) let session = AVCaptureSession()
     nonisolated(unsafe) private let output = AVCapturePhotoOutput()
     private let queue = DispatchQueue(label: "com.archangel.halofield.camera")
+    private let cameraPosition: AVCaptureDevice.Position
+
+    init(position: AVCaptureDevice.Position = .back) {
+        self.cameraPosition = position
+        super.init()
+    }
 
     func start() {
         authorization = AVCaptureDevice.authorizationStatus(for: .video)
@@ -63,7 +69,7 @@ final class HaloCameraController: NSObject, ObservableObject, AVCapturePhotoCapt
             defer { self.session.commitConfiguration() }
 
             guard
-                let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+                let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: self.cameraPosition),
                 let input = try? AVCaptureDeviceInput(device: device),
                 self.session.canAddInput(input),
                 self.session.canAddOutput(self.output)
