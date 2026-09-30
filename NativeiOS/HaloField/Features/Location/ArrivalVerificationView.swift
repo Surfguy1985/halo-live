@@ -3,9 +3,7 @@ import SwiftUI
 
 struct ArrivalVerificationView: View {
     let job: FieldJob
-#if DEBUG
     let previewMode: Bool
-#endif
     let onVerified: (HaloAPI.CheckInResult?) -> Void
 
     @Environment(\.dismiss) private var dismiss
