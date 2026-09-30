@@ -1,4 +1,5 @@
 import UIKit
+import UserNotifications
 
 extension Notification.Name {
     static let haloAPNSDeviceToken = Notification.Name("halo.apns.device-token")
