@@ -3,7 +3,7 @@ import SwiftUI
 struct JobDetailView: View {
     @EnvironmentObject private var store: JobStore
     @EnvironmentObject private var location: LocationService
-    let jobID: UUID
+    let jobID: String
 
     @State private var showRoute = false
     @State private var proofPhase: String?
