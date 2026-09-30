@@ -6,6 +6,7 @@ final class FieldSyncController: ObservableObject {
     @Published private(set) var isSyncing = false
     @Published private(set) var pendingCount = 0
     @Published private(set) var lastError: String?
+    @Published private(set) var attentionCount = 0
 
     private let api: HaloAPI
     private let queue: OfflineQueue
@@ -16,7 +17,9 @@ final class FieldSyncController: ObservableObject {
     }
 
     func refreshPendingCount(context: ModelContext, activationToken: String?) {
-        pendingCount = queue.count(in: context, activationToken: activationToken)
+        let counts = queue.counts(in: context, activationToken: activationToken)
+        pendingCount = counts.pending
+        attentionCount = counts.attention
     }
 
     func flush(context: ModelContext, activationToken: String?) async {
@@ -45,10 +48,20 @@ final class FieldSyncController: ObservableObject {
                 try await sync(action, activationToken: activationToken)
                 queue.remove(action, context: context)
             } catch {
-                queue.markRetry(action, error: error.localizedDescription, context: context)
-                lastError = error.localizedDescription
+                let message = error.localizedDescription
+                if case let HaloAPIError.http(status, _) = error,
+                   status >= 400, status < 500,
+                   status != 401, status != 408, status != 429 {
+                    queue.markPermanentFailure(action, error: message, context: context)
+                    lastError = message
+                    continue
+                }
 
-                // Preserve ordering. Later actions can depend on earlier field state.
+                queue.markRetry(action, error: message, context: context)
+                lastError = message
+
+                // Temporary transport/auth failure: preserve ordering until the
+                // dependency can safely replay.
                 break
             }
         }
