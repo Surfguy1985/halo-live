@@ -59,11 +59,17 @@ targets:
       properties:
         aps-environment: "$(APS_ENVIRONMENT)"
     settings:
+      configs:
+        Debug:
+          APNS_ENVIRONMENT: development
+        Release:
+          APNS_ENVIRONMENT: production
       base:
         TARGETED_DEVICE_FAMILY: "1"
         APS_ENVIRONMENT: development
         SUPPORTS_MACCATALYST: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_ENTITLEMENTS: HaloField/HaloField.entitlements
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
