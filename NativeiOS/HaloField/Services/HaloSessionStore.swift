@@ -3,7 +3,7 @@ import Security
 
 @MainActor
 final class HaloSessionStore: ObservableObject {
-    @Published private(set) var activationToken: String?
+    @Published private(set) var activationToken: String? = nil
 
     private let service = "com.archangel.halofield"
     private let account = "crew-activation-token"
