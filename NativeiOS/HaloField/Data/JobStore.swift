@@ -107,7 +107,8 @@ final class JobStore: ObservableObject {
     }
 #endif
 
-    func clear() {
+    func clear(removeCache: Bool = false) {
+        let tokenToRemove = loadedToken
         jobs = []
         HaloIntentStore.save(nil)
         syncError = nil
@@ -118,6 +119,15 @@ final class JobStore: ObservableObject {
 #if DEBUG
         isPreviewMode = false
 #endif
+        if removeCache, let tokenToRemove {
+            Task { try? await cache.remove(token: tokenToRemove) }
+        }
+    }
+
+    private func persistOptimisticCache() {
+        guard let token = loadedToken, !token.isEmpty else { return }
+        let snapshot = jobs
+        Task { try? await cache.save(jobs: snapshot, token: token) }
     }
 
     func setState(_ state: JobState, for jobID: String) {
@@ -126,6 +136,7 @@ final class JobStore: ObservableObject {
             jobs[index].state = state
             HaloIntentStore.save(nextJob)
         }
+        persistOptimisticCache()
     }
 
     func advance(_ jobID: String) {
@@ -146,6 +157,7 @@ final class JobStore: ObservableObject {
             jobs[index].state = next
             HaloIntentStore.save(nextJob)
         }
+        persistOptimisticCache()
     }
 
     func recordHandoff(jobID: String) {
@@ -153,6 +165,7 @@ final class JobStore: ObservableObject {
         withAnimation(.snappy(duration: 0.25)) {
             jobs[index].flaggedCount += 1
         }
+        persistOptimisticCache()
     }
 
     func recordLocalProof(jobID: String, phase: String) {
@@ -166,6 +179,7 @@ final class JobStore: ObservableObject {
             }
             HaloIntentStore.save(nextJob)
         }
+        persistOptimisticCache()
     }
 
     func toggleTask(jobID: String, taskID: String) {
@@ -175,5 +189,6 @@ final class JobStore: ObservableObject {
             jobs[j].tasks[t].isComplete.toggle()
             HaloIntentStore.save(nextJob)
         }
+        persistOptimisticCache()
     }
 }
