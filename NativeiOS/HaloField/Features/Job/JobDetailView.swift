@@ -39,11 +39,20 @@ struct JobDetailView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbarColorScheme(.dark, for: .navigationBar)
                 .sheet(isPresented: $showRoute) {
-                    JobRouteView(job: job) {
-                        if job.state == .scheduled {
-                            store.setState(.enRoute, for: job.id)
+                    JobRouteView(
+                        job: job,
+                        onStartRoute: {
+                            if job.state == .scheduled {
+                                store.setState(.enRoute, for: job.id)
+                            }
+                        },
+                        onVerifyArrival: {
+                            if job.state == .scheduled {
+                                store.setState(.enRoute, for: job.id)
+                            }
+                            showArrivalVerification = true
                         }
-                    }
+                    )
                 }
                 .sheet(isPresented: $showArrivalVerification) {
                     ArrivalVerificationView(
