@@ -25,6 +25,10 @@ targets:
         UIBackgroundModes:
           - location
           - remote-notification
+        CFBundleURLTypes:
+          - CFBundleURLName: com.archangel.halofield.activation
+            CFBundleURLSchemes:
+              - halo
     settings:
       base:
         TARGETED_DEVICE_FAMILY: "1"
