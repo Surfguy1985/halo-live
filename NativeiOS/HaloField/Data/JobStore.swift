@@ -155,10 +155,15 @@ final class JobStore: ObservableObject {
         }
     }
 
-    func recordLocalProof(jobID: String) {
+    func recordLocalProof(jobID: String, phase: String) {
         guard let index = jobs.firstIndex(where: { $0.id == jobID }) else { return }
         withAnimation(.snappy(duration: 0.25)) {
             jobs[index].photoCount += 1
+            if phase.lowercased() == "after" {
+                jobs[index].afterPhotoCount += 1
+            } else {
+                jobs[index].beforePhotoCount += 1
+            }
             HaloIntentStore.save(nextJob)
         }
     }
