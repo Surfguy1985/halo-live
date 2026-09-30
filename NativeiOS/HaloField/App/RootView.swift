@@ -93,13 +93,32 @@ private struct JobsView: View {
     @EnvironmentObject var store: JobStore
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 12) {
-                ForEach(store.jobs) { job in
-                    NavigationLink { JobDetailView(jobID: job.id) } label: {
-                        FieldJobCard(job: job, hero: false)
-                    }.buttonStyle(.plain)
+            LazyVStack(spacing: 18) {
+                TurnsPickupView()
+
+                if !store.jobs.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("MY JOBS")
+                                .font(HaloType.body(9, weight: .bold))
+                                .tracking(1.6)
+                                .foregroundStyle(.white.opacity(0.38))
+                            Spacer()
+                            Text("\(store.activeJobCount) active")
+                                .font(HaloType.body(10, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.42))
+                        }
+
+                        ForEach(store.jobs) { job in
+                            NavigationLink { JobDetailView(jobID: job.id) } label: {
+                                FieldJobCard(job: job, hero: false)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
-            }.padding(16)
+            }
+            .padding(16)
         }
         .background(HaloTheme.fieldBackground.ignoresSafeArea())
         .navigationTitle("Jobs")
