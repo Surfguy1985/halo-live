@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 
 enum HaloAPIError: LocalizedError {
@@ -25,6 +26,33 @@ struct TurnHandoff: Identifiable, Hashable, Sendable {
     let summary: String
     let dueBy: String?
     let createdAt: String?
+}
+
+struct HaloMessage: Identifiable, Hashable, Sendable {
+    let id: String
+    let channel: String
+    let from: String
+    let author: String
+    let text: String
+    let unitID: String?
+    let unitLabel: String?
+    let at: String?
+    let read: Bool
+}
+
+struct HaloGPSSession: Identifiable, Hashable, Sendable {
+    let id: String
+    let token: String
+    let unitID: String?
+    let property: String?
+    let unitNumber: String?
+    let active: Bool
+    let latitude: Double?
+    let longitude: Double?
+    let accuracy: Double?
+    let capturedAt: String?
+    let consentedAt: String?
+    let expiresAt: String?
 }
 
 actor HaloAPI {
@@ -87,10 +115,14 @@ actor HaloAPI {
             "accuracy": accuracy,
             "capturedAt": formatter.string(from: capturedAt)
         ])
+        var object = try JSONSerialization.jsonObject(with: body) as? [String: Any] ?? [:]
+        object["action"] = "checkIn"
+        object["idempotencyKey"] = UUID().uuidString
+        let payload = try JSONSerialization.data(withJSONObject: object)
         let data = try await request(
-            path: "/api/native/v1/check-in",
+            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
             method: "POST",
-            body: body,
+            body: payload,
             bearerToken: activationToken
         )
         guard
@@ -107,8 +139,11 @@ actor HaloAPI {
     }
 
     func fetchOpenTurnHandoffs(activationToken: String) async throws -> [TurnHandoff] {
+        let body = try JSONSerialization.data(withJSONObject: ["action": "handoffsOpen"])
         let data = try await request(
-            path: "/api/native/v1/handoffs/open",
+            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            method: "POST",
+            body: body,
             bearerToken: activationToken
         )
         guard
@@ -144,10 +179,14 @@ actor HaloAPI {
     }
 
     func claimTurnHandoff(id: String, activationToken: String) async throws {
+        let body = try JSONSerialization.data(withJSONObject: [
+            "action": "handoffClaim",
+            "handoffId": id
+        ])
         _ = try await request(
-            path: "/api/native/v1/handoffs/\(id)/claim",
+            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
             method: "POST",
-            body: Data("{}".utf8),
+            body: body,
             bearerToken: activationToken
         )
     }
@@ -162,6 +201,7 @@ actor HaloAPI {
         activationToken: String
     ) async throws {
         let body = try JSONSerialization.data(withJSONObject: [
+            "action": "handoffCreate",
             "handoffId": handoffID.uuidString,
             "jobId": sourceJobID,
             "summary": summary,
@@ -170,7 +210,135 @@ actor HaloAPI {
             "materialEstimate": materialEstimate
         ])
         _ = try await request(
-            path: "/api/native/v1/handoffs",
+            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            method: "POST",
+            body: body,
+            bearerToken: activationToken
+        )
+    }
+
+    func uploadProof(
+        metadata: ProofMetadata,
+        bytes: Data,
+        activationToken: String
+    ) async throws {
+        var object: [String: Any] = [
+            "action": "proofUpload",
+            "proofId": metadata.proofID,
+            "jobId": metadata.jobID,
+            "phase": metadata.phase.lowercased() == "after" ? "after" : "before",
+            "imageBase64": bytes.base64EncodedString(),
+            "capturedAt": ISO8601DateFormatter().string(from: metadata.capturedAt)
+        ]
+        if let lat = metadata.latitude { object["lat"] = lat }
+        if let lng = metadata.longitude { object["lng"] = lng }
+        if let accuracy = metadata.horizontalAccuracy { object["accuracy"] = accuracy }
+        let body = try JSONSerialization.data(withJSONObject: object)
+        _ = try await request(
+            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            method: "POST",
+            body: body,
+            bearerToken: activationToken
+        )
+    }
+
+    func fetchMessages(activationToken: String) async throws -> [HaloMessage] {
+        let body = try JSONSerialization.data(withJSONObject: ["action": "messagesList"])
+        let data = try await request(
+            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            method: "POST",
+            body: body,
+            bearerToken: activationToken
+        )
+        guard
+            let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let rows = root["messages"] as? [[String: Any]]
+        else { throw HaloAPIError.malformedPayload }
+
+        return rows.compactMap { row in
+            guard let id = Self.string(row["id"]) else { return nil }
+            return HaloMessage(
+                id: id,
+                channel: Self.string(row["channel"]) ?? "field_dispatch",
+                from: Self.string(row["from"]) ?? "office",
+                author: Self.string(row["author"]) ?? "Office",
+                text: Self.string(row["text"]) ?? "",
+                unitID: Self.string(row["unitId"]),
+                unitLabel: Self.string(row["unitLabel"]),
+                at: Self.string(row["at"]),
+                read: (row["read"] as? Bool) ?? false
+            )
+        }
+    }
+
+    func sendMessage(text: String, jobID: String?, activationToken: String) async throws {
+        var object: [String: Any] = ["action": "messageSend", "text": text]
+        if let jobID, !jobID.isEmpty { object["jobId"] = jobID }
+        let body = try JSONSerialization.data(withJSONObject: object)
+        _ = try await request(
+            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            method: "POST",
+            body: body,
+            bearerToken: activationToken
+        )
+    }
+
+    func fetchGPSSessions(activationToken: String) async throws -> [HaloGPSSession] {
+        let body = try JSONSerialization.data(withJSONObject: ["action": "gpsSessions"])
+        let data = try await request(
+            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            method: "POST",
+            body: body,
+            bearerToken: activationToken
+        )
+        guard
+            let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let rows = root["sessions"] as? [[String: Any]]
+        else { throw HaloAPIError.malformedPayload }
+
+        return rows.compactMap { row in
+            guard let id = Self.string(row["id"]), let token = Self.string(row["token"]) else { return nil }
+            return HaloGPSSession(
+                id: id,
+                token: token,
+                unitID: Self.string(row["unitId"]),
+                property: Self.string(row["property"]),
+                unitNumber: Self.string(row["unitNumber"]),
+                active: (row["active"] as? Bool) ?? false,
+                latitude: Self.double(row["lat"]),
+                longitude: Self.double(row["lng"]),
+                accuracy: Self.double(row["accuracy"]),
+                capturedAt: Self.string(row["capturedAt"]),
+                consentedAt: Self.string(row["consentedAt"]),
+                expiresAt: Self.string(row["expiresAt"])
+            )
+        }
+    }
+
+    func updateGPSSession(id: String, location: CLLocation, activationToken: String) async throws {
+        let body = try JSONSerialization.data(withJSONObject: [
+            "action": "gpsUpdate",
+            "sessionId": id,
+            "lat": location.coordinate.latitude,
+            "lng": location.coordinate.longitude,
+            "accuracy": location.horizontalAccuracy,
+            "capturedAt": ISO8601DateFormatter().string(from: location.timestamp)
+        ])
+        _ = try await request(
+            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            method: "POST",
+            body: body,
+            bearerToken: activationToken
+        )
+    }
+
+    func stopGPSSession(id: String, activationToken: String) async throws {
+        let body = try JSONSerialization.data(withJSONObject: [
+            "action": "gpsStop",
+            "sessionId": id
+        ])
+        _ = try await request(
+            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
             method: "POST",
             body: body,
             bearerToken: activationToken
