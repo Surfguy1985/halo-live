@@ -365,6 +365,32 @@ private struct WorkPunchView: View {
                 }
             }
             .padding(.horizontal, 20)
+
+            if let error = camera.errorMessage {
+                VStack(spacing: 12) {
+                    Image(systemName: "person.crop.circle.badge.exclamationmark")
+                        .font(.system(size: 28, weight: .semibold))
+                        .foregroundStyle(HaloTheme.warning)
+                    Text(error)
+                        .font(HaloType.body(12, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                    Button {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
+                    } label: {
+                        Label("Work Verification Settings", systemImage: "gearshape.fill")
+                            .font(HaloType.body(11, weight: .bold))
+                            .frame(minHeight: 44)
+                    }
+                    .foregroundStyle(HaloTheme.lime)
+                }
+                .padding(20)
+                .background(.black.opacity(0.80))
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .padding(24)
+            }
         }
     }
 
