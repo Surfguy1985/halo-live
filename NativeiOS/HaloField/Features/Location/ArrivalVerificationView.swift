@@ -188,13 +188,7 @@ struct ArrivalVerificationView: View {
     private func verify() {
         if !location.hasLocationPermission {
             location.requestPermission()
-            message = "Allow location access, then verify again."
-            return
-        }
-
-        guard let fix = location.freshLocation() else {
-            location.refresh()
-            message = "Getting a fresh, accurate GPS fix. Try again in a moment."
+            message = "Allow location access, then tap Verify My Location."
             return
         }
 
@@ -204,9 +198,33 @@ struct ArrivalVerificationView: View {
         }
 
         isVerifying = true
-        message = "Confirming your arrival with HALO…"
+        message = "Getting a fresh GPS fix…"
+        location.refresh()
 
         Task {
+            var fix = location.freshLocation()
+            if fix == nil {
+                for _ in 0..<8 {
+                    try? await Task.sleep(for: .milliseconds(750))
+                    if let candidate = location.freshLocation() {
+                        fix = candidate
+                        break
+                    }
+                }
+            }
+
+            guard let fix else {
+                await MainActor.run {
+                    isVerifying = false
+                    message = "HALO couldn’t get a ≤100m GPS fix. Move closer to an exterior wall or outside, then try again."
+                }
+                return
+            }
+
+            await MainActor.run {
+                message = "Confirming your property geofence with HALO…"
+            }
+
             do {
                 let result = try await HaloAPI.shared.verifyCheckIn(
                     jobID: job.id,
