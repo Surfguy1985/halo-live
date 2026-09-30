@@ -16,6 +16,17 @@ enum HaloAPIError: LocalizedError {
     }
 }
 
+struct TurnHandoff: Identifiable, Hashable, Sendable {
+    let id: String
+    let jobNo: String?
+    let propertyName: String
+    let address: String
+    let unit: String
+    let summary: String
+    let dueBy: String?
+    let createdAt: String?
+}
+
 actor HaloAPI {
     static let shared = HaloAPI()
 
@@ -89,6 +100,52 @@ actor HaloAPI {
             allowedRadiusMeters: (root["allowedRadiusMeters"] as? NSNumber)?.intValue ?? 300,
             accuracyMeters: (root["accuracyMeters"] as? NSNumber)?.doubleValue ?? accuracy,
             verifiedAt: root["verifiedAt"] as? String ?? formatter.string(from: .now)
+        )
+    }
+
+    func fetchOpenTurnHandoffs(activationToken: String) async throws -> [TurnHandoff] {
+        let data = try await request(
+            path: "/api/native/v1/handoffs/open",
+            bearerToken: activationToken
+        )
+        guard
+            let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let rows = root["handoffs"] as? [[String: Any]]
+        else { throw HaloAPIError.malformedPayload }
+
+        return rows.compactMap { row in
+            guard
+                let id = Self.string(row["id"]),
+                !id.isEmpty
+            else { return nil }
+
+            let propertyName = Self.string(row["propertyName"]) ?? "Property"
+            let addressParts = [
+                Self.string(row["propertyAddress"]),
+                Self.string(row["propertyCity"])
+            ]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+
+            return TurnHandoff(
+                id: id,
+                jobNo: Self.string(row["jobNo"]),
+                propertyName: propertyName,
+                address: addressParts.isEmpty ? propertyName : addressParts.joined(separator: ", "),
+                unit: Self.string(row["unitNo"]) ?? "—",
+                summary: Self.string(row["description"]) ?? "Turn handoff",
+                dueBy: Self.string(row["flexDueBy"]),
+                createdAt: Self.string(row["createdAt"])
+            )
+        }
+    }
+
+    func claimTurnHandoff(id: String, activationToken: String) async throws {
+        _ = try await request(
+            path: "/api/native/v1/handoffs/\(id)/claim",
+            method: "POST",
+            body: Data("{}".utf8),
+            bearerToken: activationToken
         )
     }
 
