@@ -33,13 +33,13 @@ struct RootView: View {
         .task(id: session.activationToken) {
 #if DEBUG
             if store.isPreviewMode {
-                fieldSync.refreshPendingCount(context: modelContext)
+                fieldSync.refreshPendingCount(context: modelContext, activationToken: session.activationToken)
                 return
             }
 #endif
             guard session.isActivated else {
                 store.clear()
-                fieldSync.refreshPendingCount(context: modelContext)
+                fieldSync.refreshPendingCount(context: modelContext, activationToken: session.activationToken)
                 return
             }
             await store.loadIfNeeded(activationToken: session.activationToken)
@@ -49,20 +49,20 @@ struct RootView: View {
         }
         .task(id: network.isConnected) {
             guard network.isConnected else {
-                fieldSync.refreshPendingCount(context: modelContext)
+                fieldSync.refreshPendingCount(context: modelContext, activationToken: session.activationToken)
                 return
             }
             await fieldSync.flush(context: modelContext, activationToken: session.activationToken)
         }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
-            fieldSync.refreshPendingCount(context: modelContext)
+            fieldSync.refreshPendingCount(context: modelContext, activationToken: session.activationToken)
             if network.isConnected {
                 await fieldSync.flush(context: modelContext, activationToken: session.activationToken)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .haloPendingActionCreated)) { _ in
-            fieldSync.refreshPendingCount(context: modelContext)
+            fieldSync.refreshPendingCount(context: modelContext, activationToken: session.activationToken)
             guard network.isConnected else { return }
             Task {
                 await fieldSync.flush(context: modelContext, activationToken: session.activationToken)
