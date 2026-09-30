@@ -9,6 +9,7 @@ struct JobDetailView: View {
     let jobID: String
 
     @State private var showRoute = false
+    @State private var showArrivalVerification = false
     @State private var proofPhase: String?
     @State private var proofTask: JobTask?
 
@@ -37,7 +38,24 @@ struct JobDetailView: View {
                 .safeAreaInset(edge: .bottom) { primaryAction(job) }
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbarColorScheme(.dark, for: .navigationBar)
-                .sheet(isPresented: $showRoute) { JobRouteView(job: job) }
+                .sheet(isPresented: $showRoute) {
+                    JobRouteView(job: job) {
+                        if job.state == .scheduled {
+                            store.setState(.enRoute, for: job.id)
+                        }
+                    }
+                }
+                .sheet(isPresented: $showArrivalVerification) {
+                    ArrivalVerificationView(
+                        job: job,
+#if DEBUG
+                        previewMode: store.isPreviewMode,
+#endif
+                        onVerified: { _ in
+                            store.setState(.active, for: job.id)
+                        }
+                    )
+                }
                 .fullScreenCover(isPresented: Binding(
                     get: { proofPhase != nil },
                     set: { if !$0 { proofPhase = nil; proofTask = nil } }
@@ -218,11 +236,9 @@ struct JobDetailView: View {
         Button {
             if job.state == .scheduled {
                 showRoute = true
+            } else if job.state == .enRoute || job.state == .arrived {
+                showArrivalVerification = true
             } else {
-                if job.state == .arrived {
-                    location.requestPermission()
-                    location.refresh()
-                }
                 let from = job.state.rawValue
                 store.advance(job.id)
                 let to = store.jobs.first(where: { $0.id == job.id })?.state.rawValue ?? from
