@@ -498,7 +498,10 @@ struct HaloCommsView: View {
 
             if !sharing.isEmpty {
                 location.requestPermission()
+                location.startLiveSharing()
                 location.refresh()
+            } else {
+                location.stopLiveSharing()
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -507,6 +510,7 @@ struct HaloCommsView: View {
 
     private func startSharing(_ item: HaloGPSSession) {
         location.requestPermission()
+        location.startLiveSharing()
         location.refresh()
         sharing.insert(item.id)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -524,6 +528,7 @@ struct HaloCommsView: View {
                 await MainActor.run {
                     sharing.remove(item.id)
                     gpsSessions.removeAll { $0.id == item.id }
+                    if sharing.isEmpty { location.stopLiveSharing() }
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
                 }
             } catch {
@@ -551,6 +556,7 @@ struct HaloCommsView: View {
             await MainActor.run {
                 errorMessage = error.localizedDescription
                 sharing.remove(item.id)
+                if sharing.isEmpty { location.stopLiveSharing() }
             }
         }
     }
