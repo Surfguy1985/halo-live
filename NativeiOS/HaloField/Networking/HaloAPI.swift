@@ -55,6 +55,26 @@ struct HaloGPSSession: Identifiable, Hashable, Sendable {
     let expiresAt: String?
 }
 
+struct HaloClockEntry: Hashable, Sendable {
+    let id: String
+    let jobID: String?
+    let property: String?
+    let unitNumber: String?
+    let running: Bool
+    let status: String
+    let reviewStatus: String
+    let startedAt: String?
+    let workedMs: Int
+    let pauseReason: String?
+    let sessionType: String
+}
+
+struct HaloClockStatus: Hashable, Sendable {
+    let configured: Bool
+    let employeeID: String?
+    let entry: HaloClockEntry?
+}
+
 actor HaloAPI {
     static let shared = HaloAPI()
 
@@ -336,6 +356,108 @@ actor HaloAPI {
         let body = try JSONSerialization.data(withJSONObject: [
             "action": "gpsStop",
             "sessionId": id
+        ])
+        _ = try await request(
+            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            method: "POST",
+            body: body,
+            bearerToken: activationToken
+        )
+    }
+
+    func fetchClockStatus(activationToken: String) async throws -> HaloClockStatus {
+        let body = try JSONSerialization.data(withJSONObject: ["action": "clockStatus"])
+        let data = try await request(
+            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            method: "POST",
+            body: body,
+            bearerToken: activationToken
+        )
+
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw HaloAPIError.malformedPayload
+        }
+
+        let configured = (root["configured"] as? Bool) ?? false
+        let employeeID = Self.string(root["employeeId"])
+        let entry: HaloClockEntry? = {
+            guard let row = root["entry"] as? [String: Any],
+                  let id = Self.string(row["id"]) else { return nil }
+            return HaloClockEntry(
+                id: id,
+                jobID: Self.string(row["jobId"]),
+                property: Self.string(row["property"]),
+                unitNumber: Self.string(row["unitNumber"]),
+                running: (row["running"] as? Bool) ?? false,
+                status: Self.string(row["status"]) ?? "working",
+                reviewStatus: Self.string(row["reviewStatus"]) ?? "",
+                startedAt: Self.string(row["startedAt"]),
+                workedMs: Self.int(row["workedMs"]) ?? 0,
+                pauseReason: Self.string(row["pauseReason"]),
+                sessionType: Self.string(row["sessionType"]) ?? "unit_work"
+            )
+        }()
+
+        return HaloClockStatus(configured: configured, employeeID: employeeID, entry: entry)
+    }
+
+    func punchClock(
+        kind: String,
+        jobID: String,
+        imageData: Data,
+        location: CLLocation,
+        requestID: UUID,
+        activationToken: String
+    ) async throws -> HaloClockEntry {
+        let body = try JSONSerialization.data(withJSONObject: [
+            "action": "clockPunch",
+            "kind": kind,
+            "jobId": jobID,
+            "imageBase64": imageData.base64EncodedString(),
+            "lat": location.coordinate.latitude,
+            "lng": location.coordinate.longitude,
+            "accuracy": location.horizontalAccuracy,
+            "capturedAt": ISO8601DateFormatter().string(from: location.timestamp),
+            "requestId": requestID.uuidString
+        ])
+
+        let data = try await request(
+            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            method: "POST",
+            body: body,
+            bearerToken: activationToken
+        )
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let entryID = Self.string(root["entryId"]) else {
+            throw HaloAPIError.malformedPayload
+        }
+
+        return HaloClockEntry(
+            id: entryID,
+            jobID: jobID,
+            property: nil,
+            unitNumber: nil,
+            running: kind == "start" || kind == "resume",
+            status: Self.string(root["status"]) ?? (kind == "submit" ? "closed" : "working"),
+            reviewStatus: Self.string(root["reviewStatus"]) ?? "",
+            startedAt: nil,
+            workedMs: Self.int(root["workedMs"]) ?? 0,
+            pauseReason: kind == "pause" ? "break" : nil,
+            sessionType: "unit_work"
+        )
+    }
+
+    func toggleRework(
+        jobID: String,
+        index: Int,
+        checked: Bool,
+        activationToken: String
+    ) async throws {
+        let body = try JSONSerialization.data(withJSONObject: [
+            "action": "reworkToggle",
+            "jobId": jobID,
+            "index": index,
+            "checked": checked
         ])
         _ = try await request(
             path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
