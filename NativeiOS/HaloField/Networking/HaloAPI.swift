@@ -548,7 +548,9 @@ actor HaloAPI {
                 JobTask(id: "\(id)-task-0", title: description, detail: nil, isComplete: state == .complete, requiresPhoto: true)
             ] : tasks,
             photoCount: int(row["photoCount"]) ?? 0,
-            flaggedCount: rawStatus == "hold" || rawStatus == "flagged" ? 1 : 0,
+            beforePhotoCount: int(row["beforePhotoCount"]) ?? 0,
+            afterPhotoCount: int(row["afterPhotoCount"]) ?? 0,
+            flaggedCount: int(row["flaggedCount"]) ?? (rawStatus == "hold" || rawStatus == "flagged" ? 1 : 0),
             updatedAt: string(row["updatedAt"]) ?? string(row["createdAt"])
         )
     }
