@@ -9,6 +9,9 @@ final class JobStore: ObservableObject {
     @Published private(set) var syncError: String?
     @Published private(set) var lastSyncedAt: Date?
     @Published var selectedJobID: String?
+#if DEBUG
+    @Published private(set) var isPreviewMode = false
+#endif
 
     private let api: HaloAPI
     private var hasLoaded = false
@@ -69,6 +72,19 @@ final class JobStore: ObservableObject {
         }
     }
 
+#if DEBUG
+    func loadPreview() {
+        withAnimation(.snappy(duration: 0.28)) {
+            jobs = HaloPreviewData.jobs
+        }
+        syncError = nil
+        lastSyncedAt = .now
+        hasLoaded = true
+        loadedToken = nil
+        isPreviewMode = true
+    }
+#endif
+
     func clear() {
         jobs = []
         syncError = nil
@@ -76,6 +92,9 @@ final class JobStore: ObservableObject {
         selectedJobID = nil
         hasLoaded = false
         loadedToken = nil
+#if DEBUG
+        isPreviewMode = false
+#endif
     }
 
     func advance(_ jobID: String) {
