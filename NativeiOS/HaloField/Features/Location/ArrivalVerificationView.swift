@@ -15,6 +15,7 @@ struct ArrivalVerificationView: View {
     @State private var message = "HALO needs a fresh GPS fix before work can begin."
     @State private var verified = false
     @State private var lastResult: HaloAPI.CheckInResult?
+    @State private var checkInRequestID = UUID()
 
     var body: some View {
         NavigationStack {
@@ -245,6 +246,7 @@ struct ArrivalVerificationView: View {
                     longitude: fix.coordinate.longitude,
                     accuracy: fix.horizontalAccuracy,
                     capturedAt: fix.timestamp,
+                    requestID: checkInRequestID,
                     activationToken: token
                 )
                 await MainActor.run {
