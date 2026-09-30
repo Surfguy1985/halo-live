@@ -1,5 +1,6 @@
 import CoreLocation
 import SwiftUI
+import UIKit
 
 struct ArrivalVerificationView: View {
     let job: FieldJob
@@ -99,6 +100,20 @@ struct ArrivalVerificationView: View {
                         .clipShape(Capsule())
                     }
                     .disabled(isVerifying || verified)
+
+                    if location.isDeniedOrRestricted && !verified {
+                        Button {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        } label: {
+                            Label("Open iPhone Settings", systemImage: "gearshape.fill")
+                                .font(HaloType.body(12, weight: .bold))
+                                .frame(maxWidth: .infinity, minHeight: 46)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.white.opacity(0.7))
+                    }
 
 #if DEBUG
                     if previewMode && !verified {
