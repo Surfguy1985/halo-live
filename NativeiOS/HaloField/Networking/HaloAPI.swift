@@ -30,9 +30,15 @@ actor HaloAPI {
         self.session = session
     }
 
-    func fetchJobs() async throws -> [FieldJob] {
-        let data = try await request(path: "/api/jobs")
-        guard let raw = try JSONSerialization.jsonObject(with: data) as? [Any] else {
+    func fetchJobs(activationToken: String) async throws -> [FieldJob] {
+        let data = try await request(
+            path: "/api/native/field-feed",
+            bearerToken: activationToken
+        )
+        guard
+            let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let raw = root["jobs"] as? [Any]
+        else {
             throw HaloAPIError.malformedPayload
         }
 
@@ -49,7 +55,7 @@ actor HaloAPI {
         _ = try await request(path: "/api/jobs/\(id)", method: "PATCH", body: body)
     }
 
-    private func request(path: String, method: String = "GET", body: Data? = nil) async throws -> Data {
+    private func request(path: String, method: String = "GET", body: Data? = nil, bearerToken: String? = nil) async throws -> Data {
         guard let url = URL(string: path, relativeTo: baseURL)?.absoluteURL else {
             throw HaloAPIError.invalidResponse
         }
@@ -59,7 +65,9 @@ actor HaloAPI {
         request.timeoutInterval = 20
         request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("vendor", forHTTPHeaderField: "X-Halo-Role")
+        if let bearerToken, !bearerToken.isEmpty {
+            request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        }
         if let body {
             request.httpBody = body
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
