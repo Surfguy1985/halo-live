@@ -90,6 +90,20 @@ final class OfflineQueue {
         try? context.save()
     }
 
+    func scopedActions(in context: ModelContext, activationToken: String?) -> [PendingFieldAction] {
+        guard let activationToken, !activationToken.isEmpty else { return [] }
+        let key = Self.ownerKey(for: activationToken)
+        return ((try? pending(in: context)) ?? []).filter { $0.ownerKey == key }
+    }
+
+    func retryAttention(_ action: PendingFieldAction, context: ModelContext) {
+        action.requiresAttention = false
+        action.lastError = nil
+        action.nextAttemptAt = nil
+        try? context.save()
+        NotificationCenter.default.post(name: .haloPendingActionCreated, object: nil)
+    }
+
     func markRetry(_ action: PendingFieldAction, error: String, context: ModelContext) {
         action.retryCount += 1
         action.lastError = error
