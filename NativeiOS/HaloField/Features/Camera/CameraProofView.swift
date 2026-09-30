@@ -11,6 +11,7 @@ struct CameraProofView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var store: JobStore
+    @EnvironmentObject private var session: HaloSessionStore
     @Environment(\.modelContext) private var modelContext
 
     @StateObject private var camera = HaloCameraController()
@@ -299,6 +300,7 @@ struct CameraProofView: View {
                             "imagePath": proof.imageURL.path,
                             "metadataPath": proof.metadataURL.path
                         ],
+                        activationToken: session.activationToken,
                         context: modelContext
                     )
                     isSaving = false
