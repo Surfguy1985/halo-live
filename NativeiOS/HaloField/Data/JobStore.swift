@@ -14,11 +14,13 @@ final class JobStore: ObservableObject {
 #endif
 
     private let api: HaloAPI
+    private let cache: OfflineJobCache
     private var hasLoaded = false
     private var loadedToken: String?
 
-    init(api: HaloAPI = .shared) {
+    init(api: HaloAPI = .shared, cache: OfflineJobCache = .shared) {
         self.api = api
+        self.cache = cache
     }
 
     var nextJob: FieldJob? {
@@ -43,6 +45,16 @@ final class JobStore: ObservableObject {
         if loadedToken != nil && loadedToken != activationToken {
             clear()
         }
+
+        if jobs.isEmpty, let snapshot = try? await cache.load(token: activationToken) {
+            withAnimation(.snappy(duration: 0.22)) {
+                jobs = snapshot.jobs
+            }
+            lastSyncedAt = snapshot.savedAt
+            loadedToken = activationToken
+            syncError = "Offline-ready cache loaded. Refreshing live HALO…"
+        }
+
         await refresh(activationToken: activationToken, initial: true)
     }
 
@@ -67,8 +79,15 @@ final class JobStore: ObservableObject {
             lastSyncedAt = .now
             hasLoaded = true
             loadedToken = activationToken
+            try? await cache.save(jobs: live, token: activationToken)
         } catch {
-            syncError = error.localizedDescription
+            if jobs.isEmpty {
+                syncError = error.localizedDescription
+            } else {
+                syncError = "Offline — showing your last synced HALO jobs. New work will sync when service returns."
+                hasLoaded = true
+                loadedToken = activationToken
+            }
         }
     }
 
