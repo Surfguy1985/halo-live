@@ -15,6 +15,8 @@ struct JobDetailView: View {
     @State private var showMessages = false
     @State private var proofPhase: String?
     @State private var proofTask: JobTask?
+    @State private var reworkBusy = Set<Int>()
+    @State private var reworkError: String?
 
     private var job: FieldJob? { store.jobs.first(where: { $0.id == jobID }) }
 
@@ -25,11 +27,18 @@ struct JobDetailView: View {
                     VStack(alignment: .leading, spacing: 22) {
                         jobHeader(job)
                         fieldJourney(job)
+                        WorkSessionCard(job: job)
+                        if job.needsRework == true || job.unresolvedReworkCount > 0 {
+                            reworkPanel(job)
+                        }
                         progress(job)
                         taskList(job)
                         proof(job)
                         if job.kind == .maintenance && !job.isClosed {
                             additionalWork(job)
+                        }
+                        if job.readyForWalk == true || job.walkVerified == true || (job.closeoutStage ?? "active") != "active" {
+                            closeoutStatus(job)
                         }
                         propertyNotes(job)
                     }
@@ -207,6 +216,167 @@ struct JobDetailView: View {
             }
             .padding(14)
             .haloDarkCard()
+        }
+    }
+
+    private func reworkPanel(_ job: FieldJob) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("REWORK")
+                    .font(HaloType.body(10, weight: .bold))
+                    .tracking(1.7)
+                    .foregroundStyle(HaloTheme.warning)
+
+                Spacer()
+
+                Text("\(job.unresolvedReworkCount) remaining")
+                    .font(HaloType.body(9, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.40))
+            }
+
+            VStack(alignment: .leading, spacing: 0) {
+                if let notes = job.reworkNotes, !notes.isEmpty {
+                    Text(notes)
+                        .font(HaloType.body(11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.52))
+                        .padding(.bottom, 12)
+                }
+
+                ForEach(job.reworkItems ?? []) { item in
+                    Button {
+                        toggleRework(job: job, item: item)
+                    } label: {
+                        HStack(spacing: 12) {
+                            if reworkBusy.contains(item.index) {
+                                ProgressView()
+                                    .tint(HaloTheme.lime)
+                                    .frame(width: 22, height: 22)
+                            } else {
+                                Image(systemName: item.isComplete ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundStyle(item.isComplete ? HaloTheme.lime : HaloTheme.warning)
+                            }
+
+                            Text(item.text)
+                                .font(HaloType.body(13, weight: .semibold))
+                                .foregroundStyle(item.isComplete ? .white.opacity(0.42) : .white)
+                                .strikethrough(item.isComplete, color: .white.opacity(0.28))
+
+                            Spacer()
+                        }
+                        .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(reworkBusy.contains(item.index))
+                }
+
+                if let reworkError {
+                    Label(reworkError, systemImage: "exclamationmark.triangle.fill")
+                        .font(HaloType.body(10, weight: .semibold))
+                        .foregroundStyle(HaloTheme.warning)
+                        .padding(.top, 8)
+                }
+            }
+            .padding(.horizontal, 16)
+            .haloDarkCard()
+        }
+    }
+
+    private func closeoutStatus(_ job: FieldJob) -> some View {
+        let stage = job.closeoutStage ?? "active"
+        let title: String
+        let subtitle: String
+        let icon: String
+        let tint: Color
+
+        if stage == "history" || job.state == .complete {
+            title = "Closed"
+            subtitle = "Back Office completed the final closeout."
+            icon = "checkmark.seal.fill"
+            tint = HaloTheme.success
+        } else if job.walkVerified == true || stage == "ready_to_close" {
+            title = "Final walk passed"
+            subtitle = "Crew work is verified. Office owns the remaining closeout."
+            icon = "checkmark.seal.fill"
+            tint = HaloTheme.fieldLive
+        } else if job.readyForWalk == true {
+            title = "Waiting for final walk"
+            subtitle = "Work is submitted. Paid work is stopped and the manager owns the next action."
+            icon = "person.badge.clock.fill"
+            tint = HaloTheme.actionBlue
+        } else if stage == "needs_attention" {
+            title = "Closeout needs attention"
+            subtitle = (job.closeoutBlockers ?? []).first ?? "Back Office has a closeout item that still needs action."
+            icon = "exclamationmark.triangle.fill"
+            tint = HaloTheme.warning
+        } else {
+            title = "Closeout in progress"
+            subtitle = "HALO is tracking the final review state in Back Office."
+            icon = "clock.arrow.circlepath"
+            tint = HaloTheme.actionBlue
+        }
+
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("FINAL WALK")
+                .font(HaloType.body(10, weight: .bold))
+                .tracking(1.7)
+                .foregroundStyle(.white.opacity(0.42))
+
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(tint.opacity(0.14))
+                        .frame(width: 46, height: 46)
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(tint)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(HaloType.body(14, weight: .bold))
+                        .foregroundStyle(.white)
+                    Text(subtitle)
+                        .font(HaloType.body(11))
+                        .foregroundStyle(.white.opacity(0.46))
+                }
+
+                Spacer()
+            }
+            .padding(16)
+            .haloDarkCard()
+        }
+    }
+
+    private func toggleRework(job: FieldJob, item: ReworkItem) {
+        guard let token = session.activationToken else {
+            reworkError = "This iPhone is not activated."
+            return
+        }
+
+        reworkBusy.insert(item.index)
+        reworkError = nil
+
+        Task {
+            do {
+                try await HaloAPI.shared.toggleRework(
+                    jobID: job.id,
+                    index: item.index,
+                    checked: !item.isComplete,
+                    activationToken: token
+                )
+                await store.refresh(activationToken: token)
+                await MainActor.run {
+                    reworkBusy.remove(item.index)
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                }
+            } catch {
+                await MainActor.run {
+                    reworkBusy.remove(item.index)
+                    reworkError = error.localizedDescription
+                    UINotificationFeedbackGenerator().notificationOccurred(.error)
+                }
+            }
         }
     }
 
