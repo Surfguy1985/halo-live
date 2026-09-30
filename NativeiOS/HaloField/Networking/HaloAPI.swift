@@ -381,6 +381,51 @@ actor HaloAPI {
         )
     }
 
+    func registerNativeDevice(
+        deviceToken: String,
+        activationToken: String
+    ) async throws {
+#if DEBUG
+        let environment = "sandbox"
+#else
+        let environment = "production"
+#endif
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.archangel.halofield"
+        let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        let osVersion = ProcessInfo.processInfo.operatingSystemVersionString
+
+        let body = try JSONSerialization.data(withJSONObject: [
+            "action": "registerDevice",
+            "deviceToken": deviceToken,
+            "environment": environment,
+            "bundleId": bundleID,
+            "appVersion": appVersion,
+            "osVersion": osVersion
+        ])
+        _ = try await request(
+            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            method: "POST",
+            body: body,
+            bearerToken: activationToken
+        )
+    }
+
+    func unregisterNativeDevice(
+        deviceToken: String,
+        activationToken: String
+    ) async throws {
+        let body = try JSONSerialization.data(withJSONObject: [
+            "action": "unregisterDevice",
+            "deviceToken": deviceToken
+        ])
+        _ = try await request(
+            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            method: "POST",
+            body: body,
+            bearerToken: activationToken
+        )
+    }
+
     func fetchClockStatus(activationToken: String) async throws -> HaloClockStatus {
         let body = try JSONSerialization.data(withJSONObject: ["action": "clockStatus"])
         let data = try await request(
