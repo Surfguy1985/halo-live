@@ -53,6 +53,7 @@ struct HaloMessageAttachment: Identifiable, Hashable, Sendable {
 struct HaloMessage: Identifiable, Hashable, Sendable {
     let id: String
     let channel: String
+    let threadName: String?
     let from: String
     let author: String
     let text: String
@@ -339,6 +340,7 @@ actor HaloAPI {
             return HaloMessage(
                 id: id,
                 channel: Self.string(row["channel"]) ?? "field_dispatch",
+                threadName: Self.string(row["threadName"]),
                 from: Self.string(row["from"]) ?? "office",
                 author: Self.string(row["author"]) ?? "Office",
                 text: Self.string(row["text"]) ?? "",
