@@ -17,6 +17,11 @@ targets:
       - HaloShared
     info:
       path: HaloFieldWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: HALO
+        CFBundlePackageType: XPC!
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.archangel.halofield.widgets
