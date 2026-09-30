@@ -198,6 +198,7 @@ actor HaloAPI {
         let description = string(row["description"]) ?? category ?? "Job"
         let services = stringArray(row["services"])
         let serviceNames = services.isEmpty ? splitServices(description) : services
+        let serverTasks = taskArray(row["tasks"])
         let title = category ?? serviceNames.first ?? description
         let rawStatus = (string(row["status"]) ?? "open").lowercased()
         let boardStatus = (string(row["boardStatus"]) ?? "").lowercased()
@@ -207,15 +208,17 @@ actor HaloAPI {
             return haystack.contains("maintenance") || haystack.contains("repair") ? .maintenance : .turn
         }()
 
-        let tasks = serviceNames.prefix(12).enumerated().map { index, service in
-            JobTask(
-                id: "\(id)-task-\(index)",
-                title: service,
-                detail: nil,
-                isComplete: rawStatus == "complete" || rawStatus == "paid" || rawStatus == "cleared",
-                requiresPhoto: true
-            )
-        }
+        let tasks: [JobTask] = serverTasks.isEmpty
+            ? serviceNames.prefix(12).enumerated().map { index, service in
+                JobTask(
+                    id: "\(id)-task-\(index)",
+                    title: service,
+                    detail: nil,
+                    isComplete: rawStatus == "complete" || rawStatus == "paid" || rawStatus == "cleared",
+                    requiresPhoto: true
+                )
+            }
+            : serverTasks
 
         let state = mapState(status: rawStatus, boardStatus: boardStatus)
         let scheduledOn = string(row["scheduledOn"])
@@ -315,6 +318,27 @@ actor HaloAPI {
     nonisolated private static func stringArray(_ value: Any?) -> [String] {
         guard let items = value as? [Any] else { return [] }
         return items.compactMap(string).filter { !$0.isEmpty }
+    }
+
+    nonisolated private static func taskArray(_ value: Any?) -> [JobTask] {
+        guard let items = value as? [Any] else { return [] }
+        return items.compactMap { item in
+            guard
+                let row = item as? [String: Any],
+                let id = string(row["id"]),
+                !id.isEmpty,
+                let title = string(row["title"]),
+                !title.isEmpty
+            else { return nil }
+
+            return JobTask(
+                id: id,
+                title: title,
+                detail: string(row["detail"]),
+                isComplete: (row["isComplete"] as? Bool) ?? false,
+                requiresPhoto: (row["requiresPhoto"] as? Bool) ?? true
+            )
+        }
     }
 
     nonisolated private static func int(_ value: Any?) -> Int? {
