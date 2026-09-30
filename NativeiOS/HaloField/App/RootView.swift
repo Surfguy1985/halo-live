@@ -9,6 +9,7 @@ struct RootView: View {
     @EnvironmentObject private var fieldSync: FieldSyncController
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @State private var selectedTab = 0
 
     init() {
         let appearance = UITabBarAppearance()
@@ -69,6 +70,11 @@ struct RootView: View {
                 await fieldSync.flush(context: modelContext, activationToken: session.activationToken)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .haloOpenJob)) { note in
+            guard let jobID = note.object as? String else { return }
+            store.selectedJobID = jobID
+            selectedTab = 1
+        }
         .onReceive(NotificationCenter.default.publisher(for: .haloPendingActionCreated)) { _ in
             fieldSync.refreshPendingCount(context: modelContext, activationToken: session.activationToken)
             guard network.isConnected else { return }
@@ -79,18 +85,22 @@ struct RootView: View {
     }
 
     private var tabShell: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             NavigationStack { TodayView() }
                 .tabItem { Label("Today", systemImage: "bolt.fill") }
+                .tag(0)
 
             NavigationStack { JobsView() }
                 .tabItem { Label("Jobs", systemImage: "square.stack.3d.up.fill") }
+                .tag(1)
 
             NavigationStack { HaloCommsView() }
                 .tabItem { Label("Halo", systemImage: "sparkles") }
+                .tag(2)
 
             NavigationStack { ProfileView() }
                 .tabItem { Label("Me", systemImage: "person.crop.circle") }
+                .tag(3)
         }
         .tint(HaloTheme.lime)
     }
@@ -130,6 +140,14 @@ private struct JobsView: View {
         .background(HaloTheme.fieldBackground.ignoresSafeArea())
         .navigationTitle("Jobs")
         .toolbarColorScheme(.dark, for: .navigationBar)
+        .navigationDestination(isPresented: Binding(
+            get: { store.selectedJobID != nil },
+            set: { if !$0 { store.selectedJobID = nil } }
+        )) {
+            if let jobID = store.selectedJobID {
+                JobDetailView(jobID: jobID)
+            }
+        }
     }
 }
 
