@@ -33,7 +33,6 @@ struct HaloProofPair: Identifiable, Hashable, Sendable {
     let area: String?
     let beforeURL: String?
     let afterURL: String?
-    let proofPairs: [HaloProofPair]
 }
 
 struct HaloMessageAttachment: Identifiable, Hashable, Sendable {
@@ -48,6 +47,7 @@ struct HaloMessageAttachment: Identifiable, Hashable, Sendable {
     let actionSummary: String?
     let beforeURL: String?
     let afterURL: String?
+    let proofPairs: [HaloProofPair]
 }
 
 struct HaloMessage: Identifiable, Hashable, Sendable {
