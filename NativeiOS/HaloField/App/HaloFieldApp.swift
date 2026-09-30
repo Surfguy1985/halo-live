@@ -6,6 +6,7 @@ struct HaloFieldApp: App {
     @StateObject private var store = JobStore()
     @StateObject private var location = LocationService()
     @StateObject private var session = HaloSessionStore()
+    @StateObject private var network = NetworkMonitor()
 
     var body: some Scene {
         WindowGroup {
@@ -13,6 +14,7 @@ struct HaloFieldApp: App {
                 .environmentObject(store)
                 .environmentObject(location)
                 .environmentObject(session)
+                .environmentObject(network)
                 .preferredColorScheme(.dark)
                 .onOpenURL { url in
                     session.handle(url: url)
