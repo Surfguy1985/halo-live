@@ -11,13 +11,24 @@ struct RootView: View {
 
     var body: some View {
         Group {
+#if DEBUG
+            if session.isActivated || store.isPreviewMode {
+                tabShell
+            } else {
+                ActivationView()
+            }
+#else
             if session.isActivated {
                 tabShell
             } else {
                 ActivationView()
             }
+#endif
         }
         .task(id: session.activationToken) {
+#if DEBUG
+            if store.isPreviewMode { return }
+#endif
             guard session.isActivated else {
                 store.clear()
                 return
