@@ -4,13 +4,14 @@ struct TodayView: View {
     @EnvironmentObject private var store: JobStore
     @EnvironmentObject private var session: HaloSessionStore
     @EnvironmentObject private var network: NetworkMonitor
+    @EnvironmentObject private var fieldSync: FieldSyncController
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 header
 
-                if let error = store.syncError {
+                if let error = store.syncError, network.isConnected {
                     syncErrorCard(error)
                 }
 
@@ -84,9 +85,9 @@ struct TodayView: View {
                 Spacer()
                 HStack(spacing: 7) {
                     Circle()
-                        .fill(!network.isConnected ? HaloTheme.warning : (store.syncError == nil ? HaloTheme.fieldLive : HaloTheme.warning))
+                        .fill(syncIndicatorColor)
                         .frame(width: 7, height: 7)
-                    Text(!network.isConnected ? "OFFLINE" : (store.isRefreshing ? "SYNCING" : "LIVE"))
+                    Text(syncIndicatorText)
                         .font(HaloType.body(10, weight: .bold))
                         .tracking(1.2)
                         .foregroundStyle(.white.opacity(0.6))
@@ -96,11 +97,23 @@ struct TodayView: View {
             if !network.isConnected {
                 HStack(spacing: 8) {
                     Image(systemName: "wifi.slash")
-                    Text("OFFLINE MODE · YOUR LAST SYNCED JOBS STAY AVAILABLE")
+                    Text(fieldSync.pendingCount > 0
+                         ? "OFFLINE · \(fieldSync.pendingCount) CHANGE\(fieldSync.pendingCount == 1 ? "" : "S") SAVED ON THIS IPHONE"
+                         : "OFFLINE MODE · YOUR LAST SYNCED JOBS STAY AVAILABLE")
                 }
                 .font(HaloType.body(9, weight: .bold))
                 .tracking(1.1)
                 .foregroundStyle(HaloTheme.warning)
+            } else if fieldSync.pendingCount > 0 {
+                HStack(spacing: 8) {
+                    Image(systemName: fieldSync.isSyncing ? "arrow.triangle.2.circlepath" : "icloud.and.arrow.up")
+                    Text(fieldSync.isSyncing
+                         ? "SYNCING \(fieldSync.pendingCount) SAVED CHANGE\(fieldSync.pendingCount == 1 ? "" : "S")"
+                         : "\(fieldSync.pendingCount) SAVED CHANGE\(fieldSync.pendingCount == 1 ? "" : "S") WAITING TO SYNC")
+                }
+                .font(HaloType.body(9, weight: .bold))
+                .tracking(1.1)
+                .foregroundStyle(HaloTheme.lime)
             }
 
             VStack(alignment: .leading, spacing: 4) {
@@ -122,6 +135,20 @@ struct TodayView: View {
             .font(HaloType.body(12, weight: .semibold))
             .foregroundStyle(.white.opacity(0.5))
         }
+    }
+
+    private var syncIndicatorText: String {
+        if !network.isConnected { return "OFFLINE" }
+        if fieldSync.isSyncing || store.isRefreshing { return "SYNCING" }
+        if fieldSync.pendingCount > 0 { return "\(fieldSync.pendingCount) TO SYNC" }
+        return store.syncError == nil ? "LIVE" : "ATTENTION"
+    }
+
+    private var syncIndicatorColor: Color {
+        if !network.isConnected { return HaloTheme.warning }
+        if fieldSync.isSyncing || store.isRefreshing { return HaloTheme.actionBlue }
+        if fieldSync.pendingCount > 0 { return HaloTheme.lime }
+        return store.syncError == nil ? HaloTheme.fieldLive : HaloTheme.warning
     }
 
     private var loadingState: some View {
