@@ -28,7 +28,7 @@ struct HaloJobLiveActivity: Widget {
                 }
 
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text("(Int(context.state.progress * 100))%")
+                    Text("\(Int(context.state.progress * 100))%")
                         .font(.headline.monospacedDigit().weight(.bold))
                         .foregroundStyle(Color(red: 185/255, green: 1, blue: 102/255))
                 }
@@ -52,7 +52,7 @@ struct HaloJobLiveActivity: Widget {
                 Image(systemName: "bolt.fill")
                     .foregroundStyle(Color(red: 185/255, green: 1, blue: 102/255))
             } compactTrailing: {
-                Text("(Int(context.state.progress * 100))")
+                Text("\(Int(context.state.progress * 100))")
                     .font(.caption2.monospacedDigit().weight(.bold))
             } minimal: {
                 Image(systemName: "bolt.fill")
@@ -78,7 +78,7 @@ private struct LockScreenJobView: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("UNIT (context.attributes.unit) · (context.attributes.propertyName)")
+                Text("UNIT \(context.attributes.unit) · \(context.attributes.propertyName)")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.white.opacity(0.72))
                     .lineLimit(1)
