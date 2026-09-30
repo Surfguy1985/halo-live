@@ -27,13 +27,21 @@ enum HaloTheme {
 
 enum HaloType {
     static func body(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        .custom("Inter", size: size, relativeTo: .body).weight(weight)
+        .system(size: size, weight: weight, design: .default)
     }
+
     static func display(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
-        .custom("Inter", size: size, relativeTo: .title).weight(weight)
+        .system(size: size, weight: weight, design: .rounded)
     }
+
     static func card(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
-        .custom("Sora", size: size, relativeTo: .title2).weight(weight)
+        .system(size: size, weight: weight, design: .rounded)
+    }
+}
+
+enum HaloMotion {
+    static func animation(reduceMotion: Bool, duration: Double = 0.32) -> Animation? {
+        reduceMotion ? nil : .snappy(duration: duration)
     }
 }
 
