@@ -45,6 +45,8 @@ struct FieldJob: Identifiable, Codable, Hashable {
     var scheduledWindow: String
     var travelMinutes: Int?
     var address: String
+    var propertyLatitude: Double?
+    var propertyLongitude: Double?
     var crewLeaderID: String?
     var crewLeaderName: String?
     var tasks: [JobTask]
