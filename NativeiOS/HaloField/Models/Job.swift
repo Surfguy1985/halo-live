@@ -51,6 +51,8 @@ struct FieldJob: Identifiable, Codable, Hashable {
     var crewLeaderName: String?
     var tasks: [JobTask]
     var photoCount: Int
+    var beforePhotoCount: Int = 0
+    var afterPhotoCount: Int = 0
     var flaggedCount: Int
     var updatedAt: String?
 
