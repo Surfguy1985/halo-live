@@ -290,7 +290,7 @@ struct CameraProofView: View {
                 )
                 await MainActor.run {
                     savedProof = proof
-                    store.recordLocalProof(jobID: job.id)
+                    store.recordLocalProof(jobID: job.id, phase: proof.metadata.phase)
                     OfflineQueue.shared.enqueue(
                         jobID: job.id,
                         kind: .proofCaptured,
