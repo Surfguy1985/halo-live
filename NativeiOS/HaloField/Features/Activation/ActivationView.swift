@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ActivationView: View {
     @EnvironmentObject private var session: HaloSessionStore
+    @EnvironmentObject private var store: JobStore
     @State private var token = ""
     @State private var error: String?
 
@@ -73,6 +74,36 @@ struct ActivationView: View {
                             .foregroundStyle(Color.red.opacity(0.9))
                             .multilineTextAlignment(.center)
                     }
+
+#if DEBUG
+                    HStack {
+                        Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
+                        Text("XCODE PREVIEW")
+                            .font(HaloType.body(9, weight: .bold))
+                            .tracking(1.4)
+                            .foregroundStyle(.white.opacity(0.32))
+                        Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
+                    }
+                    .padding(.vertical, 4)
+
+                    Button {
+                        store.loadPreview()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "iphone.gen3")
+                            Text("Preview HALO Field")
+                        }
+                        .font(HaloType.body(14, weight: .bold))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .foregroundStyle(.white)
+                        .background(Color.white.opacity(0.07))
+                        .clipShape(Capsule())
+                        .overlay {
+                            Capsule().stroke(Color.white.opacity(0.12))
+                        }
+                    }
+#endif
                 }
                 .padding(18)
                 .haloDarkCard()
