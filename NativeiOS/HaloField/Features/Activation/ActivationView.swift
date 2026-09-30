@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ActivationView: View {
     @EnvironmentObject private var session: HaloSessionStore
