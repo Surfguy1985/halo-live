@@ -1,8 +1,13 @@
+import SwiftData
 import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var session: HaloSessionStore
     @EnvironmentObject private var store: JobStore
+    @EnvironmentObject private var network: NetworkMonitor
+    @EnvironmentObject private var fieldSync: FieldSyncController
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         UITabBar.appearance().unselectedItemTintColor = UIColor.white.withAlphaComponent(0.45)
@@ -27,13 +32,41 @@ struct RootView: View {
         }
         .task(id: session.activationToken) {
 #if DEBUG
-            if store.isPreviewMode { return }
+            if store.isPreviewMode {
+                fieldSync.refreshPendingCount(context: modelContext)
+                return
+            }
 #endif
             guard session.isActivated else {
                 store.clear()
+                fieldSync.refreshPendingCount(context: modelContext)
                 return
             }
             await store.loadIfNeeded(activationToken: session.activationToken)
+            if network.isConnected {
+                await fieldSync.flush(context: modelContext, activationToken: session.activationToken)
+            }
+        }
+        .task(id: network.isConnected) {
+            guard network.isConnected else {
+                fieldSync.refreshPendingCount(context: modelContext)
+                return
+            }
+            await fieldSync.flush(context: modelContext, activationToken: session.activationToken)
+        }
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            fieldSync.refreshPendingCount(context: modelContext)
+            if network.isConnected {
+                await fieldSync.flush(context: modelContext, activationToken: session.activationToken)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .haloPendingActionCreated)) { _ in
+            fieldSync.refreshPendingCount(context: modelContext)
+            guard network.isConnected else { return }
+            Task {
+                await fieldSync.flush(context: modelContext, activationToken: session.activationToken)
+            }
         }
     }
 
