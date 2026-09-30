@@ -1,4 +1,5 @@
 import PhotosUI
+import SwiftData
 import SwiftUI
 import UIKit
 
@@ -10,6 +11,7 @@ struct CameraProofView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var store: JobStore
+    @Environment(\.modelContext) private var modelContext
 
     @StateObject private var camera = HaloCameraController()
     @State private var pickerItem: PhotosPickerItem?
@@ -288,6 +290,17 @@ struct CameraProofView: View {
                 await MainActor.run {
                     savedProof = proof
                     store.recordLocalProof(jobID: job.id)
+                    OfflineQueue.shared.enqueue(
+                        jobID: job.id,
+                        kind: .proofCaptured,
+                        payload: [
+                            "proofID": proof.metadata.proofID,
+                            "phase": proof.metadata.phase,
+                            "imagePath": proof.imageURL.path,
+                            "metadataPath": proof.metadataURL.path
+                        ],
+                        context: modelContext
+                    )
                     isSaving = false
                 }
                 try? await Task.sleep(for: .milliseconds(450))
