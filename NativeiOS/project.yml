@@ -20,6 +20,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.archangel.halofield.widgets
+        INFOPLIST_FILE: HaloFieldWidgets/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
 
@@ -29,9 +31,6 @@ targets:
     sources:
       - HaloField
       - HaloShared
-    dependencies:
-      - target: HaloFieldWidgets
-        embed: true
     info:
       path: HaloField/Info.plist
       properties:
