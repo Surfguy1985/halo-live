@@ -17,13 +17,16 @@ final class HaloSessionStore: ObservableObject {
         return !token.isEmpty
     }
 
-    func activate(token: String) throws {
+    func activateValidated(token: String) async throws -> HaloActivationInfo {
         let clean = token.trimmingCharacters(in: .whitespacesAndNewlines)
         guard clean.count >= 16 else {
             throw SessionError.invalidToken
         }
+
+        let info = try await HaloAPI.shared.validateActivation(token: clean)
         try saveToken(clean)
         activationToken = clean
+        return info
     }
 
     func deactivate() {
@@ -36,14 +39,14 @@ final class HaloSessionStore: ObservableObject {
         activationToken = nil
     }
 
-    func handle(url: URL) {
+    func handle(url: URL) async {
         guard url.scheme?.lowercased() == "halo",
               url.host?.lowercased() == "activate",
               let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let token = components.queryItems?.first(where: { $0.name == "token" })?.value
         else { return }
 
-        try? activate(token: token)
+        _ = try? await activateValidated(token: token)
     }
 
     private func saveToken(_ token: String) throws {
