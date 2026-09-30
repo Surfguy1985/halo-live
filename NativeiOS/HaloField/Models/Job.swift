@@ -30,6 +30,13 @@ struct JobTask: Identifiable, Codable, Hashable {
     var requiresPhoto: Bool
 }
 
+struct ReworkItem: Identifiable, Codable, Hashable {
+    let id: String
+    let index: Int
+    var text: String
+    var isComplete: Bool
+}
+
 struct FieldJob: Identifiable, Codable, Hashable {
     let id: String
     var jobNo: String?
@@ -55,6 +62,14 @@ struct FieldJob: Identifiable, Codable, Hashable {
     var afterPhotoCount: Int = 0
     var flaggedCount: Int
     var updatedAt: String?
+    var needsRework: Bool?
+    var reworkNotes: String?
+    var reworkItems: [ReworkItem]?
+    var closeoutStage: String?
+    var closeoutBlockers: [String]?
+    var finalWalkAt: String?
+    var readyForWalk: Bool?
+    var walkVerified: Bool?
 
     var completedTasks: Int { tasks.filter(\.isComplete).count }
     var progress: Double {
@@ -63,4 +78,5 @@ struct FieldJob: Identifiable, Codable, Hashable {
     }
 
     var isClosed: Bool { state == .complete }
+    var unresolvedReworkCount: Int { (reworkItems ?? []).filter { !$0.isComplete }.count }
 }
