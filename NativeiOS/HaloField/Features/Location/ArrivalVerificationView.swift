@@ -14,7 +14,6 @@ struct ArrivalVerificationView: View {
     @EnvironmentObject private var session: HaloSessionStore
     @EnvironmentObject private var network: NetworkMonitor
     @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject private var network: NetworkMonitor
 
     @StateObject private var camera = HaloCameraController(position: .front)
     @State private var isVerifying = false
