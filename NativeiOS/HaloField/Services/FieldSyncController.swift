@@ -40,6 +40,7 @@ final class FieldSyncController: ObservableObject {
             actions = try queue.ready(in: context, activationToken: activationToken)
         } catch {
             lastError = error.localizedDescription
+            await api.reportHealth(category: "offline_queue", message: "HALO could not read the pending offline queue: \(error.localizedDescription)", severity: "high", source: "FieldSyncController", activationToken: activationToken)
             return
         }
 
@@ -55,11 +56,13 @@ final class FieldSyncController: ObservableObject {
                    status != 401, status != 408, status != 429 {
                     queue.markPermanentFailure(action, error: message, context: context)
                     lastError = message
+                    await api.reportHealth(category: "offline_queue", message: "A queued \(action.kind) action requires attention: \(message)", severity: "high", source: "FieldSyncController", jobID: action.jobID.isEmpty ? nil : action.jobID, activationToken: activationToken)
                     continue
                 }
 
                 queue.markRetry(action, error: message, context: context)
                 lastError = message
+                await api.reportHealth(category: "offline_queue", message: "Queued \(action.kind) replay failed and will retry: \(message)", source: "FieldSyncController", jobID: action.jobID.isEmpty ? nil : action.jobID, activationToken: activationToken)
 
                 // Temporary transport/auth failure: preserve ordering until the
                 // dependency can safely replay.
