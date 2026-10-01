@@ -18,6 +18,9 @@ struct JobDetailView: View {
     @State private var proofTask: JobTask?
     @State private var reworkBusy = Set<Int>()
     @State private var reworkError: String?
+    @State private var scopeExpanded = false
+    @State private var journeyExpanded = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var job: FieldJob? { store.jobs.first(where: { $0.id == jobID }) }
 
@@ -27,6 +30,7 @@ struct JobDetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
                         jobHeader(job)
+                        premiumJourney(job)
                         if job.state == .scheduled || job.state == .enRoute || job.state == .arrived {
                             photoCheckInCard(job)
                         }
@@ -177,6 +181,48 @@ struct JobDetailView: View {
         .padding(.top, 8)
     }
 
+    private func premiumJourney(_ job: FieldJob) -> some View {
+        let workDone = !job.tasks.isEmpty && job.completedTasks == job.tasks.count
+        let steps: [(String, String, Bool, Bool)] = [
+            ("Arrive", "location.fill", ![JobState.scheduled, .enRoute].contains(job.state), job.state == .enRoute),
+            ("Before", "camera.fill", job.beforePhotoCount > 0, job.state == .arrived && job.beforePhotoCount == 0),
+            ("Work", "wrench.and.screwdriver.fill", workDone, job.beforePhotoCount > 0 && !workDone),
+            ("After", "camera.fill", job.afterPhotoCount > 0, workDone && job.afterPhotoCount == 0),
+            ("Close", "checkmark.seal.fill", job.state == .review || job.state == .complete, job.afterPhotoCount > 0 && job.state != .review && job.state != .complete)
+        ]
+
+        return HaloExpandablePanel(title: "Unit Journey", icon: "point.3.connected.trianglepath.dotted", badge: "\(Int(job.progress * 100))%", expanded: $journeyExpanded) {
+            HStack(spacing: 0) {
+                ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                    VStack(spacing: 8) {
+                        ZStack {
+                            if step.3 { HaloPulseRing(tint: HaloTheme.actionBlue).frame(width: 38, height: 38) }
+                            Circle()
+                                .fill(step.2 ? HaloTheme.lime : (step.3 ? HaloTheme.actionBlue : Color.white.opacity(0.07)))
+                                .frame(width: 32, height: 32)
+                            Image(systemName: step.2 ? "checkmark" : step.1)
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(step.2 ? HaloTheme.ink : .white.opacity(step.3 ? 1 : 0.35))
+                        }
+                        Text(step.0.uppercased())
+                            .font(HaloType.body(7, weight: .bold))
+                            .tracking(0.55)
+                            .foregroundStyle(step.3 ? .white : .white.opacity(step.2 ? 0.62 : 0.30))
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    if index < steps.count - 1 {
+                        Rectangle()
+                            .fill(step.2 ? HaloTheme.lime.opacity(0.55) : Color.white.opacity(0.08))
+                            .frame(height: 1)
+                            .offset(y: -9)
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
     private func photoCheckInCard(_ job: FieldJob) -> some View {
         Button {
             showArrivalVerification = true
@@ -225,21 +271,7 @@ struct JobDetailView: View {
     }
 
     private func fullScope(_ job: FieldJob) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("FULL SCOPE")
-                    .font(HaloType.body(10, weight: .bold))
-                    .tracking(1.7)
-                    .foregroundStyle(HaloTheme.lime)
-
-                Spacer()
-
-                Text("\(job.scopeItemCount) ITEM\(job.scopeItemCount == 1 ? "" : "S")")
-                    .font(HaloType.body(9, weight: .bold))
-                    .tracking(0.9)
-                    .foregroundStyle(.white.opacity(0.36))
-            }
-
+        HaloExpandablePanel(title: "Full Scope", icon: "list.bullet.rectangle.portrait.fill", badge: "\(job.scopeItemCount) items", expanded: $scopeExpanded) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 14) {
                     scopeMetric(
@@ -308,8 +340,8 @@ struct JobDetailView: View {
                         .foregroundStyle(.white.opacity(0.46))
                 }
             }
-            .padding(16)
-            .haloDarkCard()
+
+            }
         }
     }
 
@@ -503,6 +535,11 @@ struct JobDetailView: View {
             }
             .padding(16)
             .haloDarkCard()
+            .overlay(alignment: .trailing) {
+                if stage == "history" || job.state == .complete {
+                    HaloVectorMark(kind: .complete, size: 62).padding(.trailing, 12)
+                }
+            }
         }
     }
 
