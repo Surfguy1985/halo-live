@@ -7,6 +7,9 @@ enum PendingActionKind: String, Codable {
     case taskToggle
     case proofCaptured
     case turnHandoff
+    case reworkToggle
+    case messageSend
+    case clockPunch
 }
 
 @Model
@@ -22,8 +25,8 @@ final class PendingFieldAction {
     var ownerKey: String?
     var requiresAttention: Bool?
 
-    init(jobID: String, kind: String, payload: Data, ownerKey: String?) {
-        self.id = UUID()
+    init(id: UUID = UUID(), jobID: String, kind: String, payload: Data, ownerKey: String?) {
+        self.id = id
         self.createdAt = .now
         self.jobID = jobID
         self.kind = kind
@@ -40,21 +43,24 @@ final class PendingFieldAction {
 final class OfflineQueue {
     static let shared = OfflineQueue()
 
+    @discardableResult
     func enqueue(
+        id: UUID = UUID(),
         jobID: String,
         kind: PendingActionKind,
         payload: [String: String],
         activationToken: String?,
         context: ModelContext
-    ) {
+    ) -> UUID? {
         guard
             let activationToken,
             !activationToken.isEmpty,
             let data = try? JSONSerialization.data(withJSONObject: payload)
-        else { return }
+        else { return nil }
 
         context.insert(
             PendingFieldAction(
+                id: id,
                 jobID: jobID,
                 kind: kind.rawValue,
                 payload: data,
@@ -63,6 +69,7 @@ final class OfflineQueue {
         )
         try? context.save()
         NotificationCenter.default.post(name: .haloPendingActionCreated, object: nil)
+        return id
     }
 
     func pending(in context: ModelContext) throws -> [PendingFieldAction] {
@@ -141,4 +148,32 @@ final class OfflineQueue {
 
 extension Notification.Name {
     static let haloPendingActionCreated = Notification.Name("halo.pendingActionCreated")
+}
+
+
+actor OfflineMediaStore {
+    static let shared = OfflineMediaStore()
+
+    func save(_ data: Data, preferredExtension: String = "bin") throws -> URL {
+        let fm = FileManager.default
+        let base = try fm.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        .appendingPathComponent("HaloOutbox", isDirectory: true)
+        try fm.createDirectory(at: base, withIntermediateDirectories: true)
+        let ext = preferredExtension
+            .trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+            .lowercased()
+        let url = base.appendingPathComponent("\(UUID().uuidString).\(ext.isEmpty ? "bin" : ext)")
+        try data.write(to: url, options: [.atomic])
+        return url
+    }
+
+    func remove(path: String?) {
+        guard let path, !path.isEmpty else { return }
+        try? FileManager.default.removeItem(at: URL(fileURLWithPath: path))
+    }
 }
