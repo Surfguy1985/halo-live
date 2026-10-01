@@ -614,6 +614,7 @@ actor HaloAPI {
         request.timeoutInterval = 20
         request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("6aa4569d140d940e1d779ace", forHTTPHeaderField: "X-App-Id")
         if let bearerToken, !bearerToken.isEmpty {
             request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
         }
