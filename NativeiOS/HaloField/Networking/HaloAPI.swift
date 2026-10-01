@@ -113,7 +113,7 @@ actor HaloAPI {
     private let session: URLSession
 
     init(
-        baseURL: URL = URL(string: "https://app.base44.com")!,
+        baseURL: URL = URL(string: "https://halo-back-office-copy-1d779ace.base44.app")!,
         session: URLSession = .shared
     ) {
         self.baseURL = baseURL
@@ -123,7 +123,7 @@ actor HaloAPI {
     func validateActivation(token: String) async throws -> HaloActivationInfo {
         let body = try JSONSerialization.data(withJSONObject: ["action": "validate"])
         let data = try await request(
-            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            path: "/functions/nativeFieldMobile",
             method: "POST",
             body: body,
             bearerToken: token
@@ -151,7 +151,7 @@ actor HaloAPI {
     func fetchJobs(activationToken: String) async throws -> [FieldJob] {
         let body = try JSONSerialization.data(withJSONObject: ["action": "feed"])
         let data = try await request(
-            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            path: "/functions/nativeFieldMobile",
             method: "POST",
             body: body,
             bearerToken: activationToken
@@ -200,7 +200,7 @@ actor HaloAPI {
         object["idempotencyKey"] = requestID.uuidString
         let payload = try JSONSerialization.data(withJSONObject: object)
         let data = try await request(
-            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            path: "/functions/nativeFieldMobile",
             method: "POST",
             body: payload,
             bearerToken: activationToken
@@ -221,7 +221,7 @@ actor HaloAPI {
     func fetchOpenTurnHandoffs(activationToken: String) async throws -> [TurnHandoff] {
         let body = try JSONSerialization.data(withJSONObject: ["action": "handoffsOpen"])
         let data = try await request(
-            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            path: "/functions/nativeFieldMobile",
             method: "POST",
             body: body,
             bearerToken: activationToken
@@ -264,7 +264,7 @@ actor HaloAPI {
             "handoffId": id
         ])
         _ = try await request(
-            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            path: "/functions/nativeFieldMobile",
             method: "POST",
             body: body,
             bearerToken: activationToken
@@ -290,7 +290,7 @@ actor HaloAPI {
             "materialEstimate": materialEstimate
         ])
         _ = try await request(
-            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            path: "/functions/nativeFieldMobile",
             method: "POST",
             body: body,
             bearerToken: activationToken
@@ -315,7 +315,7 @@ actor HaloAPI {
         if let accuracy = metadata.horizontalAccuracy { object["accuracy"] = accuracy }
         let body = try JSONSerialization.data(withJSONObject: object)
         _ = try await request(
-            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            path: "/functions/nativeFieldMobile",
             method: "POST",
             body: body,
             bearerToken: activationToken
@@ -325,7 +325,7 @@ actor HaloAPI {
     func fetchMessages(activationToken: String) async throws -> [HaloMessage] {
         let body = try JSONSerialization.data(withJSONObject: ["action": "messagesList"])
         let data = try await request(
-            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            path: "/functions/nativeFieldMobile",
             method: "POST",
             body: body,
             bearerToken: activationToken
@@ -364,7 +364,7 @@ actor HaloAPI {
         if let channel, !channel.isEmpty { object["channel"] = channel }
         let body = try JSONSerialization.data(withJSONObject: object)
         _ = try await request(
-            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            path: "/functions/nativeFieldMobile",
             method: "POST",
             body: body,
             bearerToken: activationToken
@@ -374,7 +374,7 @@ actor HaloAPI {
     func fetchGPSSessions(activationToken: String) async throws -> [HaloGPSSession] {
         let body = try JSONSerialization.data(withJSONObject: ["action": "gpsSessions"])
         let data = try await request(
-            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            path: "/functions/nativeFieldMobile",
             method: "POST",
             body: body,
             bearerToken: activationToken
@@ -413,7 +413,7 @@ actor HaloAPI {
             "capturedAt": ISO8601DateFormatter().string(from: location.timestamp)
         ])
         _ = try await request(
-            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            path: "/functions/nativeFieldMobile",
             method: "POST",
             body: body,
             bearerToken: activationToken
@@ -426,7 +426,7 @@ actor HaloAPI {
             "sessionId": id
         ])
         _ = try await request(
-            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            path: "/functions/nativeFieldMobile",
             method: "POST",
             body: body,
             bearerToken: activationToken
@@ -455,7 +455,7 @@ actor HaloAPI {
             "osVersion": osVersion
         ])
         _ = try await request(
-            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            path: "/functions/nativeFieldMobile",
             method: "POST",
             body: body,
             bearerToken: activationToken
@@ -471,7 +471,7 @@ actor HaloAPI {
             "deviceToken": deviceToken
         ])
         _ = try await request(
-            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            path: "/functions/nativeFieldMobile",
             method: "POST",
             body: body,
             bearerToken: activationToken
@@ -481,7 +481,7 @@ actor HaloAPI {
     func fetchClockStatus(activationToken: String) async throws -> HaloClockStatus {
         let body = try JSONSerialization.data(withJSONObject: ["action": "clockStatus"])
         let data = try await request(
-            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            path: "/functions/nativeFieldMobile",
             method: "POST",
             body: body,
             bearerToken: activationToken
@@ -535,7 +535,7 @@ actor HaloAPI {
         ])
 
         let data = try await request(
-            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            path: "/functions/nativeFieldMobile",
             method: "POST",
             body: body,
             bearerToken: activationToken
@@ -573,7 +573,7 @@ actor HaloAPI {
             "checked": checked
         ])
         _ = try await request(
-            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            path: "/functions/nativeFieldMobile",
             method: "POST",
             body: body,
             bearerToken: activationToken
@@ -597,7 +597,7 @@ actor HaloAPI {
         }
         let body = try JSONSerialization.data(withJSONObject: object)
         _ = try await request(
-            path: "/api/apps/6aa4569d140d940e1d779ace/functions/nativeFieldMobile",
+            path: "/functions/nativeFieldMobile",
             method: "POST",
             body: body,
             bearerToken: activationToken
