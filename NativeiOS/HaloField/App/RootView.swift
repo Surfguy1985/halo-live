@@ -9,6 +9,7 @@ struct RootView: View {
     @EnvironmentObject private var store: JobStore
     @EnvironmentObject private var network: NetworkMonitor
     @EnvironmentObject private var fieldSync: FieldSyncController
+    @EnvironmentObject private var realtime: HaloRealtimeService
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab = 0
@@ -63,7 +64,8 @@ struct RootView: View {
             // the immediate invalidation path; this 15-second refresh is the
             // resilience path for simulator builds and missed push delivery.
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(15))
+                let fallbackSeconds = realtime.state == .connected ? 60.0 : 15.0
+                try? await Task.sleep(for: .seconds(fallbackSeconds))
                 guard session.isActivated, network.isConnected, scenePhase == .active else { continue }
                 await store.refresh(activationToken: session.activationToken)
             }
