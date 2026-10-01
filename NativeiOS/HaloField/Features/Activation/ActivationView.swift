@@ -22,7 +22,13 @@ struct ActivationView: View {
             VStack(spacing: 26) {
                 Spacer()
 
-                HaloLogo(height: 36)
+                ZStack {
+                    Circle()
+                        .fill(HaloTheme.lime.opacity(0.08))
+                        .frame(width: 112, height: 112)
+                        .blur(radius: 1)
+                    HaloLogo(height: 36)
+                }
 
                 VStack(spacing: 9) {
                     Text("Activate HALO Field")
@@ -74,20 +80,13 @@ struct ActivationView: View {
                     } label: {
                         HStack {
                             Text(isActivating ? "Verifying with HALO…" : "Activate this iPhone")
-                            if isActivating {
-                                Spacer()
-                                ProgressView().tint(HaloTheme.ink)
-                            }
+                            Spacer()
+                            if isActivating { ProgressView().tint(HaloTheme.ink) }
+                            else { Image(systemName: "arrow.right").font(.system(size: 13, weight: .bold)) }
                         }
-                            .font(HaloType.body(15, weight: .bold))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 56)
-                            .background(HaloTheme.lime)
-                            .foregroundStyle(HaloTheme.ink)
-                            .clipShape(Capsule())
                     }
+                    .buttonStyle(HaloPrimaryButtonStyle())
                     .disabled(token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isActivating)
-                    .opacity(token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isActivating ? 0.45 : 1)
 
                     if let error {
                         Text(error)
@@ -136,7 +135,7 @@ struct ActivationView: View {
 
                 HStack(spacing: 7) {
                     Image(systemName: "lock.shield.fill")
-                    Text("Stored only in this iPhone’s Keychain")
+                    Text("Encrypted activation · stored in this iPhone’s Keychain")
                 }
                 .font(HaloType.body(10, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.38))
