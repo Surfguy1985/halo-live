@@ -140,6 +140,20 @@ struct RootView: View {
             .padding(.bottom, 7)
         }
         .background(HaloTheme.fieldBackground)
+#if DEBUG
+        .overlay(alignment: .topTrailing) {
+            Text("NATIVE · OCT 1 · FFAB+")
+                .font(.system(size: 8, weight: .black, design: .monospaced))
+                .tracking(0.7)
+                .foregroundStyle(HaloTheme.ink)
+                .padding(.horizontal, 7)
+                .frame(height: 20)
+                .background(HaloTheme.lime, in: Capsule())
+                .padding(.top, 4)
+                .padding(.trailing, 8)
+                .allowsHitTesting(false)
+        }
+#endif
     }
 }
 
