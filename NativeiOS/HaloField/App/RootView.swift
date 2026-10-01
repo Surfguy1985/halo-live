@@ -104,8 +104,13 @@ struct RootView: View {
                 await store.refresh(activationToken: session.activationToken)
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .haloDataInvalidated)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .haloDataInvalidated)) { note in
             guard session.isActivated, network.isConnected else { return }
+            if let payload = note.object as? [String: Any],
+               let scopes = payload["scopes"] as? [String],
+               !scopes.contains("jobs") {
+                return
+            }
             Task {
                 await store.refresh(activationToken: session.activationToken)
             }
