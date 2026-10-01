@@ -113,28 +113,134 @@ struct RootView: View {
     private var tabShell: some View {
         TabView(selection: $selectedTab) {
             NavigationStack { TodayView() }
-                .tabItem { Label("Today", systemImage: "bolt.fill") }
                 .tag(0)
 
             NavigationStack { JobsView() }
-                .tabItem { Label("Jobs", systemImage: "square.stack.3d.up.fill") }
                 .tag(1)
 
             NavigationStack { HaloCommsView() }
-                .tabItem { Label("Halo", systemImage: "sparkles") }
                 .tag(2)
 
             if session.managerLiveAccess {
                 NavigationStack { ManagerLiveView() }
-                    .tabItem { Label("Live", systemImage: "map.fill") }
                     .tag(3)
             }
 
             NavigationStack { ProfileView() }
-                .tabItem { Label("Me", systemImage: "person.crop.circle") }
                 .tag(4)
         }
-        .tint(HaloTheme.lime)
+        .toolbar(.hidden, for: .tabBar)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            HaloNativeTabBar(
+                selection: $selectedTab,
+                managerLiveAccess: session.managerLiveAccess
+            )
+            .padding(.horizontal, 12)
+            .padding(.top, 7)
+            .padding(.bottom, 7)
+        }
+        .background(HaloTheme.fieldBackground)
+    }
+}
+
+private struct HaloNativeTabBar: View {
+    @Binding var selection: Int
+    let managerLiveAccess: Bool
+    @Namespace private var selectionAnimation
+
+    private var items: [(id: Int, title: String, icon: String)] {
+        var rows: [(Int, String, String)] = [
+            (0, "Today", "bolt.fill"),
+            (1, "Jobs", "square.stack.3d.up.fill"),
+            (2, "Halo", "sparkles")
+        ]
+        if managerLiveAccess {
+            rows.append((3, "Live", "map.fill"))
+        }
+        rows.append((4, "Me", "person.crop.circle.fill"))
+        return rows
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(items, id: \.id) { item in
+                Button {
+                    withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) {
+                        selection = item.id
+                    }
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                } label: {
+                    if item.id == 2 {
+                        haloButton(item)
+                    } else {
+                        standardButton(item)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(item.title)
+                .accessibilityAddTraits(selection == item.id ? .isSelected : [])
+            }
+        }
+        .padding(6)
+        .frame(height: 72)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 27, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 27, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.28), radius: 24, y: 12)
+    }
+
+    @ViewBuilder
+    private func standardButton(_ item: (id: Int, title: String, icon: String)) -> some View {
+        let selected = selection == item.id
+        VStack(spacing: 5) {
+            ZStack {
+                if selected {
+                    Capsule()
+                        .fill(Color.white.opacity(0.09))
+                        .matchedGeometryEffect(id: "halo-tab-selection", in: selectionAnimation)
+                        .frame(width: 44, height: 28)
+                }
+                Image(systemName: item.icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(selected ? HaloTheme.lime : .white.opacity(0.48))
+            }
+            .frame(height: 28)
+
+            Text(item.title.uppercased())
+                .font(HaloType.body(7, weight: .bold))
+                .tracking(0.75)
+                .foregroundStyle(selected ? .white : .white.opacity(0.38))
+        }
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private func haloButton(_ item: (id: Int, title: String, icon: String)) -> some View {
+        let selected = selection == item.id
+        VStack(spacing: 4) {
+            ZStack {
+                Circle()
+                    .fill(selected ? HaloTheme.lime : Color.white)
+                    .frame(width: 43, height: 43)
+                    .shadow(color: (selected ? HaloTheme.lime : .white).opacity(0.20), radius: 12, y: 4)
+                Image(systemName: item.icon)
+                    .font(.system(size: 17, weight: .black))
+                    .foregroundStyle(HaloTheme.ink)
+            }
+            .scaleEffect(selected ? 1.05 : 1)
+
+            Text("HALO")
+                .font(HaloType.body(7, weight: .black))
+                .tracking(0.9)
+                .foregroundStyle(selected ? HaloTheme.lime : .white.opacity(0.48))
+        }
+        .frame(maxWidth: .infinity)
+        .offset(y: -3)
+        .contentShape(Rectangle())
     }
 }
 
