@@ -616,7 +616,7 @@ actor HaloAPI {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("6aa4569d140d940e1d779ace", forHTTPHeaderField: "X-App-Id")
         if let bearerToken, !bearerToken.isEmpty {
-            request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+            request.setValue(bearerToken, forHTTPHeaderField: "X-Halo-Activation")
         }
         if let body {
             request.httpBody = body
