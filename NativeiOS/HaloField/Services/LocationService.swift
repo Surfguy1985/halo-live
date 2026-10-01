@@ -20,6 +20,12 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     func refresh() {
         errorMessage = nil
         manager.desiredAccuracy = kCLLocationAccuracyBest
+        guard hasLocationPermission else {
+            if authorization == .notDetermined {
+                manager.requestWhenInUseAuthorization()
+            }
+            return
+        }
         manager.requestLocation()
     }
 
@@ -68,7 +74,13 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        Task { @MainActor in authorization = manager.authorizationStatus }
+        Task { @MainActor in
+            authorization = manager.authorizationStatus
+            if authorization == .authorizedWhenInUse || authorization == .authorizedAlways {
+                self.manager.desiredAccuracy = kCLLocationAccuracyBest
+                self.manager.requestLocation()
+            }
+        }
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
