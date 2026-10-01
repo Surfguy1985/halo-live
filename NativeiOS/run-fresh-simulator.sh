@@ -4,6 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 BUNDLE_ID="com.archangel.halofield"
+LEGACY_BUNDLE_ID="com.archangel.halolive"
 DERIVED="$PWD/.derived-data"
 
 echo "== HALO native clean simulator launch =="
@@ -37,7 +38,9 @@ if [ -z "$UDID" ]; then
   xcrun simctl bootstatus "$UDID" -b
 fi
 
-echo "Removing any installed HALO app..."
+echo "Removing both legacy Capacitor HALO and native HALO from simulator..."
+xcrun simctl terminate "$UDID" "$LEGACY_BUNDLE_ID" >/dev/null 2>&1 || true
+xcrun simctl uninstall "$UDID" "$LEGACY_BUNDLE_ID" >/dev/null 2>&1 || true
 xcrun simctl terminate "$UDID" "$BUNDLE_ID" >/dev/null 2>&1 || true
 xcrun simctl uninstall "$UDID" "$BUNDLE_ID" >/dev/null 2>&1 || true
 
@@ -57,6 +60,8 @@ echo "Launching $BUNDLE_ID..."
 xcrun simctl launch "$UDID" "$BUNDLE_ID"
 
 echo
-echo "SUCCESS: Fresh HALO native build launched."
+echo "SUCCESS: Fresh HALO FIELD NATIVE build launched."
+echo "Legacy Capacitor bundle removed: $LEGACY_BUNDLE_ID"
+echo "Native bundle launched: $BUNDLE_ID"
 echo "Expected DEBUG fingerprint in app: NATIVE · OCT 1 · FFAB+"
 echo "Expected nav: Today · Jobs · HALO · Live(if authorized) · Me"
