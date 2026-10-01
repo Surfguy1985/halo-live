@@ -14,18 +14,6 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab = 0
 
-    init() {
-        let appearance = UITabBarAppearance()
-        appearance.configureWithDefaultBackground()
-        appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterialDark)
-        appearance.backgroundColor = UIColor(red: 9/255, green: 23/255, blue: 34/255, alpha: 0.72)
-        appearance.shadowColor = UIColor.white.withAlphaComponent(0.06)
-
-        UITabBar.appearance().standardAppearance = appearance
-        UITabBar.appearance().scrollEdgeAppearance = appearance
-        UITabBar.appearance().unselectedItemTintColor = UIColor.white.withAlphaComponent(0.42)
-    }
-
     var body: some View {
         Group {
 #if DEBUG
@@ -147,20 +135,6 @@ struct RootView: View {
             .padding(.bottom, 7)
         }
         .background(HaloTheme.fieldBackground)
-#if DEBUG
-        .overlay(alignment: .topTrailing) {
-            Text("NATIVE · OCT 1 · FFAB+")
-                .font(.system(size: 8, weight: .black, design: .monospaced))
-                .tracking(0.7)
-                .foregroundStyle(HaloTheme.ink)
-                .padding(.horizontal, 7)
-                .frame(height: 20)
-                .background(HaloTheme.lime, in: Capsule())
-                .padding(.top, 4)
-                .padding(.trailing, 8)
-                .allowsHitTesting(false)
-        }
-#endif
     }
 }
 
@@ -202,38 +176,38 @@ private struct HaloNativeTabBar: View {
                 .accessibilityAddTraits(selection == item.id ? .isSelected : [])
             }
         }
-        .padding(6)
-        .frame(height: 72)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 27, style: .continuous))
+        .padding(5)
+        .frame(height: 64)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(HaloTheme.fieldChrome.opacity(0.78), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 27, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.white.opacity(0.07), lineWidth: 0.7)
         }
-        .shadow(color: .black.opacity(0.28), radius: 24, y: 12)
+        .shadow(color: .black.opacity(0.22), radius: 20, y: 10)
     }
 
     @ViewBuilder
     private func standardButton(_ item: (id: Int, title: String, icon: String)) -> some View {
         let selected = selection == item.id
-        VStack(spacing: 5) {
+        VStack(spacing: 3) {
             ZStack {
                 if selected {
                     Capsule()
                         .fill(Color.white.opacity(0.09))
                         .matchedGeometryEffect(id: "halo-tab-selection", in: selectionAnimation)
-                        .frame(width: 44, height: 28)
+                        .frame(width: 42, height: 26)
                 }
                 Image(systemName: item.icon)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 17, weight: .semibold))
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(selected ? HaloTheme.lime : .white.opacity(0.48))
             }
             .frame(height: 28)
 
-            Text(item.title.uppercased())
-                .font(HaloType.body(7, weight: .bold))
-                .tracking(0.75)
-                .foregroundStyle(selected ? .white : .white.opacity(0.38))
+            Text(item.title)
+                .font(HaloType.body(9, weight: .semibold))
+                .foregroundStyle(selected ? .white : .white.opacity(0.42))
         }
         .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
@@ -242,25 +216,25 @@ private struct HaloNativeTabBar: View {
     @ViewBuilder
     private func haloButton(_ item: (id: Int, title: String, icon: String)) -> some View {
         let selected = selection == item.id
-        VStack(spacing: 4) {
+        VStack(spacing: 2) {
             ZStack {
                 Circle()
                     .fill(selected ? HaloTheme.lime : Color.white)
-                    .frame(width: 43, height: 43)
+                    .frame(width: 40, height: 40)
                     .shadow(color: (selected ? HaloTheme.lime : .white).opacity(0.20), radius: 12, y: 4)
                 Image(systemName: item.icon)
-                    .font(.system(size: 17, weight: .black))
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(HaloTheme.ink)
             }
             .scaleEffect(selected ? 1.05 : 1)
 
             Text("HALO")
-                .font(HaloType.body(7, weight: .black))
-                .tracking(0.9)
+                .font(HaloType.body(8, weight: .bold))
+                .tracking(0.35)
                 .foregroundStyle(selected ? HaloTheme.lime : .white.opacity(0.48))
         }
         .frame(maxWidth: .infinity)
-        .offset(y: -3)
+        .offset(y: -2)
         .contentShape(Rectangle())
     }
 }
