@@ -792,10 +792,11 @@ struct JobDetailView: View {
         switch job.state {
         case .scheduled: return "Open route and start the field workflow"
         case .enRoute, .arrived: return "Live photo + fresh GPS verification"
-        case .inProgress: return "Move this job to the next required step"
+        case .active: return "Move this job to the next required step"
         case .proof: return "Review required evidence before submission"
         case .review: return "Submit completed field work for review"
         case .complete: return "This job is closed"
+        case .hold: return "Review the hold before continuing work"
         }
     }
 
