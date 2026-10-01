@@ -70,8 +70,12 @@ struct FieldJob: Identifiable, Codable, Hashable {
     var finalWalkAt: String?
     var readyForWalk: Bool?
     var walkVerified: Bool?
+    var scopeNotes: String? = nil
+    var bedrooms: Int? = nil
+    var priority: String? = nil
 
     var completedTasks: Int { tasks.filter(\.isComplete).count }
+    var scopeItemCount: Int { max(tasks.count, services.count) }
     var progress: Double {
         guard !tasks.isEmpty else { return 0 }
         return Double(completedTasks) / Double(tasks.count)
