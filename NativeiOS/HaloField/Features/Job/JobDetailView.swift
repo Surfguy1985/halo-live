@@ -788,6 +788,17 @@ struct JobDetailView: View {
         .buttonStyle(.plain)
     }
 
+    private func primaryActionHint(_ job: FieldJob) -> String {
+        switch job.state {
+        case .scheduled: return "Open route and start the field workflow"
+        case .enRoute, .arrived: return "Live photo + fresh GPS verification"
+        case .inProgress: return "Move this job to the next required step"
+        case .proof: return "Review required evidence before submission"
+        case .review: return "Submit completed field work for review"
+        case .complete: return "This job is closed"
+        }
+    }
+
     private func primaryAction(_ job: FieldJob) -> some View {
         let actionTitle = (job.state == .enRoute || job.state == .arrived) ? "Photo check-in" : job.state.actionTitle
         let actionIcon = job.state == .scheduled ? "location.fill" : ((job.state == .enRoute || job.state == .arrived) ? "camera.fill" : "arrow.right")
@@ -810,21 +821,33 @@ struct JobDetailView: View {
                 )
             }
         } label: {
-            HStack {
-                Text(actionTitle)
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(actionTitle)
+                    if job.state != .complete {
+                        Text(primaryActionHint(job))
+                            .font(HaloType.body(9, weight: .semibold))
+                            .opacity(0.56)
+                    }
+                }
                 Spacer()
-                Image(systemName: actionIcon)
+                ZStack {
+                    Circle().fill(Color.black.opacity(job.state == .complete ? 0 : 0.08)).frame(width: 36, height: 36)
+                    Image(systemName: actionIcon).font(.system(size: 13, weight: .bold))
+                }
             }
             .font(HaloType.body(15, weight: .bold))
-            .padding(.horizontal, 22)
-            .frame(height: 58)
-            .background(job.state == .complete ? Color.white.opacity(0.08) : HaloTheme.lime)
+            .padding(.horizontal, 20)
+            .frame(minHeight: 62)
+            .background(job.state == .complete ? Color.white.opacity(0.08) : HaloTheme.lime, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .foregroundStyle(job.state == .complete ? .white.opacity(0.35) : HaloTheme.ink)
-            .clipShape(Capsule())
+            .shadow(color: job.state == .complete ? .clear : HaloTheme.lime.opacity(0.12), radius: 18, y: 8)
         }
+        .buttonStyle(HaloPressableStyle())
         .disabled(job.state == .complete)
         .padding(.horizontal, HaloTheme.horizontal)
-        .padding(.top, 10).padding(.bottom, 8)
-        .background(.ultraThinMaterial.opacity(0.94))
+        .padding(.top, 9).padding(.bottom, 9)
+        .background(.ultraThinMaterial.opacity(0.96))
+        .overlay(alignment: .top) { Rectangle().fill(Color.white.opacity(0.06)).frame(height: 0.5) }
     }
 }
