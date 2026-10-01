@@ -850,6 +850,15 @@ private struct ProfileView: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text(profileName).font(HaloType.display(23, weight: .semibold)).foregroundStyle(.white)
                 Text("HALO FIELD").font(HaloType.body(9, weight: .bold)).tracking(1.5).foregroundStyle(HaloTheme.lime)
+#if DEBUG
+                Text(HaloBuildStamp.revision)
+                    .font(HaloType.body(8, weight: .bold))
+                    .tracking(0.8)
+                    .foregroundStyle(HaloTheme.actionBlue)
+                    .padding(.horizontal, 8)
+                    .frame(minHeight: 22)
+                    .background(HaloTheme.actionBlue.opacity(0.10), in: Capsule())
+#endif
                 Text("Private crew identity on this organization's field network.")
                     .font(HaloType.body(10, weight: .medium)).foregroundStyle(.white.opacity(0.42))
             }
