@@ -23,6 +23,12 @@ enum HaloTheme {
     static let heroRadius: CGFloat = 24
     static let controlRadius: CGFloat = 14
     static let horizontal: CGFloat = 20
+    static let sectionSpacing: CGFloat = 24
+    static let compactSpacing: CGFloat = 12
+    static let minimumTapTarget: CGFloat = 44
+    static let hairline = Color.white.opacity(0.08)
+    static let muted = Color.white.opacity(0.52)
+    static let faint = Color.white.opacity(0.34)
 }
 
 enum HaloType {
@@ -70,6 +76,68 @@ struct HaloDarkCardModifier: ViewModifier {
                 )
             }
             .shadow(color: .black.opacity(0.16), radius: 20, y: 10)
+    }
+}
+
+struct HaloSectionLabel: View {
+    let title: String
+    var trailing: String? = nil
+    var tint: Color = .white.opacity(0.42)
+
+    var body: some View {
+        HStack {
+            Text(title.uppercased())
+                .font(HaloType.body(10, weight: .bold))
+                .tracking(1.7)
+                .foregroundStyle(tint)
+            Spacer()
+            if let trailing {
+                Text(trailing.uppercased())
+                    .font(HaloType.body(9, weight: .bold))
+                    .tracking(0.8)
+                    .foregroundStyle(.white.opacity(0.34))
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+struct HaloStatusPill: View {
+    let text: String
+    let tint: Color
+    var icon: String? = nil
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let icon { Image(systemName: icon).font(.system(size: 9, weight: .bold)) }
+            Text(text.uppercased())
+                .font(HaloType.body(9, weight: .bold))
+                .tracking(0.55)
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 10)
+        .frame(minHeight: 30)
+        .background(tint.opacity(0.10), in: Capsule())
+        .overlay { Capsule().stroke(tint.opacity(0.18), lineWidth: 0.7) }
+    }
+}
+
+struct HaloPrimaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(HaloType.body(15, weight: .bold))
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 56)
+            .padding(.horizontal, 20)
+            .foregroundStyle(HaloTheme.ink)
+            .background(isEnabled ? HaloTheme.lime : Color.white.opacity(0.10), in: Capsule())
+            .opacity(isEnabled ? (configuration.isPressed ? 0.90 : 1) : 0.55)
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .shadow(color: isEnabled ? HaloTheme.lime.opacity(0.12) : .clear, radius: 18, y: 8)
+            .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: configuration.isPressed)
     }
 }
 
