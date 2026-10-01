@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftData
 import SwiftUI
 import UIKit
@@ -160,6 +161,11 @@ private struct ProfileView: View {
     @EnvironmentObject private var fieldSync: FieldSyncController
     @EnvironmentObject private var network: NetworkMonitor
     @EnvironmentObject private var notifications: HaloNotificationService
+    @State private var profilePhotoURL: String?
+    @State private var profileName = "Crew profile"
+    @State private var selectedProfilePhoto: PhotosPickerItem?
+    @State private var profilePhotoBusy = false
+    @State private var profilePhotoError: String?
 
     private var notificationStatusText: String {
         switch notifications.authorizationStatus {
@@ -223,7 +229,50 @@ private struct ProfileView: View {
                 .buttonStyle(.plain)
             }
             Section("Account") {
-                Label("Crew profile", systemImage: "person.2.fill")
+                HStack(spacing: 14) {
+                    AsyncImage(url: profilePhotoURL.flatMap(URL.init(string:))) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable().scaledToFill()
+                        default:
+                            ZStack {
+                                Circle().fill(Color.white.opacity(0.08))
+                                Image(systemName: "person.crop.circle.fill")
+                                    .font(.system(size: 34))
+                                    .foregroundStyle(.white.opacity(0.45))
+                            }
+                        }
+                    }
+                    .frame(width: 58, height: 58)
+                    .clipShape(Circle())
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(profileName)
+                            .font(HaloType.body(14, weight: .bold))
+                        Text("Private crew portrait")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    PhotosPicker(selection: $selectedProfilePhoto, matching: .images) {
+                        if profilePhotoBusy {
+                            ProgressView()
+                        } else {
+                            Label("Edit", systemImage: "camera.fill")
+                                .font(HaloType.body(10, weight: .bold))
+                        }
+                    }
+                    .disabled(profilePhotoBusy)
+                }
+
+                if let profilePhotoError {
+                    Text(profilePhotoError)
+                        .font(.caption)
+                        .foregroundStyle(HaloTheme.warning)
+                }
+
                 Label("Settings", systemImage: "gearshape.fill")
                 Button(role: .destructive) {
                     let token = session.activationToken
