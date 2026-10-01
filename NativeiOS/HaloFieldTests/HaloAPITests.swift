@@ -12,6 +12,25 @@ final class HaloAPITests: XCTestCase {
         super.tearDown()
     }
 
+    func testValidateActivationUsesNativeGateway() async throws {
+        let payload = #"{"ok":true,"crew":{"id":"crew-1","name":"Field Crew"},"capabilities":{"nativePushDeliveryConfigured":false}}"#.data(using: .utf8)!
+        let info = try await makeAPI(status: 200, data: payload).validateActivation(token: "test-token-1234567890")
+        XCTAssertEqual(info.crewID, "crew-1")
+        XCTAssertEqual(info.crewName, "Field Crew")
+        XCTAssertFalse(info.nativePushDeliveryConfigured)
+    }
+
+    func testRejectedActivationRemainsRejected() async {
+        let payload = #"{"error":"Invalid or expired HALO activation token"}"#.data(using: .utf8)!
+        do {
+            _ = try await makeAPI(status: 401, data: payload).validateActivation(token: "test-token-1234567890")
+            XCTFail("Invalid activation must not succeed")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("401"))
+            XCTAssertTrue(error.localizedDescription.contains("Invalid or expired"))
+        }
+    }
+
     func testFetchJobsMapsLiveHaloShape() async throws {
         let payload = """
         {"jobs":[
@@ -163,7 +182,11 @@ final class HaloAPITests: XCTestCase {
 
         MockURLProtocol.handler = { request in
             XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/json")
-            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-token-1234567890")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "X-Halo-Activation"), "test-token-1234567890")
+            XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"), "Crew tokens must not be interpreted as Base44 user credentials")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "X-App-Id"), "6aa4569d140d940e1d779ace")
+            XCTAssertEqual(request.url?.path, "/functions/nativeFieldMobile")
+            XCTAssertEqual(request.httpMethod, "POST")
             let response = HTTPURLResponse(
                 url: request.url!,
                 statusCode: status,
