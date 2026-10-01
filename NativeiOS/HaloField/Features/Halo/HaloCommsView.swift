@@ -17,6 +17,13 @@ private struct HaloAIMessage: Identifiable, Hashable {
     let text: String
 }
 
+private struct HaloMessageThread: Identifiable, Hashable {
+    let id: String
+    let channel: String
+    let name: String
+    let unread: Int
+}
+
 struct HaloCommsView: View {
     var initialJobID: String? = nil
     @EnvironmentObject private var session: HaloSessionStore
@@ -361,15 +368,93 @@ struct HaloCommsView: View {
         }
     }
 
+    private var unreadCount: Int {
+        messages.filter { $0.from != "field" && !$0.read }.count
+    }
+
+    private var propertyThreads: [HaloMessageThread] {
+        Dictionary(grouping: messages.filter { $0.channel.hasPrefix("group:") }, by: \.channel)
+            .map { channel, rows in
+                HaloMessageThread(
+                    id: channel,
+                    channel: channel,
+                    name: rows.compactMap(\.threadName).first ?? "Property Live",
+                    unread: rows.filter { $0.from != "field" && !$0.read }.count
+                )
+            }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private var displayedMessages: [HaloMessage] {
+        let rows: [HaloMessage]
+        if let selectedThreadChannel, selectedThreadChannel.hasPrefix("group:") {
+            rows = messages.filter { $0.channel == selectedThreadChannel }
+        } else {
+            rows = messages
+        }
+        return rows.sorted { ($0.at ?? "") < ($1.at ?? "") }
+    }
+
     private var inboxSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 sectionLabel("MESSAGES")
                 Spacer()
-                if !messages.isEmpty {
+                if unreadCount > 0 {
+                    Text("\(unreadCount) unread")
+                        .font(HaloType.body(9, weight: .bold))
+                        .foregroundStyle(HaloTheme.lime)
+                } else if !messages.isEmpty {
                     Text("\(messages.count) recent")
                         .font(HaloType.body(9, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.34))
+                }
+            }
+
+            if !propertyThreads.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        Button {
+                            selectedThreadChannel = nil
+                            selectedThreadName = nil
+                        } label: {
+                            Text("All")
+                                .font(HaloType.body(9, weight: .bold))
+                                .foregroundStyle(selectedThreadChannel == nil ? HaloTheme.ink : .white.opacity(0.56))
+                                .padding(.horizontal, 12)
+                                .frame(height: 32)
+                                .background(selectedThreadChannel == nil ? HaloTheme.lime : Color.white.opacity(0.05))
+                                .clipShape(Capsule())
+                        }
+
+                        ForEach(propertyThreads) { thread in
+                            Button {
+                                selectedThreadChannel = thread.channel
+                                selectedThreadName = thread.name
+                                selectedJobID = nil
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Text(thread.name)
+                                        .lineLimit(1)
+                                    if thread.unread > 0 {
+                                        Text("\(thread.unread)")
+                                            .font(HaloType.body(8, weight: .bold))
+                                            .foregroundStyle(selectedThreadChannel == thread.channel ? HaloTheme.ink : .white)
+                                            .frame(minWidth: 18, minHeight: 18)
+                                            .background(selectedThreadChannel == thread.channel ? Color.black.opacity(0.10) : HaloTheme.actionBlue)
+                                            .clipShape(Circle())
+                                    }
+                                }
+                                .font(HaloType.body(9, weight: .bold))
+                                .foregroundStyle(selectedThreadChannel == thread.channel ? HaloTheme.ink : .white.opacity(0.62))
+                                .padding(.horizontal, 12)
+                                .frame(height: 32)
+                                .background(selectedThreadChannel == thread.channel ? HaloTheme.lime : Color.white.opacity(0.05))
+                                .clipShape(Capsule())
+                            }
+                        }
+                    }
                 }
             }
 
@@ -391,19 +476,12 @@ struct HaloCommsView: View {
                 .haloDarkCard()
             } else {
                 LazyVStack(spacing: 8) {
-                    ForEach(messages.sorted(by: { ($0.at ?? "") < ($1.at ?? "") })) { message in
+                    ForEach(displayedMessages) { message in
                         messageBubble(message)
                             .id(message.id)
                             .contentShape(Rectangle())
                             .onTapGesture {
-                                if message.channel.hasPrefix("group:") {
-                                    selectedThreadChannel = message.channel
-                                    selectedThreadName = message.threadName
-                                    if let unitID = message.unitID {
-                                        selectedJobID = unitID
-                                    }
-                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                }
+                                openMessage(message)
                             }
                     }
                 }
@@ -414,6 +492,23 @@ struct HaloCommsView: View {
                     .font(HaloType.body(10, weight: .semibold))
                     .foregroundStyle(HaloTheme.warning)
             }
+        }
+    }
+
+    private func openMessage(_ message: HaloMessage) {
+        if message.channel.hasPrefix("group:") {
+            selectedThreadChannel = message.channel
+            selectedThreadName = message.threadName
+        }
+        if let unitID = message.unitID {
+            selectedJobID = unitID
+        }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+
+        guard message.from != "field", !message.read, let token = session.activationToken else { return }
+        Task {
+            try? await HaloAPI.shared.markMessageRead(messageID: message.id, activationToken: token)
+            await refresh()
         }
     }
 
