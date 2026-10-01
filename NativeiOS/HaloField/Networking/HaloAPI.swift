@@ -834,6 +834,35 @@ actor HaloAPI {
         )
     }
 
+    func reportHealth(
+        category: String,
+        message: String,
+        severity: String = "warning",
+        source: String = "native_ios",
+        jobID: String? = nil,
+        property: String? = nil,
+        context: [String: Any] = [:],
+        activationToken: String
+    ) async {
+        var object: [String: Any] = [
+            "action": "reportHealth",
+            "category": category,
+            "message": String(message.prefix(500)),
+            "severity": severity,
+            "source": source,
+            "context": context
+        ]
+        if let jobID, !jobID.isEmpty { object["jobId"] = jobID }
+        if let property, !property.isEmpty { object["property"] = property }
+        guard let body = try? JSONSerialization.data(withJSONObject: object) else { return }
+        _ = try? await request(
+            path: "/functions/nativeFieldMobile",
+            method: "POST",
+            body: body,
+            bearerToken: activationToken
+        )
+    }
+
     private func request(path: String, method: String = "GET", body: Data? = nil, bearerToken: String? = nil) async throws -> Data {
         guard let url = URL(string: path, relativeTo: baseURL)?.absoluteURL else {
             throw HaloAPIError.invalidResponse
