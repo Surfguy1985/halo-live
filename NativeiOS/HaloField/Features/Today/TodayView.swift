@@ -5,6 +5,7 @@ struct TodayView: View {
     @EnvironmentObject private var session: HaloSessionStore
     @EnvironmentObject private var network: NetworkMonitor
     @EnvironmentObject private var fieldSync: FieldSyncController
+    @EnvironmentObject private var realtime: HaloRealtimeService
 
     var body: some View {
         ScrollView {
@@ -117,7 +118,7 @@ struct TodayView: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("GOOD MORNING")
+                Text(greeting.uppercased())
                     .font(HaloType.body(10, weight: .bold))
                     .tracking(1.8)
                     .foregroundStyle(.white.opacity(0.4))
@@ -141,14 +142,35 @@ struct TodayView: View {
         if !network.isConnected { return "OFFLINE" }
         if fieldSync.isSyncing || store.isRefreshing { return "SYNCING" }
         if fieldSync.pendingCount > 0 { return "\(fieldSync.pendingCount) TO SYNC" }
-        return store.syncError == nil ? "LIVE" : "ATTENTION"
+        if store.syncError != nil { return "ATTENTION" }
+        switch realtime.state {
+        case .connected: return "LIVE"
+        case .connecting, .reconnecting: return "CONNECTING"
+        case .expired: return "ACTIVATE"
+        case .stopped: return "CONNECTED"
+        }
     }
 
     private var syncIndicatorColor: Color {
         if !network.isConnected { return HaloTheme.warning }
         if fieldSync.isSyncing || store.isRefreshing { return HaloTheme.actionBlue }
         if fieldSync.pendingCount > 0 { return HaloTheme.lime }
-        return store.syncError == nil ? HaloTheme.fieldLive : HaloTheme.warning
+        if store.syncError != nil { return HaloTheme.warning }
+        switch realtime.state {
+        case .connected: return HaloTheme.fieldLive
+        case .connecting, .reconnecting: return HaloTheme.actionBlue
+        case .expired: return HaloTheme.warning
+        case .stopped: return .white.opacity(0.45)
+        }
+    }
+
+    private var greeting: String {
+        let hour = Calendar.current.component(.hour, from: .now)
+        switch hour {
+        case 5..<12: return "Good morning"
+        case 12..<17: return "Good afternoon"
+        default: return "Good evening"
+        }
     }
 
     private var loadingState: some View {
