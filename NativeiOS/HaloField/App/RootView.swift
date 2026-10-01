@@ -654,7 +654,7 @@ private struct JobsView: View {
                             NavigationLink { JobDetailView(jobID: job.id) } label: {
                                 FieldJobCard(job: job, hero: false)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(HaloPressableStyle())
                         }
                     }
                 }
