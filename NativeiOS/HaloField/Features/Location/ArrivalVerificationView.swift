@@ -26,6 +26,10 @@ struct ArrivalVerificationView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
+                    if verified {
+                        HaloMilestoneOverlay(title: "You’re on site", subtitle: "Live photo + GPS receipt verified for Unit \(job.unit).", kind: .verified)
+                            .transition(.scale(scale: 0.90).combined(with: .opacity))
+                    }
                     identityHeader
                     capturePanel
                     verificationStatus
@@ -49,15 +53,9 @@ struct ArrivalVerificationView: View {
                                     Image(systemName: "checkmark.shield.fill")
                                 }
                             }
-                            .font(HaloType.body(15, weight: .bold))
-                            .padding(.horizontal, 22)
-                            .frame(height: 58)
-                            .background(HaloTheme.lime)
-                            .foregroundStyle(HaloTheme.ink)
-                            .clipShape(Capsule())
                         }
+                        .buttonStyle(HaloPrimaryButtonStyle())
                         .disabled(isVerifying || !network.isConnected)
-                        .opacity(network.isConnected ? 1 : 0.5)
 
                         Button("Retake Photo") {
                             checkInRequestID = UUID()
@@ -480,7 +478,7 @@ struct ArrivalVerificationView: View {
                 )
                 await MainActor.run {
                     lastResult = result
-                    verified = true
+                    withAnimation(.spring(response: 0.52, dampingFraction: 0.74)) { verified = true }
                     isVerifying = false
                     message = "Verified. Photo + GPS check-in is complete and Job Mode is unlocked."
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
