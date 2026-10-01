@@ -184,6 +184,29 @@ final class FieldSyncController: ObservableObject {
                 activationToken: activationToken
             )
             await OfflineMediaStore.shared.remove(path: imagePath)
+
+        case .arrivalCheckIn:
+            guard
+                let imagePath = raw["imagePath"] as? String,
+                let latText = raw["lat"] as? String, let latitude = Double(latText),
+                let lngText = raw["lng"] as? String, let longitude = Double(lngText),
+                let accuracyText = raw["accuracy"] as? String, let accuracy = Double(accuracyText),
+                let capturedText = raw["capturedAt"] as? String,
+                let capturedAt = ISO8601DateFormatter().date(from: capturedText)
+            else { throw HaloAPIError.malformedPayload }
+
+            let bytes = try Data(contentsOf: URL(fileURLWithPath: imagePath))
+            _ = try await api.verifyCheckIn(
+                jobID: action.jobID,
+                latitude: latitude,
+                longitude: longitude,
+                accuracy: accuracy,
+                capturedAt: capturedAt,
+                imageData: bytes,
+                requestID: action.id,
+                activationToken: activationToken
+            )
+            await OfflineMediaStore.shared.remove(path: imagePath)
         }
     }
 }
