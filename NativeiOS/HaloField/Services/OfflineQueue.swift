@@ -10,6 +10,7 @@ enum PendingActionKind: String, Codable {
     case reworkToggle
     case messageSend
     case clockPunch
+    case arrivalCheckIn
 }
 
 @Model
