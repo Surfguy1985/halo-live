@@ -42,6 +42,7 @@ struct HaloCommsView: View {
     @State private var selectedThreadName: String?
     @State private var draft = ""
     @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var showCamera = false
     @State private var pendingAttachmentData: Data?
     @State private var pendingAttachmentName: String?
     @State private var pendingAttachmentContentType: String?
@@ -126,6 +127,18 @@ struct HaloCommsView: View {
             .onChange(of: selectedPhotoItem) { _, item in
                 guard let item else { return }
                 Task { await loadSelectedPhoto(item) }
+            }
+            .fullScreenCover(isPresented: $showCamera) {
+                HaloMessageCameraPicker(
+                    onCapture: { image in
+                        loadCapturedPhoto(image)
+                        showCamera = false
+                    },
+                    onCancel: {
+                        showCamera = false
+                    }
+                )
+                .ignoresSafeArea()
             }
             .fileImporter(
                 isPresented: $showFileImporter,
@@ -827,8 +840,21 @@ struct HaloCommsView: View {
 
             if conversationMode == .office {
                 HStack(spacing: 8) {
+                    Button {
+                        showCamera = true
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    } label: {
+                        Label("Camera", systemImage: "camera.fill")
+                            .font(HaloType.body(10, weight: .bold))
+                            .foregroundStyle(HaloTheme.lime)
+                            .padding(.horizontal, 12)
+                            .frame(height: 34)
+                            .background(HaloTheme.lime.opacity(0.10))
+                            .clipShape(Capsule())
+                    }
+
                     PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                        Label("Photo", systemImage: "photo")
+                        Label("Library", systemImage: "photo.on.rectangle")
                             .font(HaloType.body(10, weight: .bold))
                             .foregroundStyle(.white.opacity(0.72))
                             .padding(.horizontal, 12)
@@ -1070,6 +1096,26 @@ struct HaloCommsView: View {
     }
 
     @MainActor
+    private func loadCapturedPhoto(_ image: UIImage) {
+        guard let jpeg = image.jpegData(compressionQuality: 0.88) else {
+            errorMessage = "That photo could not be prepared."
+            return
+        }
+        guard jpeg.count <= 10 * 1024 * 1024 else {
+            errorMessage = "Message attachments must be 10 MB or smaller."
+            return
+        }
+        pendingAttachmentData = jpeg
+        pendingAttachmentName = "halo-camera-(Int(Date().timeIntervalSince1970)).jpg"
+        pendingAttachmentContentType = "image/jpeg"
+        pendingAttachmentPreview = image
+        pendingAttachmentCaption = nil
+        selectedPhotoItem = nil
+        errorMessage = nil
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
+    @MainActor
     private func loadSelectedPhoto(_ item: PhotosPickerItem) async {
         do {
             guard let raw = try await item.loadTransferable(type: Data.self),
@@ -1306,4 +1352,51 @@ struct HaloCommsView: View {
         }
     }
 
+}
+
+
+private struct HaloMessageCameraPicker: UIViewControllerRepresentable {
+    let onCapture: (UIImage) -> Void
+    let onCancel: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onCapture: onCapture, onCancel: onCancel)
+    }
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.delegate = context.coordinator
+        picker.sourceType = UIImagePickerController.isSourceTypeAvailable(.camera) ? .camera : .photoLibrary
+        picker.cameraCaptureMode = .photo
+        picker.allowsEditing = false
+        picker.modalPresentationStyle = .fullScreen
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    final class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        private let onCapture: (UIImage) -> Void
+        private let onCancel: () -> Void
+
+        init(onCapture: @escaping (UIImage) -> Void, onCancel: @escaping () -> Void) {
+            self.onCapture = onCapture
+            self.onCancel = onCancel
+        }
+
+        func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+        ) {
+            if let image = info[.originalImage] as? UIImage {
+                onCapture(image)
+            } else {
+                onCancel()
+            }
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            onCancel()
+        }
+    }
 }
