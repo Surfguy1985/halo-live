@@ -6,6 +6,7 @@ extension Notification.Name {
     static let haloAPNSRegistrationFailed = Notification.Name("halo.apns.registration-failed")
     static let haloOpenJob = Notification.Name("halo.push.open-job")
     static let haloOpenComms = Notification.Name("halo.push.open-comms")
+    static let haloDataInvalidated = Notification.Name("halo.push.data-invalidated")
 }
 
 final class HaloAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
@@ -39,7 +40,23 @@ final class HaloAppDelegate: NSObject, UIApplicationDelegate, UNUserNotification
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        [.banner, .sound, .badge]
+        NotificationCenter.default.post(
+            name: .haloDataInvalidated,
+            object: notification.request.content.userInfo["halo"]
+        )
+        return [.banner, .sound, .badge]
+    }
+
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        NotificationCenter.default.post(
+            name: .haloDataInvalidated,
+            object: userInfo["halo"]
+        )
+        completionHandler(.newData)
     }
 
     func userNotificationCenter(
