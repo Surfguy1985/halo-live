@@ -58,6 +58,15 @@ struct RootView: View {
             if network.isConnected {
                 await fieldSync.flush(context: modelContext, activationToken: session.activationToken)
             }
+
+            // Keep Today + Jobs synchronized while the app is open. APNs remains
+            // the immediate invalidation path; this 15-second refresh is the
+            // resilience path for simulator builds and missed push delivery.
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(15))
+                guard session.isActivated, network.isConnected, scenePhase == .active else { continue }
+                await store.refresh(activationToken: session.activationToken)
+            }
         }
         .task(id: network.isConnected) {
             guard network.isConnected else {
@@ -65,11 +74,15 @@ struct RootView: View {
                 return
             }
             await fieldSync.flush(context: modelContext, activationToken: session.activationToken)
+            if session.isActivated {
+                await store.refresh(activationToken: session.activationToken)
+            }
         }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
             fieldSync.refreshPendingCount(context: modelContext, activationToken: session.activationToken)
             if network.isConnected {
+                await store.refresh(activationToken: session.activationToken)
                 await fieldSync.flush(context: modelContext, activationToken: session.activationToken)
             }
         }
@@ -86,6 +99,13 @@ struct RootView: View {
             guard network.isConnected else { return }
             Task {
                 await fieldSync.flush(context: modelContext, activationToken: session.activationToken)
+                await store.refresh(activationToken: session.activationToken)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .haloDataInvalidated)) { _ in
+            guard session.isActivated, network.isConnected else { return }
+            Task {
+                await store.refresh(activationToken: session.activationToken)
             }
         }
     }
