@@ -31,7 +31,6 @@ struct JobDetailView: View {
                             photoCheckInCard(job)
                         }
                         fullScope(job)
-                        fieldJourney(job)
                         WorkSessionCard(job: job)
                         if job.needsRework == true || job.unresolvedReworkCount > 0 {
                             reworkPanel(job)
@@ -194,16 +193,12 @@ struct JobDetailView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("PHOTO CHECK-IN")
-                        .font(HaloType.body(9, weight: .bold))
-                        .tracking(1.4)
-                        .foregroundStyle(HaloTheme.lime)
-                    Text("Verify arrival with camera + GPS")
-                        .font(HaloType.body(15, weight: .bold))
+                    Text("Check in")
+                        .font(HaloType.body(16, weight: .bold))
                         .foregroundStyle(.white)
-                    Text("Live front-camera photo · fresh GPS · property geofence")
-                        .font(HaloType.body(10, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.46))
+                    Text("Take a photo to verify you’re on site.")
+                        .font(HaloType.body(12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.48))
                 }
 
                 Spacer()
@@ -759,55 +754,45 @@ struct JobDetailView: View {
     }
 
     private func propertyNotes(_ job: FieldJob) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("FIELD CONTEXT")
-                    .font(HaloType.body(10, weight: .bold))
-                    .tracking(1.7)
-                    .foregroundStyle(.white.opacity(0.42))
-                Spacer()
-                Text("BACK OFFICE LIVE")
-                    .font(HaloType.body(8, weight: .bold))
-                    .tracking(1.1)
-                    .foregroundStyle(HaloTheme.fieldLive)
-            }
-
-            Label(job.propertyName, systemImage: "building.2.fill")
-            Label("Unit \(job.unit)", systemImage: "door.left.hand.open")
-
-            if !job.services.isEmpty {
-                Label(job.services.joined(separator: " · "), systemImage: "wrench.and.screwdriver.fill")
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if let notes = job.scopeNotes,
-               !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Label(notes, systemImage: "note.text")
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Button {
-                showMessages = true
-            } label: {
-                HStack {
-                    Label("Message Office", systemImage: "message.fill")
-                    Spacer()
-                    Image(systemName: "chevron.right")
+        Button {
+            showMessages = true
+        } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.07))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: "message.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(HaloTheme.lime)
                 }
-                .font(HaloType.body(12, weight: .bold))
-                .foregroundStyle(HaloTheme.lime)
-                .padding(.top, 4)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Need help?")
+                        .font(HaloType.body(14, weight: .bold))
+                        .foregroundStyle(.white)
+                    Text("Message the office about this unit.")
+                        .font(HaloType.body(11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.46))
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.28))
             }
-            .buttonStyle(.plain)
+            .padding(16)
+            .haloDarkCard()
         }
-        .font(HaloType.body(12, weight: .medium))
-        .foregroundStyle(.white.opacity(0.62))
-        .padding(18)
-        .haloDarkCard()
+        .buttonStyle(.plain)
     }
 
     private func primaryAction(_ job: FieldJob) -> some View {
-        Button {
+        let actionTitle = (job.state == .enRoute || job.state == .arrived) ? "Photo check-in" : job.state.actionTitle
+        let actionIcon = job.state == .scheduled ? "location.fill" : ((job.state == .enRoute || job.state == .arrived) ? "camera.fill" : "arrow.right")
+
+        return Button {
             if job.state == .scheduled {
                 showRoute = true
             } else if job.state == .enRoute || job.state == .arrived {
@@ -826,9 +811,9 @@ struct JobDetailView: View {
             }
         } label: {
             HStack {
-                Text(job.state.actionTitle)
+                Text(actionTitle)
                 Spacer()
-                Image(systemName: job.state == .scheduled ? "location.fill" : "arrow.right")
+                Image(systemName: actionIcon)
             }
             .font(HaloType.body(15, weight: .bold))
             .padding(.horizontal, 22)
