@@ -125,6 +125,9 @@ struct SyncIssuesView: View {
         case .taskToggle: "Checklist update"
         case .proofCaptured: "Photo proof"
         case .turnHandoff: "Turn handoff"
+        case .reworkToggle: "Rework update"
+        case .messageSend: "Message"
+        case .clockPunch: "Verified work punch"
         case nil: "Saved action"
         }
     }
@@ -135,6 +138,9 @@ struct SyncIssuesView: View {
         case .taskToggle: "checklist"
         case .proofCaptured: "camera.fill"
         case .turnHandoff: "arrow.right.square.fill"
+        case .reworkToggle: "arrow.counterclockwise.circle.fill"
+        case .messageSend: "message.fill"
+        case .clockPunch: "clock.badge.checkmark.fill"
         case nil: "exclamationmark.circle"
         }
     }
