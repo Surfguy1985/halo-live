@@ -2,6 +2,19 @@ import CoreLocation
 import SwiftUI
 import UIKit
 
+private enum HaloConversationMode: String, CaseIterable, Identifiable {
+    case office = "Crew Chat"
+    case ai = "Halo AI"
+
+    var id: String { rawValue }
+}
+
+private struct HaloAIMessage: Identifiable, Hashable {
+    let id = UUID()
+    let role: String
+    let text: String
+}
+
 struct HaloCommsView: View {
     var initialJobID: String? = nil
     @EnvironmentObject private var session: HaloSessionStore
@@ -20,16 +33,30 @@ struct HaloCommsView: View {
     @State private var isLoading = false
     @State private var isSending = false
     @State private var errorMessage: String?
+    @State private var conversationMode: HaloConversationMode = .office
+    @State private var aiMessages: [HaloAIMessage] = [
+        HaloAIMessage(
+            role: "assistant",
+            text: "I’m connected to your live HALO assignments. Ask what to do next, which jobs need proof, or whether a maintenance handoff is waiting."
+        )
+    ]
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 22) {
                     header
-                    if !gpsSessions.isEmpty {
-                        liveLocationSection
+                    conversationModeControl
+
+                    if conversationMode == .office {
+                        if !gpsSessions.isEmpty {
+                            liveLocationSection
+                        }
+                        inboxSection
+                    } else {
+                        aiSection
                     }
-                    inboxSection
+
                     composer
                 }
                 .padding(.horizontal, 16)
@@ -95,6 +122,148 @@ struct HaloCommsView: View {
             }
         }
         .padding(.top, 6)
+    }
+
+    private var conversationModeControl: some View {
+        HStack(spacing: 6) {
+            ForEach(HaloConversationMode.allCases) { mode in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        conversationMode = mode
+                        selectedThreadChannel = nil
+                        selectedThreadName = nil
+                    }
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: mode == .ai ? "sparkles" : "bubble.left.and.bubble.right.fill")
+                            .font(.system(size: 11, weight: .bold))
+                        Text(mode.rawValue)
+                            .font(HaloType.body(11, weight: .bold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 40)
+                    .foregroundStyle(conversationMode == mode ? HaloTheme.ink : .white.opacity(0.48))
+                    .background(conversationMode == mode ? HaloTheme.lime : Color.white.opacity(0.045))
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(5)
+        .background(Color.white.opacity(0.035))
+        .clipShape(Capsule())
+        .overlay {
+            Capsule().stroke(Color.white.opacity(0.055), lineWidth: 1)
+        }
+    }
+
+    private var aiSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                sectionLabel("HALO AI · GROK")
+                Spacer()
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(network.isConnected ? HaloTheme.fieldLive : HaloTheme.warning)
+                        .frame(width: 6, height: 6)
+                    Text(network.isConnected ? "LIVE DATA" : "OFFLINE")
+                        .font(HaloType.body(8, weight: .bold))
+                        .tracking(0.8)
+                        .foregroundStyle(.white.opacity(0.38))
+                }
+            }
+
+            LazyVStack(spacing: 9) {
+                ForEach(aiMessages) { item in
+                    aiBubble(item)
+                        .id(item.id)
+                }
+
+                if isSending {
+                    HStack {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(HaloTheme.lime)
+                            Text("Halo is checking live operations…")
+                                .font(HaloType.body(11, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.58))
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .background(HaloTheme.fieldCard)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        Spacer(minLength: 52)
+                    }
+                }
+            }
+
+            if aiMessages.count <= 1 {
+                HStack(spacing: 8) {
+                    aiSuggestion("What’s next?")
+                    aiSuggestion("Needs photos?")
+                    aiSuggestion("Open handoffs?")
+                }
+            }
+
+            Text("Grounded in your assigned HALO jobs. Halo AI cannot approve spending or silently change job records.")
+                .font(HaloType.body(9, weight: .medium))
+                .foregroundStyle(.white.opacity(0.3))
+        }
+    }
+
+    private func aiBubble(_ item: HaloAIMessage) -> some View {
+        let outgoing = item.role == "user"
+        return HStack {
+            if outgoing { Spacer(minLength: 52) }
+
+            VStack(alignment: outgoing ? .trailing : .leading, spacing: 5) {
+                if !outgoing {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 9, weight: .bold))
+                        Text("HALO AI")
+                            .font(HaloType.body(8, weight: .bold))
+                            .tracking(0.8)
+                    }
+                    .foregroundStyle(HaloTheme.lime)
+                }
+
+                Text(item.text)
+                    .font(HaloType.body(13, weight: .medium))
+                    .foregroundStyle(outgoing ? HaloTheme.ink : .white)
+                    .multilineTextAlignment(outgoing ? .trailing : .leading)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .background(outgoing ? HaloTheme.lime : HaloTheme.fieldCard)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay {
+                if !outgoing {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(HaloTheme.fieldBorder, lineWidth: 1)
+                }
+            }
+
+            if !outgoing { Spacer(minLength: 52) }
+        }
+    }
+
+    private func aiSuggestion(_ text: String) -> some View {
+        Button {
+            draft = text
+            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        } label: {
+            Text(text)
+                .font(HaloType.body(9, weight: .bold))
+                .foregroundStyle(.white.opacity(0.58))
+                .padding(.horizontal, 10)
+                .frame(height: 32)
+                .background(Color.white.opacity(0.05))
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     private var liveLocationSection: some View {
@@ -457,20 +626,29 @@ struct HaloCommsView: View {
 
     private var composer: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionLabel("REPLY TO OFFICE")
+            sectionLabel(conversationMode == .ai ? "ASK HALO AI" : "REPLY TO OFFICE")
 
             Menu {
-                Button("General message") {
-                    selectedJobID = nil
-                    selectedThreadChannel = nil
-                    selectedThreadName = nil
-                }
-
-                if let selectedThreadName, selectedThreadChannel != nil {
-                    Button("Reply in \(selectedThreadName)") {
+                if conversationMode == .office {
+                    Button("General message") {
                         selectedJobID = nil
+                        selectedThreadChannel = nil
+                        selectedThreadName = nil
+                    }
+
+                    if let selectedThreadName, selectedThreadChannel != nil {
+                        Button("Reply in \(selectedThreadName)") {
+                            selectedJobID = nil
+                        }
+                    }
+                } else {
+                    Button("All assigned jobs") {
+                        selectedJobID = nil
+                        selectedThreadChannel = nil
+                        selectedThreadName = nil
                     }
                 }
+
                 ForEach(store.jobs.filter { !$0.isClosed }) { job in
                     Button("Unit \(job.unit) · \(job.propertyName)") {
                         selectedJobID = job.id
@@ -480,7 +658,7 @@ struct HaloCommsView: View {
                 }
             } label: {
                 HStack {
-                    Image(systemName: "link")
+                    Image(systemName: conversationMode == .ai ? "scope" : "link")
                     Text(selectedJobLabel)
                     Spacer()
                     Image(systemName: "chevron.up.chevron.down")
@@ -494,7 +672,11 @@ struct HaloCommsView: View {
             }
 
             HStack(alignment: .bottom, spacing: 10) {
-                TextField("Message the office…", text: $draft, axis: .vertical)
+                TextField(
+                    conversationMode == .ai ? "Ask Halo about today’s work…" : "Message the office…",
+                    text: $draft,
+                    axis: .vertical
+                )
                     .lineLimit(1...5)
                     .font(HaloType.body(14))
                     .foregroundStyle(.white)
@@ -510,7 +692,7 @@ struct HaloCommsView: View {
                         if isSending {
                             ProgressView().tint(HaloTheme.ink)
                         } else {
-                            Image(systemName: "arrow.up")
+                            Image(systemName: conversationMode == .ai ? "sparkles" : "arrow.up")
                                 .font(.system(size: 14, weight: .bold))
                         }
                     }
@@ -520,7 +702,7 @@ struct HaloCommsView: View {
                     .clipShape(Circle())
                 }
                 .disabled(!canSend || isSending)
-                .accessibilityLabel("Send message")
+                .accessibilityLabel(conversationMode == .ai ? "Ask Halo AI" : "Send message")
             }
         }
     }
@@ -530,6 +712,13 @@ struct HaloCommsView: View {
     }
 
     private var selectedJobLabel: String {
+        if conversationMode == .ai {
+            guard let selectedJobID, let job = store.jobs.first(where: { $0.id == selectedJobID }) else {
+                return "All assigned jobs · Live context"
+            }
+            return "Focus · Unit \(job.unit) · \(job.propertyName)"
+        }
+
         if let selectedThreadName, selectedThreadChannel != nil {
             return "Thread · \(selectedThreadName)"
         }
@@ -636,8 +825,46 @@ struct HaloCommsView: View {
     private func send() {
         guard canSend, let token = session.activationToken else { return }
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let mode = conversationMode
         isSending = true
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
+
+        if mode == .ai {
+            let history = aiMessages
+                .suffix(12)
+                .map { HaloGrokTurn(role: $0.role, content: $0.text) }
+
+            aiMessages.append(HaloAIMessage(role: "user", text: text))
+            draft = ""
+
+            Task {
+                do {
+                    let answer = try await HaloAPI.shared.askGrok(
+                        message: text,
+                        jobID: selectedJobID,
+                        history: history,
+                        activationToken: token
+                    )
+                    await MainActor.run {
+                        aiMessages.append(HaloAIMessage(role: "assistant", text: answer.reply))
+                        isSending = false
+                        errorMessage = nil
+                        UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    }
+                } catch {
+                    await MainActor.run {
+                        aiMessages.append(HaloAIMessage(
+                            role: "assistant",
+                            text: "I couldn’t reach Halo AI. \(error.localizedDescription)"
+                        ))
+                        isSending = false
+                        errorMessage = error.localizedDescription
+                        UINotificationFeedbackGenerator().notificationOccurred(.error)
+                    }
+                }
+            }
+            return
+        }
 
         Task {
             do {
@@ -661,4 +888,5 @@ struct HaloCommsView: View {
             }
         }
     }
+
 }
