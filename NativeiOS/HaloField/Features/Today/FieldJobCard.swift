@@ -29,52 +29,44 @@ struct FieldJobCard: View {
                     .foregroundStyle(.white.opacity(0.48))
             }
 
-            VStack(alignment: .leading, spacing: 7) {
-                HStack {
-                    Text("FULL SCOPE")
-                        .font(HaloType.body(9, weight: .bold))
-                        .tracking(1.3)
-                        .foregroundStyle(HaloTheme.lime)
-                    Spacer()
-                    Text("\(job.scopeItemCount) ITEM\(job.scopeItemCount == 1 ? "" : "S")")
-                        .font(HaloType.body(8, weight: .bold))
-                        .tracking(0.8)
-                        .foregroundStyle(.white.opacity(0.34))
-                }
-
+            VStack(alignment: .leading, spacing: 8) {
                 Text(scopeText)
-                    .font(HaloType.body(hero ? 12 : 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.72))
+                    .font(HaloType.body(hero ? 13 : 12, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.64))
+                    .lineLimit(hero ? 3 : 2)
                     .fixedSize(horizontal: false, vertical: true)
 
-                if let notes = job.scopeNotes, !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if let notes = job.scopeNotes, !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, hero {
                     Label(notes, systemImage: "note.text")
-                        .font(HaloType.body(10, weight: .medium))
+                        .font(HaloType.body(11, weight: .medium))
                         .foregroundStyle(.white.opacity(0.42))
-                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(2)
                 }
             }
-            .padding(13)
-            .background(Color.white.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-            ProgressView(value: job.progress)
-                .tint(HaloTheme.lime)
-                .scaleEffect(x: 1, y: 1.5, anchor: .center)
+            HStack(spacing: 10) {
+                ProgressView(value: job.progress)
+                    .tint(HaloTheme.lime)
+                    .scaleEffect(x: 1, y: 1.35, anchor: .center)
+                Text("\(Int((job.progress * 100).rounded()))%")
+                    .font(HaloType.body(10, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
 
-            HStack(spacing: 15) {
-                Label("\(job.completedTasks)/\(job.tasks.count)", systemImage: "checkmark.circle.fill")
-                Label("\(job.photoCount)", systemImage: "camera.fill")
+            HStack(spacing: 12) {
+                Label("\(job.completedTasks)/\(job.tasks.count)", systemImage: "checkmark.circle")
+                Label("\(job.photoCount)", systemImage: "camera")
                 if job.flaggedCount > 0 {
-                    Label("\(job.flaggedCount)", systemImage: "flag.fill").foregroundStyle(.orange)
+                    Label("\(job.flaggedCount)", systemImage: "flag.fill")
+                        .foregroundStyle(HaloTheme.warning)
                 }
                 Spacer()
                 if let travel = job.travelMinutes {
-                    Label("\(travel) min", systemImage: "location.fill")
+                    Label("\(travel) min", systemImage: "location")
                 }
             }
             .font(HaloType.body(10, weight: .semibold))
-            .foregroundStyle(.white.opacity(0.48))
+            .foregroundStyle(.white.opacity(0.50))
 
             if hero {
                 HStack {
@@ -90,7 +82,7 @@ struct FieldJobCard: View {
                 .shadow(color: HaloTheme.lime.opacity(0.16), radius: 20, y: 8)
             }
         }
-        .padding(hero ? 20 : 18)
+        .padding(hero ? 20 : 16)
         .haloDarkCard()
     }
  
