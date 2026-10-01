@@ -1,54 +1,53 @@
 # HALO Field — Native iOS
 
-This directory is an isolated SwiftUI rebuild of the HALO field experience. It lives only on the `ios-swift-native-v1` branch and does not replace or modify the existing React/Capacitor app.
+HALO Field is the production native SwiftUI field-operations client for HALO Back Office.
 
-## Product direction
+## Release
+- Bundle ID: `com.archangel.halofield`
+- Version: `1.0.0`
+- iOS: 17+
+- iPhone portrait
+- Scheme: `HaloField`
+- Backend: HALO Back Office / Base44
+- Auth: revocable native activation credential
+- Realtime: authenticated WebSocket with resilient fallback sync
 
-The UX intentionally combines:
-- Jobber: field-service information architecture
-- DoorDash Dasher: one obvious action at a time
-- Linear: calm operational density
-- Superlist: elegant task interaction and motion
-- Airtasker: task context and communication
+## Production capabilities
+- Strict crew vs office authorization
+- Today briefing and assigned jobs
+- Photo + GPS arrival verification
+- Before/after/flagged work evidence
+- Checklists, workflow transitions, rework and handoff
+- Offline mutation queue with replay and Sync Issues
+- HALO messaging with private signed attachments and read receipts
+- Push/deep links and Live Activities
+- Manager Live Operations map for authorized office credentials
+- Production health telemetry and scoped realtime invalidation
 
-HALO's native differentiator is a state-driven job flow:
-
-`Scheduled → En Route → Arrived → Active → Proof → Review → Complete`
-
-## Current native slice
-
-- SwiftUI app shell with Today / Jobs / Halo / Me
-- Premium Today screen and universal Field Job Card
-- Job detail with live progress, task completion, proof cards and property notes
-- State-driven sticky CTA
-- API client foundation using the current HALO endpoint and `X-Halo-Role`
-- Preview data for Xcode canvas / simulator work
-
-## Generate the Xcode project
-
-Install XcodeGen once:
-
+## Generate the project
 ```bash
 brew install xcodegen
-```
-
-Then:
-
-```bash
 cd NativeiOS
 xcodegen generate
 open HaloField.xcodeproj
 ```
 
-Target: iOS 17+, iPhone portrait first.
+Run the `HaloField` scheme, not `HaloFieldWidgets`.
 
-## Next build pass
+## Deterministic simulator launch
+```bash
+cd NativeiOS
+bash run-fresh-simulator.sh
+```
 
-1. Replace preview jobs with decoded live HALO jobs.
-2. Native camera proof flow with metadata + upload queue.
-3. Core Location check-in and route state.
-4. Offline SwiftData queue.
-5. MapKit job route.
-6. Live Activities / Dynamic Island.
-7. Push notifications.
-8. Maintenance → Turns handoff.
+The launcher removes both the legacy Capacitor bundle and the native bundle before installing a clean native build.
+
+## App Store readiness
+```bash
+cd NativeiOS
+bash scripts/app-store-readiness.sh
+```
+
+See `APP_STORE_SUBMISSION.md` for App Review notes, privacy declarations, screenshots, and release-owner gates.
+
+Native CI regenerates the project, validates App Store static gates, runs the test target, and creates an unsigned generic-iOS Release archive.
