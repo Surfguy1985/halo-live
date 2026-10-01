@@ -487,12 +487,13 @@ actor HaloAPI {
         attachmentName: String? = nil,
         attachmentContentType: String? = nil,
         attachmentCaption: String? = nil,
+        clientID: UUID = UUID(),
         activationToken: String
     ) async throws {
         var object: [String: Any] = [
             "action": "messageSend",
             "text": text,
-            "clientId": UUID().uuidString
+            "clientId": clientID.uuidString
         ]
         if let jobID, !jobID.isEmpty { object["jobId"] = jobID }
         if let channel, !channel.isEmpty { object["channel"] = channel }
@@ -755,6 +756,37 @@ actor HaloAPI {
             workedMs: Self.int(root["workedMs"]) ?? 0,
             pauseReason: kind == "pause" ? "break" : nil,
             sessionType: "unit_work"
+        )
+    }
+
+    func replayClockPunch(
+        kind: String,
+        jobID: String,
+        imageData: Data,
+        latitude: Double,
+        longitude: Double,
+        accuracy: Double,
+        capturedAt: Date,
+        requestID: UUID,
+        activationToken: String
+    ) async throws {
+        let body = try JSONSerialization.data(withJSONObject: [
+            "action": "clockPunch",
+            "kind": kind,
+            "jobId": jobID,
+            "imageBase64": imageData.base64EncodedString(),
+            "lat": latitude,
+            "lng": longitude,
+            "accuracy": accuracy,
+            "capturedAt": ISO8601DateFormatter().string(from: capturedAt),
+            "requestId": requestID.uuidString,
+            "offlineQueued": true
+        ])
+        _ = try await request(
+            path: "/functions/nativeFieldMobile",
+            method: "POST",
+            body: body,
+            bearerToken: activationToken
         )
     }
 
