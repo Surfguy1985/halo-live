@@ -1,6 +1,8 @@
 import CoreLocation
+import PhotosUI
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 private enum HaloConversationMode: String, CaseIterable, Identifiable {
     case office = "Crew Chat"
@@ -30,6 +32,13 @@ struct HaloCommsView: View {
     @State private var selectedThreadChannel: String?
     @State private var selectedThreadName: String?
     @State private var draft = ""
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var pendingAttachmentData: Data?
+    @State private var pendingAttachmentName: String?
+    @State private var pendingAttachmentContentType: String?
+    @State private var pendingAttachmentPreview: UIImage?
+    @State private var pendingAttachmentCaption: String?
+    @State private var showFileImporter = false
     @State private var isLoading = false
     @State private var isSending = false
     @State private var errorMessage: String?
@@ -87,6 +96,17 @@ struct HaloCommsView: View {
                         proxy.scrollTo(id, anchor: .bottom)
                     }
                 }
+            }
+            .onChange(of: selectedPhotoItem) { _, item in
+                guard let item else { return }
+                Task { await loadSelectedPhoto(item) }
+            }
+            .fileImporter(
+                isPresented: $showFileImporter,
+                allowedContentTypes: [.pdf, .commaSeparatedText, .plainText],
+                allowsMultipleSelection: false
+            ) { result in
+                loadImportedFile(result)
             }
         }
     }
@@ -671,6 +691,96 @@ struct HaloCommsView: View {
                 .clipShape(Capsule())
             }
 
+            if conversationMode == .office {
+                HStack(spacing: 8) {
+                    PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                        Label("Photo", systemImage: "photo")
+                            .font(HaloType.body(10, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.72))
+                            .padding(.horizontal, 12)
+                            .frame(height: 34)
+                            .background(Color.white.opacity(0.06))
+                            .clipShape(Capsule())
+                    }
+
+                    Button {
+                        showFileImporter = true
+                    } label: {
+                        Label("File", systemImage: "paperclip")
+                            .font(HaloType.body(10, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.72))
+                            .padding(.horizontal, 12)
+                            .frame(height: 34)
+                            .background(Color.white.opacity(0.06))
+                            .clipShape(Capsule())
+                    }
+
+                    if pendingAttachmentPreview != nil {
+                        Menu {
+                            Button("Job photo") { pendingAttachmentCaption = nil }
+                            Button("Before") { pendingAttachmentCaption = "before" }
+                            Button("After") { pendingAttachmentCaption = "after" }
+                            Button("Flagged") { pendingAttachmentCaption = "flagged" }
+                        } label: {
+                            Label((pendingAttachmentCaption ?? "Job photo").capitalized, systemImage: "tag")
+                                .font(HaloType.body(10, weight: .bold))
+                                .foregroundStyle(HaloTheme.lime)
+                                .padding(.horizontal, 12)
+                                .frame(height: 34)
+                                .background(HaloTheme.lime.opacity(0.10))
+                                .clipShape(Capsule())
+                        }
+                    }
+                }
+
+                if pendingAttachmentData != nil {
+                    HStack(spacing: 10) {
+                        if let preview = pendingAttachmentPreview {
+                            Image(uiImage: preview)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 54, height: 54)
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        } else {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(Color.white.opacity(0.06))
+                                    .frame(width: 54, height: 54)
+                                Image(systemName: "doc.fill")
+                                    .foregroundStyle(HaloTheme.lime)
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(pendingAttachmentName ?? "Attachment")
+                                .font(HaloType.body(11, weight: .bold))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                            Text(pendingAttachmentPreview == nil ? "Ready to send" : ((pendingAttachmentCaption ?? "job photo").uppercased()))
+                                .font(HaloType.body(8, weight: .bold))
+                                .tracking(0.8)
+                                .foregroundStyle(.white.opacity(0.40))
+                        }
+
+                        Spacer()
+
+                        Button {
+                            clearAttachment()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.55))
+                                .frame(width: 30, height: 30)
+                                .background(Color.white.opacity(0.06))
+                                .clipShape(Circle())
+                        }
+                    }
+                    .padding(10)
+                    .background(Color.white.opacity(0.035))
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+            }
+
             HStack(alignment: .bottom, spacing: 10) {
                 TextField(
                     conversationMode == .ai ? "Ask Halo about today’s work…" : "Message the office…",
@@ -708,7 +818,10 @@ struct HaloCommsView: View {
     }
 
     private var canSend: Bool {
-        network.isConnected && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard network.isConnected else { return false }
+        let hasText = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if conversationMode == .ai { return hasText }
+        return hasText || pendingAttachmentData != nil
     }
 
     private var selectedJobLabel: String {
@@ -822,6 +935,70 @@ struct HaloCommsView: View {
         }
     }
 
+    @MainActor
+    private func loadSelectedPhoto(_ item: PhotosPickerItem) async {
+        do {
+            guard let raw = try await item.loadTransferable(type: Data.self),
+                  let image = UIImage(data: raw),
+                  let jpeg = image.jpegData(compressionQuality: 0.88)
+            else {
+                errorMessage = "That photo could not be loaded."
+                return
+            }
+            guard jpeg.count <= 10 * 1024 * 1024 else {
+                errorMessage = "Message attachments must be 10 MB or smaller."
+                return
+            }
+            pendingAttachmentData = jpeg
+            pendingAttachmentName = "halo-photo-\(Int(Date().timeIntervalSince1970)).jpg"
+            pendingAttachmentContentType = "image/jpeg"
+            pendingAttachmentPreview = image
+            pendingAttachmentCaption = nil
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func loadImportedFile(_ result: Result<[URL], Error>) {
+        do {
+            guard let url = try result.get().first else { return }
+            let hasAccess = url.startAccessingSecurityScopedResource()
+            defer { if hasAccess { url.stopAccessingSecurityScopedResource() } }
+
+            let data = try Data(contentsOf: url, options: .mappedIfSafe)
+            guard data.count <= 10 * 1024 * 1024 else {
+                errorMessage = "Message attachments must be 10 MB or smaller."
+                return
+            }
+
+            let type = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+            let allowed = ["application/pdf", "text/csv", "text/plain"]
+            guard allowed.contains(type) else {
+                errorMessage = "Choose a PDF, CSV, or text file."
+                return
+            }
+
+            pendingAttachmentData = data
+            pendingAttachmentName = url.lastPathComponent
+            pendingAttachmentContentType = type
+            pendingAttachmentPreview = nil
+            pendingAttachmentCaption = nil
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func clearAttachment() {
+        selectedPhotoItem = nil
+        pendingAttachmentData = nil
+        pendingAttachmentName = nil
+        pendingAttachmentContentType = nil
+        pendingAttachmentPreview = nil
+        pendingAttachmentCaption = nil
+    }
+
     private func send() {
         guard canSend, let token = session.activationToken else { return }
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -872,10 +1049,15 @@ struct HaloCommsView: View {
                     text: text,
                     jobID: selectedJobID,
                     channel: selectedThreadChannel,
+                    attachmentData: pendingAttachmentData,
+                    attachmentName: pendingAttachmentName,
+                    attachmentContentType: pendingAttachmentContentType,
+                    attachmentCaption: pendingAttachmentCaption,
                     activationToken: token
                 )
                 await MainActor.run {
                     draft = ""
+                    clearAttachment()
                     isSending = false
                 }
                 await refresh()
