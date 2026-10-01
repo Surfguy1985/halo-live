@@ -31,7 +31,7 @@ struct TodayView: View {
                             NavigationLink { JobDetailView(jobID: next.id) } label: {
                                 FieldJobCard(job: next, hero: true)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(HaloPressableStyle())
                         }
                     }
 
@@ -52,7 +52,7 @@ struct TodayView: View {
                                 NavigationLink { JobDetailView(jobID: job.id) } label: {
                                     FieldJobCard(job: job, hero: false)
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(HaloPressableStyle())
                             }
                         }
                     }
