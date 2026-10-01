@@ -161,6 +161,20 @@ final class HaloAPITests: XCTestCase {
         }
     }
 
+    func testGrokReplyMapsNativeAssistantResponse() async throws {
+        let payload = #"{"ok":true,"reply":"Unit 816 needs after photos before closeout.","model":"grok-4.6","groundedAt":"2026-10-01T01:45:00.000Z"}"#.data(using: .utf8)!
+        let reply = try await makeAPI(status: 200, data: payload).askGrok(
+            message: "What is next?",
+            jobID: "unit-816",
+            history: [HaloGrokTurn(role: "assistant", content: "Ready when you are.")],
+            activationToken: "test-token-1234567890"
+        )
+
+        XCTAssertEqual(reply.reply, "Unit 816 needs after photos before closeout.")
+        XCTAssertEqual(reply.model, "grok-4.6")
+        XCTAssertEqual(reply.groundedAt, "2026-10-01T01:45:00.000Z")
+    }
+
     func testHTTPFailureSurfacesServerMessage() async {
         let payload = #"{"error":"Jobs unavailable"}"#.data(using: .utf8)!
 
