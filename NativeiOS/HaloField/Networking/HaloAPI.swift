@@ -704,7 +704,8 @@ actor HaloAPI {
         let services = stringArray(row["services"])
         let serviceNames = services.isEmpty ? splitServices(description) : services
         let serverTasks = taskArray(row["tasks"])
-        let title = category ?? serviceNames.first ?? description
+        let genericCategory = ["turn", "maintenance"].contains((category ?? "").lowercased())
+        let title = genericCategory ? (serviceNames.first ?? description) : (category ?? serviceNames.first ?? description)
         let rawStatus = (string(row["status"]) ?? "open").lowercased()
         let boardStatus = (string(row["boardStatus"]) ?? "").lowercased()
 
@@ -766,7 +767,10 @@ actor HaloAPI {
             closeoutBlockers: stringArray(row["closeoutBlockers"]),
             finalWalkAt: string(row["finalWalkAt"]),
             readyForWalk: (row["readyForWalk"] as? Bool) ?? false,
-            walkVerified: (row["walkVerified"] as? Bool) ?? false
+            walkVerified: (row["walkVerified"] as? Bool) ?? false,
+            scopeNotes: string(row["scopeNotes"]),
+            bedrooms: int(row["bedrooms"]),
+            priority: string(row["priority"])
         )
     }
 
