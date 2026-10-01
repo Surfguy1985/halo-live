@@ -55,11 +55,38 @@ struct HaloLightCardModifier: ViewModifier {
 }
 struct HaloDarkCardModifier: ViewModifier {
     func body(content: Content) -> some View {
-        content.background(HaloTheme.fieldCard)
-            .clipShape(RoundedRectangle(cornerRadius: HaloTheme.heroRadius, style: .continuous))
-            .overlay { RoundedRectangle(cornerRadius: HaloTheme.heroRadius, style: .continuous).stroke(HaloTheme.fieldBorder, lineWidth: 1) }
+        let shape = RoundedRectangle(cornerRadius: HaloTheme.heroRadius, style: .continuous)
+        content
+            .background(.ultraThinMaterial, in: shape)
+            .background(HaloTheme.fieldCard.opacity(0.76), in: shape)
+            .overlay {
+                shape.stroke(
+                    LinearGradient(
+                        colors: [.white.opacity(0.11), HaloTheme.fieldBorder.opacity(0.70)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 0.8
+                )
+            }
+            .shadow(color: .black.opacity(0.16), radius: 20, y: 10)
     }
 }
+
+struct HaloPressableStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .opacity(configuration.isPressed ? 0.92 : 1)
+            .animation(
+                reduceMotion ? nil : .snappy(duration: 0.18),
+                value: configuration.isPressed
+            )
+    }
+}
+
 extension View {
     func haloCard() -> some View { modifier(HaloLightCardModifier()) }
     func haloDarkCard() -> some View { modifier(HaloDarkCardModifier()) }
