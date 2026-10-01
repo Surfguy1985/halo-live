@@ -253,6 +253,8 @@ private struct ManagerLiveView: View {
     @State private var cameraPosition: MapCameraPosition = .automatic
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var filtersExpanded = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var locations: [HaloManagerCrewLocation] {
         guard let snapshot else { return [] }
@@ -289,15 +291,21 @@ private struct ManagerLiveView: View {
                     if let lat = location.latitude, let lng = location.longitude {
                         Annotation(location.crewName, coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lng), anchor: .bottom) {
                             Button {
-                                selectedCrewID = location.crewID
+                                withAnimation(HaloMotion.animation(reduceMotion: reduceMotion)) {
+                                    selectedCrewID = location.crewID
+                                    cameraPosition = .region(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: lat, longitude: lng), span: MKCoordinateSpan(latitudeDelta: 0.008, longitudeDelta: 0.008)))
+                                }
                                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                             } label: {
                                 VStack(spacing: 4) {
                                     ZStack {
+                                        if location.locationState == "live" {
+                                            HaloPulseRing(tint: HaloTheme.lime).frame(width: 58, height: 58)
+                                        }
                                         Circle()
                                             .fill(location.locationState == "live" ? HaloTheme.lime : Color.white)
-                                            .frame(width: 48, height: 48)
-                                            .shadow(color: .black.opacity(0.28), radius: 8, y: 4)
+                                            .frame(width: selectedCrewID == location.crewID ? 54 : 48, height: selectedCrewID == location.crewID ? 54 : 48)
+                                            .shadow(color: location.locationState == "live" ? HaloTheme.lime.opacity(0.18) : .black.opacity(0.28), radius: 10, y: 4)
                                         AsyncImage(url: location.photoURL.flatMap(URL.init(string:))) { phase in
                                             switch phase {
                                             case .success(let image):
@@ -308,7 +316,7 @@ private struct ManagerLiveView: View {
                                                     .foregroundStyle(HaloTheme.ink)
                                             }
                                         }
-                                        .frame(width: 40, height: 40)
+                                        .frame(width: selectedCrewID == location.crewID ? 46 : 40, height: selectedCrewID == location.crewID ? 46 : 40)
                                         .clipShape(Circle())
                                     }
                                     Text(location.unitNumber.isEmpty ? location.crewName : "Unit \(location.unitNumber)")
@@ -371,47 +379,98 @@ private struct ManagerLiveView: View {
     }
 
     private var filterBar: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 8) {
-                Menu {
-                    ForEach(properties, id: \.self) { property in
-                        Button(property) { selectedProperty = property; selectedCrewID = nil }
-                    }
+        VStack(spacing: 9) {
+            HStack(spacing: 9) {
+                Button {
+                    withAnimation(HaloMotion.animation(reduceMotion: reduceMotion)) { filtersExpanded.toggle() }
+                    UIImpactFeedbackGenerator(style: .soft).impactOccurred()
                 } label: {
-                    filterPill(icon: "building.2.fill", text: selectedProperty)
-                }
-
-                Menu {
-                    ForEach(["Active", "Live", "Recent", "On clock", "Needs attention"], id: \.self) { state in
-                        Button(state) { selectedState = state; selectedCrewID = nil }
+                    HStack(spacing: 8) {
+                        Image(systemName: "slider.horizontal.3")
+                        Text(selectedProperty == "All properties" && selectedState == "Active" ? "Filter live map" : "\(selectedProperty) · \(selectedState)")
+                            .lineLimit(1)
+                        Spacer()
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 9, weight: .bold))
+                            .rotationEffect(.degrees(filtersExpanded ? 180 : 0))
                     }
-                } label: {
-                    filterPill(icon: "line.3.horizontal.decrease.circle.fill", text: selectedState)
+                    .font(HaloType.body(10, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.82))
+                    .padding(.horizontal, 13)
+                    .frame(height: 42)
+                    .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
                 }
-
-                Spacer(minLength: 4)
+                .buttonStyle(.plain)
 
                 Button {
-                    Task { await refresh() }
+                    cameraPosition = .automatic
+                    UIImpactFeedbackGenerator(style: .soft).impactOccurred()
                 } label: {
+                    Image(systemName: "scope")
+                        .font(.system(size: 13, weight: .bold))
+                        .frame(width: 42, height: 42)
+                        .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                }
+
+                Button { Task { await refresh() } } label: {
                     Image(systemName: isLoading ? "hourglass" : "arrow.clockwise")
                         .font(.system(size: 13, weight: .bold))
-                        .frame(width: 38, height: 38)
-                        .background(.ultraThinMaterial, in: Circle())
+                        .frame(width: 42, height: 42)
+                        .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
                 }
                 .disabled(isLoading || !network.isConnected)
             }
 
+            if filtersExpanded {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("PROPERTY").font(HaloType.body(8, weight: .bold)).tracking(1.2).foregroundStyle(.white.opacity(0.34))
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 7) {
+                            ForEach(properties, id: \.self) { property in
+                                mapFilterChoice(property, selected: selectedProperty == property) {
+                                    selectedProperty = property; selectedCrewID = nil
+                                }
+                            }
+                        }
+                    }
+                    Text("STATUS").font(HaloType.body(8, weight: .bold)).tracking(1.2).foregroundStyle(.white.opacity(0.34))
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 7) {
+                            ForEach(["Active", "Live", "Recent", "On clock", "Needs attention"], id: \.self) { state in
+                                mapFilterChoice(state, selected: selectedState == state) {
+                                    selectedState = state; selectedCrewID = nil
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(12)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
             if let errorMessage {
-                Text(errorMessage)
-                    .font(HaloType.body(10, weight: .medium))
-                    .foregroundStyle(HaloTheme.warning)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(errorMessage).font(HaloType.body(10, weight: .medium)).foregroundStyle(HaloTheme.warning).frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.vertical, 9)
         .background(.ultraThinMaterial)
+    }
+
+    private func mapFilterChoice(_ text: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button {
+            withAnimation(HaloMotion.animation(reduceMotion: reduceMotion, duration: 0.22)) { action() }
+            UISelectionFeedbackGenerator().selectionChanged()
+        } label: {
+            Text(text)
+                .font(HaloType.body(9, weight: .bold))
+                .foregroundStyle(selected ? HaloTheme.ink : .white.opacity(0.60))
+                .padding(.horizontal, 12)
+                .frame(minHeight: 34)
+                .background(selected ? HaloTheme.lime : Color.white.opacity(0.055), in: Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     private var managerHeader: some View {
@@ -548,6 +607,7 @@ private struct ManagerLiveView: View {
         }
         .padding(14)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .transition(.asymmetric(insertion: .scale(scale: 0.94, anchor: .bottom).combined(with: .opacity), removal: .opacity))
         .overlay {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(Color.white.opacity(0.08))
