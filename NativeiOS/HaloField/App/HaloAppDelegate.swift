@@ -16,10 +16,14 @@ final class HaloAppDelegate: NSObject, UIApplicationDelegate, UNUserNotification
         let center = UNUserNotificationCenter.current()
         center.delegate = self
         let open = UNNotificationAction(identifier: "HALO_OPEN", title: "Open in HALO", options: [.foreground])
-        let message = UNNotificationCategory(identifier: "message", actions: [open], intentIdentifiers: [], options: [])
-        let mention = UNNotificationCategory(identifier: "mention", actions: [open], intentIdentifiers: [], options: [])
-        let gps = UNNotificationCategory(identifier: "gps_request", actions: [open], intentIdentifiers: [], options: [])
-        center.setNotificationCategories([message, mention, gps])
+        let categories = [
+            "message", "mention", "gps_request", "assignment", "rework",
+            "change_order", "scope_approved", "po_received", "flag_decision",
+            "urgent_dispatch", "field_update"
+        ].map {
+            UNNotificationCategory(identifier: $0, actions: [open], intentIdentifiers: [], options: [])
+        }
+        center.setNotificationCategories(Set(categories))
         return true
     }
 
