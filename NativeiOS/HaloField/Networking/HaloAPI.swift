@@ -99,6 +99,17 @@ struct HaloClockStatus: Hashable, Sendable {
     let entry: HaloClockEntry?
 }
 
+struct HaloGrokTurn: Hashable, Sendable {
+    let role: String
+    let content: String
+}
+
+struct HaloGrokReply: Hashable, Sendable {
+    let reply: String
+    let model: String
+    let groundedAt: String?
+}
+
 struct HaloActivationInfo: Hashable, Sendable {
     let crewID: String
     let crewName: String
@@ -369,6 +380,46 @@ actor HaloAPI {
             method: "POST",
             body: body,
             bearerToken: activationToken
+        )
+    }
+
+    func askGrok(
+        message: String,
+        jobID: String?,
+        history: [HaloGrokTurn],
+        activationToken: String
+    ) async throws -> HaloGrokReply {
+        var object: [String: Any] = [
+            "action": "grokChat",
+            "message": message,
+            "history": history.suffix(12).map { [
+                "role": $0.role == "assistant" ? "assistant" : "user",
+                "content": $0.content
+            ] }
+        ]
+        if let jobID, !jobID.isEmpty { object["jobId"] = jobID }
+
+        let body = try JSONSerialization.data(withJSONObject: object)
+        let data = try await request(
+            path: "/functions/nativeFieldMobile",
+            method: "POST",
+            body: body,
+            bearerToken: activationToken
+        )
+
+        guard
+            let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            (root["ok"] as? Bool) == true,
+            let reply = Self.string(root["reply"]),
+            !reply.isEmpty
+        else {
+            throw HaloAPIError.malformedPayload
+        }
+
+        return HaloGrokReply(
+            reply: reply,
+            model: Self.string(root["model"]) ?? "grok-4.6",
+            groundedAt: Self.string(root["groundedAt"])
         )
     }
 
