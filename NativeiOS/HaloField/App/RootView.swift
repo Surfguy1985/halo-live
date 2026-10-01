@@ -142,6 +142,7 @@ private struct HaloNativeTabBar: View {
     @Binding var selection: Int
     let managerLiveAccess: Bool
     @Namespace private var selectionAnimation
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var items: [(id: Int, title: String, icon: String)] {
         var rows: [(Int, String, String)] = [
@@ -160,7 +161,7 @@ private struct HaloNativeTabBar: View {
         HStack(spacing: 6) {
             ForEach(items, id: \.id) { item in
                 Button {
-                    withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) {
+                    withAnimation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.78)) {
                         selection = item.id
                     }
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -177,7 +178,7 @@ private struct HaloNativeTabBar: View {
             }
         }
         .padding(5)
-        .frame(height: 64)
+        .frame(minHeight: 66)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .background(HaloTheme.fieldChrome.opacity(0.78), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay {
@@ -185,6 +186,7 @@ private struct HaloNativeTabBar: View {
                 .stroke(Color.white.opacity(0.07), lineWidth: 0.7)
         }
         .shadow(color: .black.opacity(0.22), radius: 20, y: 10)
+        .accessibilityElement(children: .contain)
     }
 
     @ViewBuilder
@@ -209,7 +211,7 @@ private struct HaloNativeTabBar: View {
                 .font(HaloType.body(9, weight: .semibold))
                 .foregroundStyle(selected ? .white : .white.opacity(0.42))
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, minHeight: HaloTheme.minimumTapTarget)
         .contentShape(Rectangle())
     }
 
@@ -233,7 +235,7 @@ private struct HaloNativeTabBar: View {
                 .tracking(0.35)
                 .foregroundStyle(selected ? HaloTheme.lime : .white.opacity(0.48))
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, minHeight: HaloTheme.minimumTapTarget)
         .offset(y: -2)
         .contentShape(Rectangle())
     }
