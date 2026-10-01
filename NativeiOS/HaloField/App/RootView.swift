@@ -75,6 +75,9 @@ struct RootView: View {
             store.selectedJobID = jobID
             selectedTab = 1
         }
+        .onReceive(NotificationCenter.default.publisher(for: .haloOpenComms)) { _ in
+            selectedTab = 2
+        }
         .onReceive(NotificationCenter.default.publisher(for: .haloPendingActionCreated)) { _ in
             fieldSync.refreshPendingCount(context: modelContext, activationToken: session.activationToken)
             guard network.isConnected else { return }
