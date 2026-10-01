@@ -89,3 +89,22 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.archangel.halofield.tests
         GENERATE_INFOPLIST_FILE: YES
+
+
+schemes:
+  HaloField:
+    build:
+      targets:
+        HaloField: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - HaloFieldTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
