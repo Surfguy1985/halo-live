@@ -674,130 +674,150 @@ private struct ProfileView: View {
         switch notifications.authorizationStatus {
         case .authorized, .provisional, .ephemeral: HaloTheme.fieldLive
         case .denied: HaloTheme.warning
-        case .notDetermined: .secondary
-        @unknown default: .secondary
+        case .notDetermined: HaloTheme.actionBlue
+        @unknown default: .white.opacity(0.45)
         }
     }
 
     var body: some View {
-        List {
-            Section("Field") {
-                NavigationLink {
-                    SyncIssuesView()
-                } label: {
-                    HStack {
-                        Label(network.isConnected ? "Field sync" : "Offline mode", systemImage: network.isConnected ? "arrow.triangle.2.circlepath" : "wifi.slash")
-                        Spacer()
-                        Text(fieldSync.attentionCount > 0
-                             ? "\(fieldSync.attentionCount) need attention"
-                             : (fieldSync.pendingCount == 0 ? "Up to date" : "\(fieldSync.pendingCount) pending"))
-                            .font(.caption)
-                            .foregroundStyle(fieldSync.pendingCount == 0 && fieldSync.attentionCount == 0 ? HaloTheme.fieldLive : HaloTheme.warning)
-                    }
-                }
-                Label("Location verification", systemImage: "location.fill")
+        ScrollView {
+            VStack(alignment: .leading, spacing: HaloTheme.sectionSpacing) {
+                profileHero
 
-                Button {
-                    if notifications.authorizationStatus == .denied {
-                        if let url = URL(string: UIApplication.openSettingsURLString) {
-                            UIApplication.shared.open(url)
-                        }
-                    } else {
-                        Task {
-                            if notifications.authorizationStatus == .notDetermined {
-                                _ = await notifications.requestAuthorization()
-                            } else {
-                                await notifications.refreshAuthorization()
-                            }
-                        }
+                VStack(alignment: .leading, spacing: 12) {
+                    HaloSectionLabel(title: "Field")
+                    NavigationLink { SyncIssuesView() } label: {
+                        settingRow(
+                            icon: network.isConnected ? "arrow.triangle.2.circlepath" : "wifi.slash",
+                            title: network.isConnected ? "Field sync" : "Offline mode",
+                            subtitle: fieldSync.attentionCount > 0 ? "\(fieldSync.attentionCount) need attention" : (fieldSync.pendingCount == 0 ? "Everything is up to date" : "\(fieldSync.pendingCount) saved changes"),
+                            tint: fieldSync.pendingCount == 0 && fieldSync.attentionCount == 0 ? HaloTheme.fieldLive : HaloTheme.warning,
+                            trailing: "chevron.right"
+                        )
                     }
-                } label: {
-                    HStack {
-                        Label("Notifications", systemImage: "bell.fill")
-                        Spacer()
-                        Text(notificationStatusText)
-                            .font(.caption)
-                            .foregroundStyle(notificationStatusColor)
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-            Section("Account") {
-                HStack(spacing: 14) {
-                    AsyncImage(url: profilePhotoURL.flatMap(URL.init(string:))) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image.resizable().scaledToFill()
-                        default:
-                            ZStack {
-                                Circle().fill(Color.white.opacity(0.08))
-                                Image(systemName: "person.crop.circle.fill")
-                                    .font(.system(size: 34))
-                                    .foregroundStyle(.white.opacity(0.45))
-                            }
-                        }
-                    }
-                    .frame(width: 58, height: 58)
-                    .clipShape(Circle())
+                    .buttonStyle(HaloPressableStyle())
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(profileName)
-                            .font(HaloType.body(14, weight: .bold))
-                        Text("Private crew portrait")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    settingRow(icon: "location.fill", title: "Location verification", subtitle: "Used only for assigned field work and active sharing.", tint: HaloTheme.actionBlue)
 
-                    Spacer()
-
-                    PhotosPicker(selection: $selectedProfilePhoto, matching: .images) {
-                        if profilePhotoBusy {
-                            ProgressView()
+                    Button {
+                        if notifications.authorizationStatus == .denied {
+                            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                         } else {
-                            Label("Edit", systemImage: "camera.fill")
-                                .font(HaloType.body(10, weight: .bold))
+                            Task {
+                                if notifications.authorizationStatus == .notDetermined {
+                                    _ = await notifications.requestAuthorization()
+                                } else {
+                                    await notifications.refreshAuthorization()
+                                }
+                            }
                         }
+                    } label: {
+                        settingRow(icon: "bell.fill", title: "Notifications", subtitle: "Assignments, messages, rework and job updates.", tint: notificationStatusColor, badge: notificationStatusText)
                     }
-                    .disabled(profilePhotoBusy)
+                    .buttonStyle(HaloPressableStyle())
                 }
 
-                if let profilePhotoError {
-                    Text(profilePhotoError)
-                        .font(.caption)
-                        .foregroundStyle(HaloTheme.warning)
-                }
-
-                Label("Settings", systemImage: "gearshape.fill")
-                Button(role: .destructive) {
-                    let token = session.activationToken
-                    Task {
-                        await notifications.unregisterRemoteDevice(activationToken: token)
+                VStack(alignment: .leading, spacing: 12) {
+                    HaloSectionLabel(title: "This iPhone")
+                    Button(role: .destructive) {
+                        let token = session.activationToken
+                        Task { await notifications.unregisterRemoteDevice(activationToken: token) }
+                        store.clear(removeCache: true)
+                        session.deactivate()
+                    } label: {
+                        settingRow(icon: "rectangle.portrait.and.arrow.right", title: "Deactivate this iPhone", subtitle: "Removes this device's HALO activation.", tint: HaloTheme.danger)
                     }
-                    store.clear(removeCache: true)
-                    session.deactivate()
-                } label: {
-                    Label("Deactivate this iPhone", systemImage: "rectangle.portrait.and.arrow.right")
-                }
-                .disabled(fieldSync.pendingCount > 0 || fieldSync.attentionCount > 0)
+                    .buttonStyle(HaloPressableStyle())
+                    .disabled(fieldSync.pendingCount > 0 || fieldSync.attentionCount > 0)
 
-                if fieldSync.pendingCount > 0 || fieldSync.attentionCount > 0 {
-                    Text("Sync or resolve saved field work before deactivating this iPhone.")
-                        .font(.caption)
-                        .foregroundStyle(HaloTheme.warning)
+                    if fieldSync.pendingCount > 0 || fieldSync.attentionCount > 0 {
+                        Label("Resolve saved field work before deactivating this iPhone.", systemImage: "exclamationmark.triangle.fill")
+                            .font(HaloType.body(10, weight: .semibold))
+                            .foregroundStyle(HaloTheme.warning)
+                            .padding(.horizontal, 4)
+                    }
                 }
             }
+            .padding(.horizontal, HaloTheme.horizontal)
+            .padding(.top, 12)
+            .padding(.bottom, 34)
         }
-        .scrollContentBackground(.hidden)
-        .background(HaloTheme.fieldBackground)
+        .background(
+            ZStack {
+                HaloTheme.fieldBackground
+                RadialGradient(colors: [HaloTheme.actionBlue.opacity(0.12), .clear], center: .topTrailing, startRadius: 0, endRadius: 330)
+            }.ignoresSafeArea()
+        )
         .navigationTitle("Me")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
-        .task(id: session.activationToken) {
-            await loadProfilePhoto()
-        }
+        .task(id: session.activationToken) { await loadProfilePhoto() }
         .onChange(of: selectedProfilePhoto) { _, item in
             guard let item else { return }
             Task { await uploadProfilePhoto(item) }
         }
+    }
+
+    private var profileHero: some View {
+        HStack(spacing: 16) {
+            ZStack(alignment: .bottomTrailing) {
+                AsyncImage(url: profilePhotoURL.flatMap(URL.init(string:))) { phase in
+                    switch phase {
+                    case .success(let image): image.resizable().scaledToFill()
+                    default:
+                        ZStack {
+                            Circle().fill(Color.white.opacity(0.07))
+                            Image(systemName: "person.crop.circle.fill").font(.system(size: 46)).foregroundStyle(.white.opacity(0.42))
+                        }
+                    }
+                }
+                .frame(width: 78, height: 78)
+                .clipShape(Circle())
+                .overlay { Circle().stroke(Color.white.opacity(0.12), lineWidth: 1) }
+
+                PhotosPicker(selection: $selectedProfilePhoto, matching: .images) {
+                    ZStack {
+                        Circle().fill(HaloTheme.lime).frame(width: 30, height: 30)
+                        if profilePhotoBusy { ProgressView().tint(HaloTheme.ink).scaleEffect(0.7) }
+                        else { Image(systemName: "camera.fill").font(.system(size: 11, weight: .bold)).foregroundStyle(HaloTheme.ink) }
+                    }
+                }
+                .disabled(profilePhotoBusy)
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(profileName).font(HaloType.display(23, weight: .semibold)).foregroundStyle(.white)
+                Text("HALO FIELD").font(HaloType.body(9, weight: .bold)).tracking(1.5).foregroundStyle(HaloTheme.lime)
+                Text("Private crew identity on this organization's field network.")
+                    .font(HaloType.body(10, weight: .medium)).foregroundStyle(.white.opacity(0.42))
+            }
+            Spacer()
+        }
+        .padding(18)
+        .haloDarkCard()
+        .overlay(alignment: .bottomLeading) {
+            if let profilePhotoError {
+                Text(profilePhotoError).font(HaloType.body(9, weight: .semibold)).foregroundStyle(HaloTheme.warning).padding(.horizontal, 18).offset(y: 18)
+            }
+        }
+    }
+
+    private func settingRow(icon: String, title: String, subtitle: String, tint: Color, trailing: String? = nil, badge: String? = nil) -> some View {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 13, style: .continuous).fill(tint.opacity(0.11)).frame(width: 44, height: 44)
+                Image(systemName: icon).font(.system(size: 16, weight: .semibold)).foregroundStyle(tint)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(HaloType.body(14, weight: .bold)).foregroundStyle(.white)
+                Text(subtitle).font(HaloType.body(10, weight: .medium)).foregroundStyle(.white.opacity(0.40)).multilineTextAlignment(.leading)
+            }
+            Spacer(minLength: 8)
+            if let badge { HaloStatusPill(text: badge, tint: tint) }
+            if let trailing { Image(systemName: trailing).font(.system(size: 11, weight: .bold)).foregroundStyle(.white.opacity(0.25)) }
+        }
+        .padding(15)
+        .haloDarkCard()
     }
 
     @MainActor
@@ -808,30 +828,21 @@ private struct ProfileView: View {
             profileName = profile.name.isEmpty ? "Crew profile" : profile.name
             profilePhotoURL = profile.url
             profilePhotoError = nil
-        } catch {
-            profilePhotoError = error.localizedDescription
-        }
+        } catch { profilePhotoError = error.localizedDescription }
     }
 
     @MainActor
     private func uploadProfilePhoto(_ item: PhotosPickerItem) async {
         guard let token = session.activationToken, !token.isEmpty else { return }
         profilePhotoBusy = true
-        defer {
-            profilePhotoBusy = false
-            selectedProfilePhoto = nil
-        }
+        defer { profilePhotoBusy = false; selectedProfilePhoto = nil }
         do {
             guard let raw = try await item.loadTransferable(type: Data.self),
                   let image = UIImage(data: raw),
                   let jpeg = image.jpegData(compressionQuality: 0.88) else {
-                profilePhotoError = "That photo could not be loaded."
-                return
+                profilePhotoError = "That photo could not be loaded."; return
             }
-            guard jpeg.count <= 5 * 1024 * 1024 else {
-                profilePhotoError = "Profile photo must be 5 MB or smaller."
-                return
-            }
+            guard jpeg.count <= 5 * 1024 * 1024 else { profilePhotoError = "Profile photo must be 5 MB or smaller."; return }
             let profile = try await HaloAPI.shared.uploadProfilePhoto(imageData: jpeg, activationToken: token)
             profilePhotoURL = profile.url
             profilePhotoError = nil
