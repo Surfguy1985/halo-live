@@ -269,6 +269,7 @@ private struct HaloNativeTabBar: View {
 private struct ManagerLiveView: View {
     @EnvironmentObject private var session: HaloSessionStore
     @EnvironmentObject private var network: NetworkMonitor
+    @EnvironmentObject private var realtime: HaloRealtimeService
     @State private var snapshot: HaloManagerLiveSnapshot?
     @State private var selectedCrewID: String?
     @State private var selectedProperty = "All properties"
@@ -370,12 +371,18 @@ private struct ManagerLiveView: View {
         .task(id: session.activationToken) {
             await refresh()
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(15))
+                let fallbackSeconds: Double = realtime.state == .connected ? 300 : 15
+                try? await Task.sleep(for: .seconds(fallbackSeconds))
                 if network.isConnected { await refresh() }
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .haloDataInvalidated)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .haloDataInvalidated)) { note in
             guard network.isConnected else { return }
+            if let payload = note.object as? [String: Any],
+               let scopes = payload["scopes"] as? [String],
+               !scopes.contains("live") {
+                return
+            }
             Task { await refresh() }
         }
         .task(id: network.isConnected) {
