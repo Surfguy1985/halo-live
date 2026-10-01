@@ -27,6 +27,9 @@ struct JobDetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
                         jobHeader(job)
+                        if job.state == .scheduled || job.state == .enRoute || job.state == .arrived {
+                            photoCheckInCard(job)
+                        }
                         fullScope(job)
                         fieldJourney(job)
                         WorkSessionCard(job: job)
@@ -173,6 +176,57 @@ struct JobDetailView: View {
             }.buttonStyle(.plain)
         }
         .padding(.top, 8)
+    }
+
+    private func photoCheckInCard(_ job: FieldJob) -> some View {
+        Button {
+            showArrivalVerification = true
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(HaloTheme.lime)
+                        .frame(width: 56, height: 56)
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 21, weight: .black))
+                        .foregroundStyle(HaloTheme.ink)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("PHOTO CHECK-IN")
+                        .font(HaloType.body(9, weight: .bold))
+                        .tracking(1.4)
+                        .foregroundStyle(HaloTheme.lime)
+                    Text("Verify arrival with camera + GPS")
+                        .font(HaloType.body(15, weight: .bold))
+                        .foregroundStyle(.white)
+                    Text("Live front-camera photo · fresh GPS · property geofence")
+                        .font(HaloType.body(10, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.46))
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.38))
+            }
+            .padding(15)
+            .background(
+                LinearGradient(
+                    colors: [HaloTheme.lime.opacity(0.10), Color.white.opacity(0.035)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                ),
+                in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(HaloTheme.lime.opacity(0.18), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private func fullScope(_ job: FieldJob) -> some View {
