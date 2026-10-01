@@ -23,10 +23,9 @@ struct TodayView: View {
                 } else {
                     if let next = store.nextJob {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("NEXT JOB")
-                                .font(HaloType.body(10, weight: .bold))
-                                .tracking(1.8)
-                                .foregroundStyle(.white.opacity(0.42))
+                            Text("Next")
+                                .font(HaloType.body(15, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.58))
 
                             NavigationLink { JobDetailView(jobID: next.id) } label: {
                                 FieldJobCard(job: next, hero: true)
@@ -39,13 +38,10 @@ struct TodayView: View {
                     if !remainder.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
-                                Text("Up next")
+                                Text("Later")
                                     .font(HaloType.display(20, weight: .semibold))
                                     .foregroundStyle(.white)
                                 Spacer()
-                                Text("\(store.activeJobCount) active")
-                                    .font(HaloType.body(12, weight: .medium))
-                                    .foregroundStyle(.white.opacity(0.45))
                             }
 
                             ForEach(remainder) { job in
@@ -80,62 +76,79 @@ struct TodayView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                HaloLogo(height: 27)
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .center) {
+                HaloLogo(height: 25)
                 Spacer()
-                HStack(spacing: 7) {
+                HStack(spacing: 6) {
                     Circle()
                         .fill(syncIndicatorColor)
                         .frame(width: 7, height: 7)
                     Text(syncIndicatorText)
-                        .font(HaloType.body(10, weight: .bold))
-                        .tracking(1.2)
-                        .foregroundStyle(.white.opacity(0.6))
+                        .font(HaloType.body(10, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.72))
                 }
+                .padding(.horizontal, 10)
+                .frame(height: 30)
+                .background(Color.white.opacity(0.06), in: Capsule())
             }
 
-            if !network.isConnected {
-                HStack(spacing: 8) {
-                    Image(systemName: "wifi.slash")
-                    Text(fieldSync.pendingCount > 0
-                         ? "OFFLINE · \(fieldSync.pendingCount) CHANGE\(fieldSync.pendingCount == 1 ? "" : "S") SAVED ON THIS IPHONE"
-                         : "OFFLINE MODE · YOUR LAST SYNCED JOBS STAY AVAILABLE")
-                }
-                .font(HaloType.body(9, weight: .bold))
-                .tracking(1.1)
-                .foregroundStyle(HaloTheme.warning)
-            } else if fieldSync.pendingCount > 0 {
-                HStack(spacing: 8) {
-                    Image(systemName: fieldSync.isSyncing ? "arrow.triangle.2.circlepath" : "icloud.and.arrow.up")
-                    Text(fieldSync.isSyncing
-                         ? "SYNCING \(fieldSync.pendingCount) SAVED CHANGE\(fieldSync.pendingCount == 1 ? "" : "S")"
-                         : "\(fieldSync.pendingCount) SAVED CHANGE\(fieldSync.pendingCount == 1 ? "" : "S") WAITING TO SYNC")
-                }
-                .font(HaloType.body(9, weight: .bold))
-                .tracking(1.1)
-                .foregroundStyle(HaloTheme.lime)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(greeting.uppercased())
-                    .font(HaloType.body(10, weight: .bold))
-                    .tracking(1.8)
-                    .foregroundStyle(.white.opacity(0.4))
-                Text("Ready to move.")
-                    .font(HaloType.display(34, weight: .semibold))
-                    .tracking(-1.4)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(greeting)
+                    .font(HaloType.body(14, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.50))
+                Text("Today")
+                    .font(HaloType.display(38, weight: .semibold))
+                    .tracking(-1.5)
                     .foregroundStyle(.white)
             }
 
-            HStack(spacing: 10) {
-                Label("\(store.activeJobCount) active", systemImage: "briefcase.fill")
-                Text("•")
-                Label("\(store.attentionCount) need attention", systemImage: "exclamationmark.circle.fill")
+            if !network.isConnected || fieldSync.pendingCount > 0 {
+                HStack(spacing: 10) {
+                    Image(systemName: network.isConnected ? "icloud.and.arrow.up" : "wifi.slash")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(syncNotice)
+                        .font(HaloType.body(11, weight: .semibold))
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(network.isConnected ? HaloTheme.lime : HaloTheme.warning)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 40)
+                .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 13, style: .continuous))
             }
-            .font(HaloType.body(12, weight: .semibold))
-            .foregroundStyle(.white.opacity(0.5))
+
+            HStack(spacing: 8) {
+                summaryPill(value: store.activeJobCount, label: "Active", icon: "briefcase.fill")
+                if store.attentionCount > 0 {
+                    summaryPill(value: store.attentionCount, label: "Attention", icon: "exclamationmark.circle.fill", emphasized: true)
+                }
+            }
         }
+    }
+
+    private var syncNotice: String {
+        if !network.isConnected {
+            return fieldSync.pendingCount > 0
+                ? "\(fieldSync.pendingCount) saved change\(fieldSync.pendingCount == 1 ? "" : "s") will sync when you reconnect."
+                : "Offline. Your last synced jobs are still available."
+        }
+        if fieldSync.isSyncing {
+            return "Syncing saved field work…"
+        }
+        return "\(fieldSync.pendingCount) saved change\(fieldSync.pendingCount == 1 ? "" : "s") waiting to sync."
+    }
+
+    private func summaryPill(value: Int, label: String, icon: String, emphasized: Bool = false) -> some View {
+        Label {
+            Text("\(value) \(label)")
+        } icon: {
+            Image(systemName: icon)
+        }
+        .font(HaloType.body(11, weight: .semibold))
+        .foregroundStyle(emphasized ? HaloTheme.warning : .white.opacity(0.62))
+        .padding(.horizontal, 11)
+        .frame(height: 34)
+        .background(Color.white.opacity(0.055), in: Capsule())
     }
 
     private var syncIndicatorText: String {
@@ -189,12 +202,12 @@ struct TodayView: View {
             Image(systemName: "checkmark.circle")
                 .font(.system(size: 34))
                 .foregroundStyle(HaloTheme.lime)
-            Text("No active jobs")
-                .font(HaloType.card(20, weight: .semibold))
+            Text("You're clear")
+                .font(HaloType.card(21, weight: .semibold))
                 .foregroundStyle(.white)
-            Text("Pull to refresh when the office assigns new work.")
-                .font(HaloType.body(12))
-                .foregroundStyle(.white.opacity(0.45))
+            Text("New work will appear here automatically.")
+                .font(HaloType.body(13))
+                .foregroundStyle(.white.opacity(0.48))
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 70)
