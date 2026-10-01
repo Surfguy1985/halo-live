@@ -127,6 +127,63 @@ final class FieldSyncController: ObservableObject {
 
             try? FileManager.default.removeItem(at: imageURL)
             try? FileManager.default.removeItem(at: metadataURL)
+
+        case .reworkToggle:
+            guard
+                let indexText = raw["index"] as? String,
+                let index = Int(indexText),
+                let checkedText = raw["checked"] as? String
+            else { throw HaloAPIError.malformedPayload }
+            try await api.toggleRework(
+                jobID: action.jobID,
+                index: index,
+                checked: checkedText == "true",
+                activationToken: activationToken
+            )
+
+        case .messageSend:
+            let text = raw["text"] as? String ?? ""
+            let channel = raw["channel"] as? String
+            let attachmentPath = raw["attachmentPath"] as? String
+            let attachmentData = try attachmentPath.flatMap { path in
+                try Data(contentsOf: URL(fileURLWithPath: path))
+            }
+            try await api.sendMessage(
+                text: text,
+                jobID: action.jobID.isEmpty ? nil : action.jobID,
+                channel: channel?.isEmpty == false ? channel : nil,
+                attachmentData: attachmentData,
+                attachmentName: raw["attachmentName"] as? String,
+                attachmentContentType: raw["attachmentContentType"] as? String,
+                attachmentCaption: raw["attachmentCaption"] as? String,
+                clientID: action.id,
+                activationToken: activationToken
+            )
+            await OfflineMediaStore.shared.remove(path: attachmentPath)
+
+        case .clockPunch:
+            guard
+                let imagePath = raw["imagePath"] as? String,
+                let kind = raw["kind"] as? String,
+                let latText = raw["lat"] as? String, let latitude = Double(latText),
+                let lngText = raw["lng"] as? String, let longitude = Double(lngText),
+                let accuracyText = raw["accuracy"] as? String, let accuracy = Double(accuracyText),
+                let capturedText = raw["capturedAt"] as? String,
+                let capturedAt = ISO8601DateFormatter().date(from: capturedText)
+            else { throw HaloAPIError.malformedPayload }
+            let bytes = try Data(contentsOf: URL(fileURLWithPath: imagePath))
+            try await api.replayClockPunch(
+                kind: kind,
+                jobID: action.jobID,
+                imageData: bytes,
+                latitude: latitude,
+                longitude: longitude,
+                accuracy: accuracy,
+                capturedAt: capturedAt,
+                requestID: action.id,
+                activationToken: activationToken
+            )
+            await OfflineMediaStore.shared.remove(path: imagePath)
         }
     }
 }
