@@ -160,6 +160,37 @@ actor HaloAPI {
         )
     }
 
+    struct CrewProfilePhoto: Sendable {
+        let crewID: String
+        let name: String
+        let url: String?
+    }
+
+    func fetchProfilePhoto(activationToken: String) async throws -> CrewProfilePhoto {
+        let body = try JSONSerialization.data(withJSONObject: ["action": "profilePhotoGet"])
+        let data = try await request(path: "/functions/nativeFieldMobile", method: "POST", body: body, bearerToken: activationToken)
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let crewID = Self.string(root["crewId"]),
+              let name = Self.string(root["name"]) else {
+            throw HaloAPIError.malformedPayload
+        }
+        return CrewProfilePhoto(crewID: crewID, name: name, url: Self.string(root["profilePhotoUrl"]))
+    }
+
+    func uploadProfilePhoto(imageData: Data, activationToken: String) async throws -> CrewProfilePhoto {
+        let body = try JSONSerialization.data(withJSONObject: [
+            "action": "profilePhotoUpload",
+            "contentType": "image/jpeg",
+            "dataBase64": imageData.base64EncodedString()
+        ])
+        let data = try await request(path: "/functions/nativeFieldMobile", method: "POST", body: body, bearerToken: activationToken)
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let crewID = Self.string(root["crewId"]) else {
+            throw HaloAPIError.malformedPayload
+        }
+        return CrewProfilePhoto(crewID: crewID, name: "", url: Self.string(root["profilePhotoUrl"]))
+    }
+
     func fetchJobs(activationToken: String) async throws -> [FieldJob] {
         let body = try JSONSerialization.data(withJSONObject: ["action": "feed"])
         let data = try await request(
