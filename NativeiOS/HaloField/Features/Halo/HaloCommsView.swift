@@ -1,5 +1,6 @@
 import CoreLocation
 import PhotosUI
+import SwiftData
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -30,6 +31,7 @@ struct HaloCommsView: View {
     @EnvironmentObject private var network: NetworkMonitor
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var store: JobStore
+    @Environment(\.modelContext) private var modelContext
 
     @State private var messages: [HaloMessage] = []
     @State private var gpsSessions: [HaloGPSSession] = []
@@ -1175,16 +1177,40 @@ struct HaloCommsView: View {
             return
         }
 
+        let jobID = selectedJobID
+        let channel = selectedThreadChannel
+        let attachmentData = pendingAttachmentData
+        let attachmentName = pendingAttachmentName
+        let attachmentType = pendingAttachmentContentType
+        let attachmentCaption = pendingAttachmentCaption
+        let clientID = UUID()
+
         Task {
+            if !network.isConnected {
+                await queueMessage(
+                    id: clientID,
+                    text: text,
+                    jobID: jobID,
+                    channel: channel,
+                    attachmentData: attachmentData,
+                    attachmentName: attachmentName,
+                    attachmentType: attachmentType,
+                    attachmentCaption: attachmentCaption,
+                    token: token
+                )
+                return
+            }
+
             do {
                 try await HaloAPI.shared.sendMessage(
                     text: text,
-                    jobID: selectedJobID,
-                    channel: selectedThreadChannel,
-                    attachmentData: pendingAttachmentData,
-                    attachmentName: pendingAttachmentName,
-                    attachmentContentType: pendingAttachmentContentType,
-                    attachmentCaption: pendingAttachmentCaption,
+                    jobID: jobID,
+                    channel: channel,
+                    attachmentData: attachmentData,
+                    attachmentName: attachmentName,
+                    attachmentContentType: attachmentType,
+                    attachmentCaption: attachmentCaption,
+                    clientID: clientID,
                     activationToken: token
                 )
                 await MainActor.run {
@@ -1194,11 +1220,88 @@ struct HaloCommsView: View {
                 }
                 await refresh()
             } catch {
+                let retryable: Bool
+                if case HaloAPIError.transport = error {
+                    retryable = true
+                } else if case let HaloAPIError.http(status, _) = error {
+                    retryable = status >= 500 || status == 408 || status == 429
+                } else {
+                    retryable = false
+                }
+
+                if retryable {
+                    await queueMessage(
+                        id: clientID,
+                        text: text,
+                        jobID: jobID,
+                        channel: channel,
+                        attachmentData: attachmentData,
+                        attachmentName: attachmentName,
+                        attachmentType: attachmentType,
+                        attachmentCaption: attachmentCaption,
+                        token: token
+                    )
+                    return
+                }
+
                 await MainActor.run {
                     isSending = false
                     errorMessage = error.localizedDescription
                     UINotificationFeedbackGenerator().notificationOccurred(.error)
                 }
+            }
+        }
+    }
+
+    private func queueMessage(
+        id: UUID,
+        text: String,
+        jobID: String?,
+        channel: String?,
+        attachmentData: Data?,
+        attachmentName: String?,
+        attachmentType: String?,
+        attachmentCaption: String?,
+        token: String
+    ) async {
+        do {
+            var attachmentPath = ""
+            if let attachmentData, !attachmentData.isEmpty {
+                let ext = (attachmentName as NSString?)?.pathExtension.isEmpty == false
+                    ? (attachmentName as NSString?)?.pathExtension ?? "bin"
+                    : (attachmentType == "application/pdf" ? "pdf" : attachmentType?.hasPrefix("image/") == true ? "jpg" : "bin")
+                attachmentPath = try await OfflineMediaStore.shared.save(attachmentData, preferredExtension: ext).path
+            }
+
+            await MainActor.run {
+                var payload: [String: String] = [
+                    "text": text,
+                    "channel": channel ?? "",
+                    "attachmentPath": attachmentPath,
+                    "attachmentName": attachmentName ?? "",
+                    "attachmentContentType": attachmentType ?? "",
+                    "attachmentCaption": attachmentCaption ?? ""
+                ]
+                payload = payload.filter { !$0.value.isEmpty }
+                OfflineQueue.shared.enqueue(
+                    id: id,
+                    jobID: jobID ?? "",
+                    kind: .messageSend,
+                    payload: payload,
+                    activationToken: token,
+                    context: modelContext
+                )
+                draft = ""
+                clearAttachment()
+                isSending = false
+                errorMessage = "Queued securely · this message will send when HALO reconnects."
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            }
+        } catch {
+            await MainActor.run {
+                isSending = false
+                errorMessage = "HALO could not secure this offline message. \(error.localizedDescription)"
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
             }
         }
     }
