@@ -115,6 +115,40 @@ struct HaloActivationInfo: Hashable, Sendable {
     let crewName: String
     let expiresAt: String?
     let nativePushDeliveryConfigured: Bool
+    let managerLiveAccess: Bool
+}
+
+struct HaloManagerLiveSummary: Hashable, Sendable {
+    let live: Int
+    let recent: Int
+    let onClock: Int
+    let activeUnits: Int
+    let properties: Int
+}
+
+struct HaloManagerCrewLocation: Identifiable, Hashable, Sendable {
+    let id: String
+    let crewID: String
+    let crewName: String
+    let photoURL: String?
+    let identityVerifiedToday: Bool
+    let property: String
+    let unitID: String
+    let unitNumber: String
+    let services: [String]
+    let status: String
+    let locationState: String
+    let freshness: String
+    let latitude: Double?
+    let longitude: Double?
+    let accuracy: Double?
+    let capturedAt: String?
+    let workedMs: Int
+}
+
+struct HaloManagerLiveSnapshot: Sendable {
+    let summary: HaloManagerLiveSummary
+    let locations: [HaloManagerCrewLocation]
 }
 
 actor HaloAPI {
@@ -156,8 +190,55 @@ actor HaloAPI {
             crewID: crewID,
             crewName: crewName,
             expiresAt: Self.string(root["expiresAt"]),
-            nativePushDeliveryConfigured: (capabilities?["nativePushDeliveryConfigured"] as? Bool) ?? false
+            nativePushDeliveryConfigured: (capabilities?["nativePushDeliveryConfigured"] as? Bool) ?? false,
+            managerLiveAccess: (capabilities?["managerLive"] as? Bool) ?? false
         )
+    }
+
+    func fetchManagerLive(activationToken: String) async throws -> HaloManagerLiveSnapshot {
+        let body = try JSONSerialization.data(withJSONObject: ["action": "managerLive"])
+        let data = try await request(path: "/functions/nativeFieldMobile", method: "POST", body: body, bearerToken: activationToken)
+        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let rawSummary = root["summary"] as? [String: Any],
+              let rawLocations = root["locations"] as? [Any] else {
+            throw HaloAPIError.malformedPayload
+        }
+
+        let summary = HaloManagerLiveSummary(
+            live: Self.int(rawSummary["live"]) ?? 0,
+            recent: Self.int(rawSummary["recent"]) ?? 0,
+            onClock: Self.int(rawSummary["onClock"]) ?? 0,
+            activeUnits: Self.int(rawSummary["activeUnits"]) ?? 0,
+            properties: Self.int(rawSummary["properties"]) ?? 0
+        )
+
+        let locations = rawLocations.compactMap { item -> HaloManagerCrewLocation? in
+            guard let row = item as? [String: Any],
+                  let id = Self.string(row["id"]),
+                  let crewID = Self.string(row["crewId"]),
+                  let crewName = Self.string(row["crewName"]) else { return nil }
+            return HaloManagerCrewLocation(
+                id: id,
+                crewID: crewID,
+                crewName: crewName,
+                photoURL: Self.string(row["photoUrl"]) ?? Self.string(row["profilePhotoUrl"]),
+                identityVerifiedToday: (row["identityVerifiedToday"] as? Bool) ?? false,
+                property: Self.string(row["property"]) ?? "",
+                unitID: Self.string(row["unitId"]) ?? "",
+                unitNumber: Self.string(row["unitNumber"]) ?? "",
+                services: row["services"] as? [String] ?? [],
+                status: Self.string(row["status"]) ?? "off_clock",
+                locationState: Self.string(row["locationState"]) ?? "location_unavailable",
+                freshness: Self.string(row["freshness"]) ?? "unavailable",
+                latitude: Self.double(row["latitude"]),
+                longitude: Self.double(row["longitude"]),
+                accuracy: Self.double(row["accuracy"]),
+                capturedAt: Self.string(row["capturedAt"]),
+                workedMs: Self.int(row["workedMs"]) ?? 0
+            )
+        }
+
+        return HaloManagerLiveSnapshot(summary: summary, locations: locations)
     }
 
     struct CrewProfilePhoto: Sendable {
