@@ -371,11 +371,27 @@ actor HaloAPI {
         text: String,
         jobID: String?,
         channel: String? = nil,
+        attachmentData: Data? = nil,
+        attachmentName: String? = nil,
+        attachmentContentType: String? = nil,
+        attachmentCaption: String? = nil,
         activationToken: String
     ) async throws {
-        var object: [String: Any] = ["action": "messageSend", "text": text]
+        var object: [String: Any] = [
+            "action": "messageSend",
+            "text": text,
+            "clientId": UUID().uuidString
+        ]
         if let jobID, !jobID.isEmpty { object["jobId"] = jobID }
         if let channel, !channel.isEmpty { object["channel"] = channel }
+        if let attachmentData, !attachmentData.isEmpty {
+            object["attachmentDataBase64"] = attachmentData.base64EncodedString()
+            object["attachmentName"] = attachmentName ?? "halo-attachment"
+            object["attachmentContentType"] = attachmentContentType ?? "application/octet-stream"
+            if let attachmentCaption, !attachmentCaption.isEmpty {
+                object["attachmentCaption"] = attachmentCaption
+            }
+        }
         let body = try JSONSerialization.data(withJSONObject: object)
         _ = try await request(
             path: "/functions/nativeFieldMobile",
