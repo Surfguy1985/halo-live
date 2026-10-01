@@ -91,7 +91,7 @@ struct HaloCommsView: View {
                 await refresh()
 
                 while !Task.isCancelled {
-                    try? await Task.sleep(for: .seconds(15))
+                    try? await Task.sleep(for: .seconds(60))
                     if network.isConnected {
                         await refresh()
                     }
@@ -101,6 +101,10 @@ struct HaloCommsView: View {
                 guard let route = note.object as? [String: String] else { return }
                 applyPushRoute(route)
                 UserDefaults.standard.removeObject(forKey: "halo.pending.push-route")
+                Task { await refresh() }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .haloDataInvalidated)) { _ in
+                guard network.isConnected else { return }
                 Task { await refresh() }
             }
             .onReceive(location.$location) { fix in
