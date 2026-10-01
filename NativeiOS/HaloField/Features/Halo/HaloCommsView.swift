@@ -91,7 +91,10 @@ struct HaloCommsView: View {
                 await refresh()
 
                 while !Task.isCancelled {
-                    try? await Task.sleep(for: .seconds(60))
+                    // APNs invalidation is the realtime path. Poll only as a resilience
+                    // fallback when push is healthy; use a shorter fallback when it is not.
+                    let fallbackSeconds = session.activationInfo?.nativePushDeliveryConfigured == true ? 300.0 : 60.0
+                    try? await Task.sleep(for: .seconds(fallbackSeconds))
                     if network.isConnected {
                         await refresh()
                     }
