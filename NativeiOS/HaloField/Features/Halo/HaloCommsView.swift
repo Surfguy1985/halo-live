@@ -6,7 +6,7 @@ import UIKit
 import UniformTypeIdentifiers
 
 private enum HaloConversationMode: String, CaseIterable, Identifiable {
-    case office = "Crew Chat"
+    case office = "Messages"
     case ai = "Halo AI"
 
     var id: String { rawValue }
@@ -75,14 +75,23 @@ struct HaloCommsView: View {
                         inboxSection
                     } else {
                         aiSection
-                    }
-
-                    composer
-                }
+                    }                }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 28)
             }
             .background(HaloTheme.fieldBackground.ignoresSafeArea())
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                composer
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+                    .padding(.bottom, 6)
+                    .background(.ultraThinMaterial)
+                    .overlay(alignment: .top) {
+                        Rectangle()
+                            .fill(Color.white.opacity(0.06))
+                            .frame(height: 0.5)
+                    }
+            }
             .navigationTitle("Halo")
             .toolbarColorScheme(.dark, for: .navigationBar)
             .refreshable { await refresh() }
@@ -164,34 +173,36 @@ struct HaloCommsView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 17, style: .continuous)
-                    .fill(HaloTheme.lime)
-                    .frame(width: 54, height: 54)
-                Image(systemName: "message.fill")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(HaloTheme.ink)
-            }
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text("FIELD COMMS")
-                    .font(HaloType.body(9, weight: .bold))
-                    .tracking(1.6)
-                    .foregroundStyle(HaloTheme.lime)
-                Text("Office ↔ Crew")
-                    .font(HaloType.display(26, weight: .semibold))
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(conversationMode == .ai ? "Halo AI" : "Messages")
+                    .font(HaloType.display(30, weight: .semibold))
+                    .tracking(-0.8)
                     .foregroundStyle(.white)
-                Text(connectionSubtitle)
-                    .font(HaloType.body(11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.42))
+                Text(conversationMode == .ai ? "Ask about your live work." : "Office and property conversations.")
+                    .font(HaloType.body(12, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.46))
             }
 
             Spacer()
 
-            if isLoading {
-                ProgressView().tint(HaloTheme.lime)
+            HStack(spacing: 6) {
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(HaloTheme.lime)
+                } else {
+                    Circle()
+                        .fill(network.isConnected && realtime.state == .connected ? HaloTheme.fieldLive : HaloTheme.warning)
+                        .frame(width: 7, height: 7)
+                }
+                Text(network.isConnected && realtime.state == .connected ? "Live" : (network.isConnected ? "Online" : "Offline"))
+                    .font(HaloType.body(10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.66))
             }
+            .padding(.horizontal, 10)
+            .frame(height: 30)
+            .background(Color.white.opacity(0.06), in: Capsule())
         }
         .padding(.top, 6)
     }
@@ -228,9 +239,9 @@ struct HaloCommsView: View {
                             .font(HaloType.body(11, weight: .bold))
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(height: 40)
-                    .foregroundStyle(conversationMode == mode ? HaloTheme.ink : .white.opacity(0.48))
-                    .background(conversationMode == mode ? HaloTheme.lime : Color.white.opacity(0.045))
+                    .frame(height: 38)
+                    .foregroundStyle(conversationMode == mode ? .white : .white.opacity(0.48))
+                    .background(conversationMode == mode ? Color.white.opacity(0.12) : Color.clear)
                     .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)
