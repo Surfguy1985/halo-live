@@ -1,5 +1,6 @@
 import AVFoundation
 import CoreLocation
+import SwiftData
 import SwiftUI
 import UIKit
 
@@ -11,6 +12,8 @@ struct ArrivalVerificationView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var session: HaloSessionStore
+    @EnvironmentObject private var network: NetworkMonitor
+    @Environment(\.modelContext) private var modelContext
     @EnvironmentObject private var network: NetworkMonitor
 
     @StateObject private var camera = HaloCameraController(position: .front)
@@ -460,6 +463,11 @@ struct ArrivalVerificationView: View {
                 message = "Matching the live photo and GPS fix to this property…"
             }
 
+            if !network.isConnected {
+                await queueOfflineCheckIn(jpeg: jpeg, fix: fix, token: token)
+                return
+            }
+
             do {
                 let result = try await HaloAPI.shared.verifyCheckIn(
                     jobID: job.id,
@@ -484,12 +492,63 @@ struct ArrivalVerificationView: View {
                     dismiss()
                 }
             } catch {
+                let retryable: Bool
+                if case HaloAPIError.transport = error {
+                    retryable = true
+                } else if case let HaloAPIError.http(status, _) = error {
+                    retryable = status >= 500 || status == 408 || status == 429
+                } else {
+                    retryable = false
+                }
+
+                if retryable {
+                    await queueOfflineCheckIn(jpeg: jpeg, fix: fix, token: token)
+                    return
+                }
+
                 await MainActor.run {
                     isVerifying = false
                     message = error.localizedDescription
                     location.refresh()
                     UINotificationFeedbackGenerator().notificationOccurred(.error)
                 }
+            }
+        }
+    }
+
+    private func queueOfflineCheckIn(jpeg: Data, fix: CLLocation, token: String) async {
+        do {
+            let file = try await OfflineMediaStore.shared.save(jpeg, preferredExtension: "jpg")
+            await MainActor.run {
+                OfflineQueue.shared.enqueue(
+                    id: checkInRequestID,
+                    jobID: job.id,
+                    kind: .arrivalCheckIn,
+                    payload: [
+                        "imagePath": file.path,
+                        "lat": String(fix.coordinate.latitude),
+                        "lng": String(fix.coordinate.longitude),
+                        "accuracy": String(fix.horizontalAccuracy),
+                        "capturedAt": ISO8601DateFormatter().string(from: fix.timestamp)
+                    ],
+                    activationToken: token,
+                    context: modelContext
+                )
+                verified = true
+                isVerifying = false
+                message = "Saved offline. HALO captured the live photo + fresh GPS receipt and will verify the property geofence automatically when service returns."
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            }
+            try? await Task.sleep(for: .milliseconds(550))
+            await MainActor.run {
+                onVerified(nil)
+                dismiss()
+            }
+        } catch {
+            await MainActor.run {
+                isVerifying = false
+                message = "HALO could not secure this offline check-in. \(error.localizedDescription)"
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
             }
         }
     }
