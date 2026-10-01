@@ -196,6 +196,7 @@ actor HaloAPI {
         longitude: Double,
         accuracy: Double,
         capturedAt: Date,
+        imageData: Data,
         requestID: UUID,
         activationToken: String
     ) async throws -> CheckInResult {
@@ -205,7 +206,8 @@ actor HaloAPI {
             "lat": latitude,
             "lng": longitude,
             "accuracy": accuracy,
-            "capturedAt": formatter.string(from: capturedAt)
+            "capturedAt": formatter.string(from: capturedAt),
+            "imageBase64": imageData.base64EncodedString()
         ])
         var object = try JSONSerialization.jsonObject(with: body) as? [String: Any] ?? [:]
         object["action"] = "checkIn"
