@@ -97,6 +97,11 @@ struct ActivationView: View {
                     }
 
 #if DEBUG
+                    Text(HaloAPI.connectionRevision)
+                        .font(HaloType.body(9, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.4))
+                        .accessibilityLabel("Connection build \(HaloAPI.connectionRevision)")
+
                     HStack {
                         Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
                         Text("XCODE PREVIEW")

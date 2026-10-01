@@ -149,6 +149,18 @@ final class HaloAPITests: XCTestCase {
         XCTAssertEqual(jobs.first?.tasks.first?.isComplete, true)
     }
 
+    func testSecurityGatewayDenialDoesNotMasqueradeAsInvalidToken() async {
+        let payload = "<html><title>Cloudflare Access denied</title><body>Error 1010</body></html>".data(using: .utf8)!
+        do {
+            _ = try await makeAPI(status: 403, data: payload).validateActivation(token: "test-token-1234567890")
+            XCTFail("Gateway denial must not activate the device")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("security gateway blocked"))
+            XCTAssertFalse(error.localizedDescription.contains("<html>"))
+            XCTAssertFalse(error.localizedDescription.contains("Invalid or expired"))
+        }
+    }
+
     func testHTTPFailureSurfacesServerMessage() async {
         let payload = #"{"error":"Jobs unavailable"}"#.data(using: .utf8)!
 

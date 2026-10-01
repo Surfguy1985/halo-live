@@ -108,6 +108,7 @@ struct HaloActivationInfo: Hashable, Sendable {
 
 actor HaloAPI {
     static let shared = HaloAPI()
+    static let connectionRevision = "HALO-CONNECT-2"
 
     let baseURL: URL
     private let session: URLSession
@@ -629,7 +630,7 @@ actor HaloAPI {
                 throw HaloAPIError.invalidResponse
             }
             guard 200..<300 ~= http.statusCode else {
-                let message = Self.serverMessage(data) ?? HTTPURLResponse.localizedString(forStatusCode: http.statusCode)
+                let message = Self.serverMessage(data, response: http) ?? HTTPURLResponse.localizedString(forStatusCode: http.statusCode)
                 throw HaloAPIError.http(http.statusCode, message)
             }
             return data
@@ -870,11 +871,20 @@ actor HaloAPI {
         return nil
     }
 
-    nonisolated private static func serverMessage(_ data: Data) -> String? {
-        guard
-            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let message = json["error"] as? String
-        else { return nil }
-        return message
+    nonisolated private static func serverMessage(_ data: Data, response: HTTPURLResponse) -> String? {
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            for key in ["error", "message", "detail"] {
+                if let message = json[key] as? String, !message.isEmpty { return message }
+            }
+        }
+
+        // Do not show raw HTML or response headers that might contain credentials.
+        let page = String(decoding: data.prefix(32_768), as: UTF8.self).lowercased()
+        if response.statusCode == 403 && page.contains("cloudflare") && page.contains("access denied") {
+            let ray = response.value(forHTTPHeaderField: "CF-Ray") ?? "unavailable"
+            let safeRay = String(ray.filter { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }.prefix(80))
+            return "Base44's security gateway blocked this request. Activation could not be verified. Reference: \(safeRay)."
+        }
+        return nil
     }
 }
