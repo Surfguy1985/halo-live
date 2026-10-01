@@ -84,6 +84,10 @@ struct HaloCommsView: View {
             .refreshable { await refresh() }
             .task(id: session.activationToken) {
                 if selectedJobID == nil { selectedJobID = initialJobID }
+                if let route = UserDefaults.standard.dictionary(forKey: "halo.pending.push-route") as? [String: String] {
+                    applyPushRoute(route)
+                    UserDefaults.standard.removeObject(forKey: "halo.pending.push-route")
+                }
                 await refresh()
 
                 while !Task.isCancelled {
@@ -92,6 +96,12 @@ struct HaloCommsView: View {
                         await refresh()
                     }
                 }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .haloOpenComms)) { note in
+                guard let route = note.object as? [String: String] else { return }
+                applyPushRoute(route)
+                UserDefaults.standard.removeObject(forKey: "halo.pending.push-route")
+                Task { await refresh() }
             }
             .onReceive(location.$location) { fix in
                 guard let fix else { return }
@@ -493,6 +503,26 @@ struct HaloCommsView: View {
                     .foregroundStyle(HaloTheme.warning)
             }
         }
+    }
+
+    private func applyPushRoute(_ route: [String: String]) {
+        conversationMode = .office
+        let channel = route["channel"] ?? ""
+        let unitID = route["unitId"] ?? ""
+        if channel.hasPrefix("group:") {
+            selectedThreadChannel = channel
+            selectedThreadName = nil
+        } else {
+            selectedThreadChannel = nil
+            selectedThreadName = nil
+        }
+        if !unitID.isEmpty {
+            selectedJobID = unitID
+        }
+        if (route["category"] ?? "") == "gps_request" {
+            selectedJobID = unitID.isEmpty ? nil : unitID
+        }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 
     private func openMessage(_ message: HaloMessage) {
