@@ -11,6 +11,7 @@ struct ArrivalVerificationView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var session: HaloSessionStore
+    @EnvironmentObject private var network: NetworkMonitor
 
     @StateObject private var camera = HaloCameraController(position: .front)
     @State private var isVerifying = false
@@ -53,7 +54,8 @@ struct ArrivalVerificationView: View {
                             .foregroundStyle(HaloTheme.ink)
                             .clipShape(Capsule())
                         }
-                        .disabled(isVerifying)
+                        .disabled(isVerifying || !network.isConnected)
+                        .opacity(network.isConnected ? 1 : 0.5)
 
                         Button("Retake Photo") {
                             checkInRequestID = UUID()
@@ -64,6 +66,23 @@ struct ArrivalVerificationView: View {
                         .font(HaloType.body(12, weight: .bold))
                         .foregroundStyle(.white.opacity(0.64))
                         .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+
+                    if !network.isConnected && !verified {
+                        HStack(spacing: 10) {
+                            Image(systemName: "wifi.slash")
+                                .foregroundStyle(HaloTheme.warning)
+                            Text("A connection is required to verify the live GPS geofence. Your photo is not submitted until verification succeeds.")
+                                .font(HaloType.body(10, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.58))
+                            Spacer()
+                        }
+                        .padding(14)
+                        .background(HaloTheme.warning.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(HaloTheme.warning.opacity(0.18), lineWidth: 1)
+                        }
                     }
 
                     if location.isDeniedOrRestricted && !verified {
@@ -390,6 +409,12 @@ struct ArrivalVerificationView: View {
     }
 
     private func verify(image: UIImage) {
+        guard network.isConnected else {
+            message = "Reconnect to verify this photo and GPS against the property geofence."
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            return
+        }
+
         if !location.hasLocationPermission {
             location.requestPermission()
             message = "Allow location access, then try Verify Check-In again."
