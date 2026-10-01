@@ -28,6 +28,7 @@ final class HaloRealtimeService: ObservableObject {
     private let appID = "6aa4569d140d940e1d779ace"
     private let actorName = "HaloNative"
     private let actorRoom = "native-field-v1"
+    private let api = HaloAPI.shared
 
     private var activationToken: String?
     private var socket: URLSessionWebSocketTask?
@@ -146,6 +147,9 @@ final class HaloRealtimeService: ObservableObject {
             guard !Task.isCancelled, generation == expectedGeneration else { return }
             lastError = error.localizedDescription
             state = .reconnecting
+            if reconnectAttempt == 0, let activationToken {
+                Task { await api.reportHealth(category: "realtime", message: "Realtime connection dropped: \(error.localizedDescription)", source: "HaloRealtimeService", activationToken: activationToken) }
+            }
             scheduleReconnect()
         }
     }
@@ -183,6 +187,9 @@ final class HaloRealtimeService: ObservableObject {
         case "session_expired":
             state = .expired
             lastError = "This device activation expired. Activate HALO again."
+            if let activationToken {
+                Task { await api.reportHealth(category: "realtime", message: "Native realtime session expired.", severity: "high", source: "HaloRealtimeService", activationToken: activationToken) }
+            }
             stopSocket(clearToken: false)
 
         case "error":
