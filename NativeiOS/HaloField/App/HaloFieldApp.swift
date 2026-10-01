@@ -11,6 +11,7 @@ struct HaloFieldApp: App {
     @StateObject private var fieldSync = FieldSyncController()
     @StateObject private var notifications = HaloNotificationService()
     @StateObject private var liveActivity = HaloLiveActivityController()
+    @StateObject private var realtime = HaloRealtimeService()
 
     var body: some Scene {
         WindowGroup {
@@ -22,6 +23,7 @@ struct HaloFieldApp: App {
                 .environmentObject(fieldSync)
                 .environmentObject(notifications)
                 .environmentObject(liveActivity)
+                .environmentObject(realtime)
                 .preferredColorScheme(.dark)
                 .onOpenURL { url in
                     Task { await session.handle(url: url) }
@@ -43,6 +45,7 @@ struct HaloFieldApp: App {
                     await notifications.syncRemoteDevice(
                         activationToken: session.activationToken
                     )
+                    realtime.start(activationToken: session.activationToken)
                 }
         }
         .modelContainer(for: PendingFieldAction.self)
