@@ -117,8 +117,13 @@ struct HaloCommsView: View {
                 UserDefaults.standard.removeObject(forKey: "halo.pending.push-route")
                 Task { await refresh() }
             }
-            .onReceive(NotificationCenter.default.publisher(for: .haloDataInvalidated)) { _ in
+            .onReceive(NotificationCenter.default.publisher(for: .haloDataInvalidated)) { note in
                 guard network.isConnected else { return }
+                if let payload = note.object as? [String: Any],
+                   let scopes = payload["scopes"] as? [String],
+                   !scopes.contains("messages") && !scopes.contains("live") {
+                    return
+                }
                 Task { await refresh() }
             }
             .onReceive(location.$location) { fix in
