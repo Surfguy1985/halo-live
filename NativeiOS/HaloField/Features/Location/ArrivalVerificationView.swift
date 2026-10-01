@@ -1,3 +1,4 @@
+import AVFoundation
 import CoreLocation
 import SwiftUI
 import UIKit
@@ -11,129 +12,94 @@ struct ArrivalVerificationView: View {
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var session: HaloSessionStore
 
+    @StateObject private var camera = HaloCameraController(position: .front)
     @State private var isVerifying = false
-    @State private var message = "HALO needs a fresh GPS fix before work can begin."
+    @State private var message = "Take a live check-in photo. HALO will bind it to a fresh GPS fix and the property geofence."
     @State private var verified = false
     @State private var lastResult: HaloAPI.CheckInResult?
     @State private var checkInRequestID = UUID()
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                HaloTheme.fieldBackground.ignoresSafeArea()
-
-                VStack(spacing: 22) {
-                    Spacer(minLength: 10)
-
-                    ZStack {
-                        Circle()
-                            .fill(verified ? HaloTheme.lime.opacity(0.14) : HaloTheme.actionBlue.opacity(0.12))
-                            .frame(width: 118, height: 118)
-                        Circle()
-                            .stroke(verified ? HaloTheme.lime : HaloTheme.actionBlue.opacity(0.55), lineWidth: 1.5)
-                            .frame(width: 92, height: 92)
-                        Image(systemName: verified ? "checkmark.seal.fill" : "location.circle.fill")
-                            .font(.system(size: 42, weight: .semibold))
-                            .foregroundStyle(verified ? HaloTheme.lime : .white)
-                    }
-
-                    VStack(spacing: 7) {
-                        Text(verified ? "ARRIVAL VERIFIED" : "VERIFY ARRIVAL")
-                            .font(HaloType.body(10, weight: .bold))
-                            .tracking(1.8)
-                            .foregroundStyle(verified ? HaloTheme.lime : .white.opacity(0.48))
-                        Text("Unit \(job.unit)")
-                            .font(HaloType.display(34, weight: .semibold))
-                            .foregroundStyle(.white)
-                        Text(job.propertyName)
-                            .font(HaloType.card(16, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.72))
-                    }
-
-                    VStack(spacing: 12) {
-                        statusRow(
-                            icon: location.hasLocationPermission ? "location.fill" : "location.slash.fill",
-                            title: "Location permission",
-                            value: permissionText,
-                            good: location.hasLocationPermission
-                        )
-                        statusRow(
-                            icon: "scope",
-                            title: "GPS accuracy",
-                            value: accuracyText,
-                            good: location.freshLocation() != nil
-                        )
-                        statusRow(
-                            icon: "mappin.and.ellipse",
-                            title: "Property geofence",
-                            value: geofenceText,
-                            good: verified
-                        )
-                    }
-                    .padding(18)
-                    .haloDarkCard()
+            ScrollView {
+                VStack(spacing: 20) {
+                    identityHeader
+                    capturePanel
+                    verificationStatus
 
                     Text(message)
                         .font(HaloType.body(12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.54))
+                        .foregroundStyle(.white.opacity(0.56))
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, 10)
 
-                    Spacer()
-
-                    Button {
-                        verify()
-                    } label: {
-                        HStack {
-                            Text(isVerifying ? "Verifying…" : (location.hasLocationPermission ? "Verify My Location" : "Enable Location"))
-                            Spacer()
-                            if isVerifying {
-                                ProgressView().tint(HaloTheme.ink)
-                            } else {
-                                Image(systemName: "location.fill")
+                    if let image = camera.capturedImage, !verified {
+                        Button {
+                            verify(image: image)
+                        } label: {
+                            HStack {
+                                Text(isVerifying ? "Verifying Photo + GPS…" : "Verify Check-In")
+                                Spacer()
+                                if isVerifying {
+                                    ProgressView().tint(HaloTheme.ink)
+                                } else {
+                                    Image(systemName: "checkmark.shield.fill")
+                                }
                             }
+                            .font(HaloType.body(15, weight: .bold))
+                            .padding(.horizontal, 22)
+                            .frame(height: 58)
+                            .background(HaloTheme.lime)
+                            .foregroundStyle(HaloTheme.ink)
+                            .clipShape(Capsule())
                         }
-                        .font(HaloType.body(15, weight: .bold))
-                        .padding(.horizontal, 22)
-                        .frame(height: 58)
-                        .background(verified ? HaloTheme.success : HaloTheme.lime)
-                        .foregroundStyle(HaloTheme.ink)
-                        .clipShape(Capsule())
+                        .disabled(isVerifying)
+
+                        Button("Retake Photo") {
+                            checkInRequestID = UUID()
+                            message = "Take a live check-in photo. HALO will bind it to a fresh GPS fix and the property geofence."
+                            camera.retake()
+                            location.refresh()
+                        }
+                        .font(HaloType.body(12, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.64))
+                        .frame(maxWidth: .infinity, minHeight: 44)
                     }
-                    .disabled(isVerifying || verified)
 
                     if location.isDeniedOrRestricted && !verified {
-                        Button {
-                            if let url = URL(string: UIApplication.openSettingsURLString) {
-                                UIApplication.shared.open(url)
-                            }
-                        } label: {
-                            Label("Open iPhone Settings", systemImage: "gearshape.fill")
-                                .font(HaloType.body(12, weight: .bold))
-                                .frame(maxWidth: .infinity, minHeight: 46)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.white.opacity(0.7))
+                        settingsButton(
+                            title: "Location Settings",
+                            icon: "location.slash.fill"
+                        )
+                    }
+
+                    if camera.authorization == .denied || camera.authorization == .restricted {
+                        settingsButton(
+                            title: "Camera Settings",
+                            icon: "camera.fill"
+                        )
                     }
 
 #if DEBUG
                     if previewMode && !verified {
                         Button("Simulate verified arrival · DEBUG") {
                             verified = true
-                            message = "DEBUG preview only — production still requires server GPS verification."
+                            message = "DEBUG preview only — production requires a live photo and server GPS verification."
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                                 onVerified(nil)
                                 dismiss()
                             }
                         }
                         .font(HaloType.body(11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.45))
+                        .foregroundStyle(.white.opacity(0.42))
                         .frame(minHeight: 44)
                     }
 #endif
                 }
                 .padding(20)
+                .padding(.bottom, 20)
             }
+            .background(HaloTheme.fieldBackground.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -151,8 +117,208 @@ struct ArrivalVerificationView: View {
                     location.requestPermission()
                 }
                 location.refresh()
+                camera.start()
+            }
+            .onDisappear {
+                camera.stop()
             }
         }
+    }
+
+    private var identityHeader: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .fill(verified ? HaloTheme.lime.opacity(0.14) : HaloTheme.actionBlue.opacity(0.12))
+                    .frame(width: 86, height: 86)
+                Image(systemName: verified ? "checkmark.seal.fill" : "person.crop.circle.badge.checkmark")
+                    .font(.system(size: 34, weight: .semibold))
+                    .foregroundStyle(verified ? HaloTheme.lime : .white)
+            }
+
+            Text(verified ? "ARRIVAL VERIFIED" : "PHOTO CHECK-IN")
+                .font(HaloType.body(10, weight: .bold))
+                .tracking(1.8)
+                .foregroundStyle(verified ? HaloTheme.lime : .white.opacity(0.48))
+            Text("Unit \(job.unit)")
+                .font(HaloType.display(34, weight: .semibold))
+                .foregroundStyle(.white)
+            Text(job.propertyName)
+                .font(HaloType.card(16, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.72))
+        }
+        .padding(.top, 6)
+    }
+
+    @ViewBuilder
+    private var capturePanel: some View {
+        if verified {
+            HStack(spacing: 12) {
+                Image(systemName: "checkmark.shield.fill")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(HaloTheme.lime)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Identity + location captured")
+                        .font(HaloType.body(14, weight: .bold))
+                        .foregroundStyle(.white)
+                    Text("The private check-in photo and GPS receipt are stored with this job.")
+                        .font(HaloType.body(10))
+                        .foregroundStyle(.white.opacity(0.44))
+                }
+                Spacer()
+            }
+            .padding(16)
+            .haloDarkCard()
+        } else if let image = camera.capturedImage {
+            ZStack(alignment: .bottomLeading) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(height: 330)
+                    .clipped()
+
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.78)],
+                    startPoint: .center,
+                    endPoint: .bottom
+                )
+
+                HStack(spacing: 7) {
+                    Image(systemName: "camera.fill")
+                    Text("LIVE CHECK-IN PHOTO")
+                }
+                .font(HaloType.body(9, weight: .bold))
+                .tracking(1.0)
+                .foregroundStyle(.white)
+                .padding(12)
+            }
+            .frame(height: 330)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(HaloTheme.lime.opacity(0.7), lineWidth: 1)
+            }
+        } else {
+            ZStack {
+                HaloCameraPreview(session: camera.session)
+                    .frame(height: 360)
+                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+                LinearGradient(
+                    colors: [.black.opacity(0.42), .clear, .black.opacity(0.72)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .allowsHitTesting(false)
+
+                VStack {
+                    HStack {
+                        locationBadge
+                        Spacer()
+                    }
+                    .padding(14)
+
+                    Spacer()
+
+                    ZStack {
+                        Circle()
+                            .stroke(.white.opacity(0.74), lineWidth: 2)
+                            .frame(width: 112, height: 112)
+                        Image(systemName: "person.crop.circle")
+                            .font(.system(size: 44, weight: .light))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+
+                    Text("CENTER YOUR FACE")
+                        .font(HaloType.body(9, weight: .bold))
+                        .tracking(1.3)
+                        .foregroundStyle(.white.opacity(0.72))
+
+                    Spacer()
+
+                    Button {
+                        camera.capture()
+                        location.refresh()
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    } label: {
+                        ZStack {
+                            Circle().fill(.white).frame(width: 72, height: 72)
+                            Circle().stroke(.black.opacity(0.25), lineWidth: 3).frame(width: 61, height: 61)
+                        }
+                    }
+                    .disabled(!camera.isReady)
+                    .opacity(camera.isReady ? 1 : 0.5)
+                    .padding(.bottom, 18)
+                    .accessibilityLabel("Capture live check-in photo")
+                }
+
+                if let error = camera.errorMessage {
+                    VStack(spacing: 10) {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 25, weight: .semibold))
+                            .foregroundStyle(HaloTheme.warning)
+                        Text(error)
+                            .font(HaloType.body(12, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(20)
+                    .background(.black.opacity(0.8))
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .padding(24)
+                }
+            }
+            .frame(height: 360)
+        }
+    }
+
+    private var verificationStatus: some View {
+        VStack(spacing: 12) {
+            statusRow(
+                icon: camera.authorization == .authorized ? "camera.fill" : "camera.badge.ellipsis",
+                title: "Live camera",
+                value: camera.capturedImage == nil ? cameraStatusText : "Photo captured",
+                good: camera.capturedImage != nil
+            )
+            statusRow(
+                icon: location.hasLocationPermission ? "location.fill" : "location.slash.fill",
+                title: "Location permission",
+                value: permissionText,
+                good: location.hasLocationPermission
+            )
+            statusRow(
+                icon: "scope",
+                title: "GPS accuracy",
+                value: accuracyText,
+                good: location.freshLocation(requiredAccuracy: 100) != nil
+            )
+            statusRow(
+                icon: "mappin.and.ellipse",
+                title: "Property geofence",
+                value: geofenceText,
+                good: verified
+            )
+        }
+        .padding(18)
+        .haloDarkCard()
+    }
+
+    private var locationBadge: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(location.freshLocation(requiredAccuracy: 100) == nil ? HaloTheme.warning : HaloTheme.fieldLive)
+                .frame(width: 7, height: 7)
+            Text(location.freshLocation(requiredAccuracy: 100)
+                .map { "GPS ±\(Int(max($0.horizontalAccuracy, 0)))m" } ?? "ACQUIRING GPS")
+                .font(HaloType.body(9, weight: .bold))
+                .tracking(0.7)
+        }
+        .foregroundStyle(.white.opacity(0.86))
+        .padding(.horizontal, 10)
+        .frame(height: 32)
+        .background(.black.opacity(0.5))
+        .clipShape(Capsule())
     }
 
     private func statusRow(icon: String, title: String, value: String, good: Bool) -> some View {
@@ -171,6 +337,30 @@ struct ArrivalVerificationView: View {
             Spacer()
             Image(systemName: good ? "checkmark.circle.fill" : "circle.dashed")
                 .foregroundStyle(good ? HaloTheme.lime : .white.opacity(0.25))
+        }
+    }
+
+    private func settingsButton(title: String, icon: String) -> some View {
+        Button {
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(url)
+            }
+        } label: {
+            Label(title, systemImage: icon)
+                .font(HaloType.body(12, weight: .bold))
+                .frame(maxWidth: .infinity, minHeight: 46)
+        }
+        .buttonStyle(.bordered)
+        .tint(.white.opacity(0.7))
+    }
+
+    private var cameraStatusText: String {
+        switch camera.authorization {
+        case .authorized: camera.isReady ? "Ready" : "Starting camera"
+        case .denied: "Denied in Settings"
+        case .restricted: "Restricted"
+        case .notDetermined: "Waiting for permission"
+        @unknown default: "Unknown"
         }
     }
 
@@ -196,13 +386,13 @@ struct ArrivalVerificationView: View {
         if let result = lastResult {
             return "\(result.distanceMeters)m from property · allowed \(result.allowedRadiusMeters)m"
         }
-        return "300m verified property radius"
+        return "Verified against the property radius on submit"
     }
 
-    private func verify() {
+    private func verify(image: UIImage) {
         if !location.hasLocationPermission {
             location.requestPermission()
-            message = "Allow location access, then tap Verify My Location."
+            message = "Allow location access, then try Verify Check-In again."
             return
         }
 
@@ -211,16 +401,22 @@ struct ArrivalVerificationView: View {
             return
         }
 
+        guard let jpeg = verifiedJPEG(image) else {
+            message = "HALO could not prepare the live check-in photo."
+            return
+        }
+
         isVerifying = true
         message = "Getting a fresh GPS fix…"
         location.refresh()
 
         Task {
-            var fix = location.freshLocation()
+            var fix = location.freshLocation(requiredAccuracy: 100)
             if fix == nil {
-                for _ in 0..<8 {
-                    try? await Task.sleep(for: .milliseconds(750))
-                    if let candidate = location.freshLocation() {
+                for _ in 0..<10 {
+                    try? await Task.sleep(for: .milliseconds(650))
+                    location.refresh()
+                    if let candidate = location.freshLocation(requiredAccuracy: 100) {
                         fix = candidate
                         break
                     }
@@ -230,13 +426,13 @@ struct ArrivalVerificationView: View {
             guard let fix else {
                 await MainActor.run {
                     isVerifying = false
-                    message = "HALO couldn’t get a ≤100m GPS fix. Move closer to an exterior wall or outside, then try again."
+                    message = "HALO couldn’t get a ≤100m GPS fix. Move near a window or outside, then try again."
                 }
                 return
             }
 
             await MainActor.run {
-                message = "Confirming your property geofence with HALO…"
+                message = "Matching the live photo and GPS fix to this property…"
             }
 
             do {
@@ -246,6 +442,7 @@ struct ArrivalVerificationView: View {
                     longitude: fix.coordinate.longitude,
                     accuracy: fix.horizontalAccuracy,
                     capturedAt: fix.timestamp,
+                    imageData: jpeg,
                     requestID: checkInRequestID,
                     activationToken: token
                 )
@@ -253,9 +450,10 @@ struct ArrivalVerificationView: View {
                     lastResult = result
                     verified = true
                     isVerifying = false
-                    message = "Verified. You’re checked in and Job Mode is unlocked."
+                    message = "Verified. Photo + GPS check-in is complete and Job Mode is unlocked."
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
                 }
-                try? await Task.sleep(for: .milliseconds(500))
+                try? await Task.sleep(for: .milliseconds(600))
                 await MainActor.run {
                     onVerified(result)
                     dismiss()
@@ -265,8 +463,19 @@ struct ArrivalVerificationView: View {
                     isVerifying = false
                     message = error.localizedDescription
                     location.refresh()
+                    UINotificationFeedbackGenerator().notificationOccurred(.error)
                 }
             }
         }
+    }
+
+    private func verifiedJPEG(_ image: UIImage) -> Data? {
+        for quality in [0.72, 0.60, 0.48, 0.36] {
+            if let data = image.jpegData(compressionQuality: quality),
+               data.count <= 4 * 1024 * 1024 {
+                return data
+            }
+        }
+        return nil
     }
 }
