@@ -4,6 +4,7 @@ import Security
 @MainActor
 final class HaloSessionStore: ObservableObject {
     @Published private(set) var activationToken: String? = nil
+    @Published private(set) var activationInfo: HaloActivationInfo? = nil
 
     private let service = "com.archangel.halofield"
     private let account = "crew-activation-token"
@@ -26,6 +27,7 @@ final class HaloSessionStore: ObservableObject {
         let info = try await HaloAPI.shared.validateActivation(token: clean)
         try saveToken(clean)
         activationToken = clean
+        activationInfo = info
         return info
     }
 
@@ -37,6 +39,23 @@ final class HaloSessionStore: ObservableObject {
         ]
         SecItemDelete(query as CFDictionary)
         activationToken = nil
+        activationInfo = nil
+    }
+
+    func refreshValidation() async {
+        guard let token = activationToken, !token.isEmpty else {
+            activationInfo = nil
+            return
+        }
+        do {
+            activationInfo = try await HaloAPI.shared.validateActivation(token: token)
+        } catch {
+            activationInfo = nil
+        }
+    }
+
+    var managerLiveAccess: Bool {
+        activationInfo?.managerLiveAccess == true
     }
 
     func handle(url: URL) async {
