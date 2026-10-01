@@ -6,6 +6,7 @@ struct JobDetailView: View {
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var session: HaloSessionStore
     @EnvironmentObject private var liveActivity: HaloLiveActivityController
+    @EnvironmentObject private var network: NetworkMonitor
     @Environment(\.modelContext) private var modelContext
     let jobID: String
 
@@ -465,12 +466,20 @@ struct JobDetailView: View {
         reworkBusy.insert(item.index)
         reworkError = nil
 
+        let checked = !item.isComplete
         Task {
+            if !network.isConnected {
+                await MainActor.run {
+                    queueRework(jobID: job.id, index: item.index, checked: checked, token: token)
+                }
+                return
+            }
+
             do {
                 try await HaloAPI.shared.toggleRework(
                     jobID: job.id,
                     index: item.index,
-                    checked: !item.isComplete,
+                    checked: checked,
                     activationToken: token
                 )
                 await store.refresh(activationToken: token)
@@ -479,6 +488,20 @@ struct JobDetailView: View {
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
                 }
             } catch {
+                let retryable: Bool
+                if case HaloAPIError.transport = error {
+                    retryable = true
+                } else if case let HaloAPIError.http(status, _) = error {
+                    retryable = status >= 500 || status == 408 || status == 429
+                } else {
+                    retryable = false
+                }
+                if retryable {
+                    await MainActor.run {
+                        queueRework(jobID: job.id, index: item.index, checked: checked, token: token)
+                    }
+                    return
+                }
                 await MainActor.run {
                     reworkBusy.remove(item.index)
                     reworkError = error.localizedDescription
@@ -486,6 +509,22 @@ struct JobDetailView: View {
                 }
             }
         }
+    }
+
+    private func queueRework(jobID: String, index: Int, checked: Bool, token: String) {
+        OfflineQueue.shared.enqueue(
+            jobID: jobID,
+            kind: .reworkToggle,
+            payload: [
+                "index": String(index),
+                "checked": String(checked)
+            ],
+            activationToken: token,
+            context: modelContext
+        )
+        reworkBusy.remove(index)
+        reworkError = "Saved offline · rework status will sync automatically."
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 
     private func progress(_ job: FieldJob) -> some View {
