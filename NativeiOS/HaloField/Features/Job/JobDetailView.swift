@@ -26,6 +26,7 @@ struct JobDetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
                         jobHeader(job)
+                        fullScope(job)
                         fieldJourney(job)
                         WorkSessionCard(job: job)
                         if job.needsRework == true || job.unresolvedReworkCount > 0 {
@@ -171,6 +172,113 @@ struct JobDetailView: View {
             }.buttonStyle(.plain)
         }
         .padding(.top, 8)
+    }
+
+    private func fullScope(_ job: FieldJob) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("FULL SCOPE")
+                    .font(HaloType.body(10, weight: .bold))
+                    .tracking(1.7)
+                    .foregroundStyle(HaloTheme.lime)
+
+                Spacer()
+
+                Text("\(job.scopeItemCount) ITEM\(job.scopeItemCount == 1 ? "" : "S")")
+                    .font(HaloType.body(9, weight: .bold))
+                    .tracking(0.9)
+                    .foregroundStyle(.white.opacity(0.36))
+            }
+
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 14) {
+                    scopeMetric(
+                        icon: "bed.double.fill",
+                        title: "UNIT",
+                        value: job.bedrooms.map { "\($0) BR" } ?? "Unit \(job.unit)"
+                    )
+                    scopeMetric(
+                        icon: "flag.fill",
+                        title: "PRIORITY",
+                        value: (job.priority ?? "green").uppercased()
+                    )
+                    scopeMetric(
+                        icon: "camera.fill",
+                        title: "PROOF",
+                        value: "\(job.beforePhotoCount)B · \(job.afterPhotoCount)A"
+                    )
+                }
+
+                if !job.services.isEmpty {
+                    VStack(alignment: .leading, spacing: 9) {
+                        Text("ASSIGNED SERVICES")
+                            .font(HaloType.body(9, weight: .bold))
+                            .tracking(1.2)
+                            .foregroundStyle(.white.opacity(0.36))
+
+                        ForEach(Array(job.services.enumerated()), id: \.offset) { index, service in
+                            HStack(alignment: .top, spacing: 10) {
+                                ZStack {
+                                    Circle()
+                                        .fill(HaloTheme.lime.opacity(0.12))
+                                        .frame(width: 24, height: 24)
+                                    Text("\(index + 1)")
+                                        .font(HaloType.body(9, weight: .bold))
+                                        .foregroundStyle(HaloTheme.lime)
+                                }
+                                Text(service)
+                                    .font(HaloType.body(13, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Spacer()
+                            }
+                        }
+                    }
+                }
+
+                if let notes = job.scopeNotes,
+                   !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("SCOPE NOTES")
+                            .font(HaloType.body(9, weight: .bold))
+                            .tracking(1.2)
+                            .foregroundStyle(.white.opacity(0.36))
+                        Text(notes)
+                            .font(HaloType.body(12, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.62))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    Image(systemName: "checklist")
+                        .foregroundStyle(HaloTheme.actionBlue)
+                    Text("\(job.tasks.count) checklist item\(job.tasks.count == 1 ? "" : "s") loaded from Back Office")
+                        .font(HaloType.body(10, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.46))
+                }
+            }
+            .padding(16)
+            .haloDarkCard()
+        }
+    }
+
+    private func scopeMetric(icon: String, title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(HaloTheme.lime)
+            Text(title)
+                .font(HaloType.body(8, weight: .bold))
+                .tracking(0.8)
+                .foregroundStyle(.white.opacity(0.34))
+            Text(value)
+                .font(HaloType.body(10, weight: .bold))
+                .foregroundStyle(.white.opacity(0.74))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func fieldJourney(_ job: FieldJob) -> some View {
@@ -406,7 +514,17 @@ struct JobDetailView: View {
 
     private func taskList(_ job: FieldJob) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("SCOPE").font(HaloType.body(10, weight: .bold)).tracking(1.7).foregroundStyle(.white.opacity(0.42))
+            HStack {
+                Text("CHECKLIST")
+                    .font(HaloType.body(10, weight: .bold))
+                    .tracking(1.7)
+                    .foregroundStyle(.white.opacity(0.42))
+                Spacer()
+                Text("\(job.completedTasks)/\(job.tasks.count) DONE")
+                    .font(HaloType.body(9, weight: .bold))
+                    .tracking(0.9)
+                    .foregroundStyle(job.completedTasks == job.tasks.count ? HaloTheme.lime : .white.opacity(0.34))
+            }
 
             VStack(spacing: 0) {
                 ForEach(job.tasks) { task in
@@ -565,8 +683,14 @@ struct JobDetailView: View {
             Label("Unit \(job.unit)", systemImage: "door.left.hand.open")
 
             if !job.services.isEmpty {
-                Label(job.services.prefix(3).joined(separator: " · "), systemImage: "wrench.and.screwdriver.fill")
-                    .lineLimit(2)
+                Label(job.services.joined(separator: " · "), systemImage: "wrench.and.screwdriver.fill")
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let notes = job.scopeNotes,
+               !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Label(notes, systemImage: "note.text")
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Button {
