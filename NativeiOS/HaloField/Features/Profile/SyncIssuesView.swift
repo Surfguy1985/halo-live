@@ -128,6 +128,7 @@ struct SyncIssuesView: View {
         case .reworkToggle: "Rework update"
         case .messageSend: "Message"
         case .clockPunch: "Verified work punch"
+        case .arrivalCheckIn: "Arrival check-in"
         case nil: "Saved action"
         }
     }
@@ -141,6 +142,7 @@ struct SyncIssuesView: View {
         case .reworkToggle: "arrow.counterclockwise.circle.fill"
         case .messageSend: "message.fill"
         case .clockPunch: "clock.badge.checkmark.fill"
+        case .arrivalCheckIn: "camera.badge.ellipsis"
         case nil: "exclamationmark.circle"
         }
     }
