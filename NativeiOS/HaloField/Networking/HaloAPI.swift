@@ -401,6 +401,22 @@ actor HaloAPI {
         )
     }
 
+    func markMessageRead(
+        messageID: String,
+        activationToken: String
+    ) async throws {
+        let body = try JSONSerialization.data(withJSONObject: [
+            "action": "messageMarkRead",
+            "messageId": messageID
+        ])
+        _ = try await request(
+            path: "/functions/nativeFieldMobile",
+            method: "POST",
+            body: body,
+            bearerToken: activationToken
+        )
+    }
+
     func askGrok(
         message: String,
         jobID: String?,
