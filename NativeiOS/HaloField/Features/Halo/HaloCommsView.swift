@@ -31,6 +31,7 @@ struct HaloCommsView: View {
     @EnvironmentObject private var network: NetworkMonitor
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var store: JobStore
+    @EnvironmentObject private var realtime: HaloRealtimeService
     @Environment(\.modelContext) private var modelContext
 
     @State private var messages: [HaloMessage] = []
@@ -94,9 +95,16 @@ struct HaloCommsView: View {
                 await refresh()
 
                 while !Task.isCancelled {
-                    // APNs invalidation is the realtime path. Poll only as a resilience
-                    // fallback when push is healthy; use a shorter fallback when it is not.
-                    let fallbackSeconds = session.activationInfo?.nativePushDeliveryConfigured == true ? 300.0 : 60.0
+                    // WebSocket invalidation is primary. APNs is the background path.
+                    // Poll only as a resilience layer if either transport is unavailable.
+                    let fallbackSeconds: Double
+                    if realtime.state == .connected {
+                        fallbackSeconds = 300
+                    } else if session.activationInfo?.nativePushDeliveryConfigured == true {
+                        fallbackSeconds = 60
+                    } else {
+                        fallbackSeconds = 30
+                    }
                     try? await Task.sleep(for: .seconds(fallbackSeconds))
                     if network.isConnected {
                         await refresh()
@@ -169,7 +177,7 @@ struct HaloCommsView: View {
                 Text("Office ↔ Crew")
                     .font(HaloType.display(26, weight: .semibold))
                     .foregroundStyle(.white)
-                Text(network.isConnected ? "Live with Halo Back Office" : "Offline · messages unavailable")
+                Text(connectionSubtitle)
                     .font(HaloType.body(11, weight: .medium))
                     .foregroundStyle(.white.opacity(0.42))
             }
@@ -181,6 +189,20 @@ struct HaloCommsView: View {
             }
         }
         .padding(.top, 6)
+    }
+
+    private var connectionSubtitle: String {
+        guard network.isConnected else { return "Offline · messages queue until connected" }
+        switch realtime.state {
+        case .connected:
+            return "Live · instant Back Office sync"
+        case .connecting, .reconnecting:
+            return "Connecting live sync · fallback active"
+        case .expired:
+            return "Activation expired · reconnect required"
+        case .stopped:
+            return "Connected · realtime standby"
+        }
     }
 
     private var conversationModeControl: some View {
