@@ -383,12 +383,12 @@ struct HaloCommsView: View {
     }
 
     private var propertyThreads: [HaloMessageThread] {
-        Dictionary(grouping: messages.filter { $0.channel.hasPrefix("group:") }, by: \.channel)
+        Dictionary(grouping: messages.filter { $0.channel.hasPrefix("group:") || $0.channel.hasPrefix("dm:crew:") }, by: \.channel)
             .map { channel, rows in
                 HaloMessageThread(
                     id: channel,
                     channel: channel,
-                    name: rows.compactMap(\.threadName).first ?? "Property Live",
+                    name: rows.compactMap(\.threadName).first ?? (channel.hasPrefix("dm:crew:") ? "Office direct" : "Property Live"),
                     unread: rows.filter { $0.from != "field" && !$0.read }.count
                 )
             }
@@ -397,7 +397,7 @@ struct HaloCommsView: View {
 
     private var displayedMessages: [HaloMessage] {
         let rows: [HaloMessage]
-        if let selectedThreadChannel, selectedThreadChannel.hasPrefix("group:") {
+        if let selectedThreadChannel {
             rows = messages.filter { $0.channel == selectedThreadChannel }
         } else {
             rows = messages
@@ -509,9 +509,9 @@ struct HaloCommsView: View {
         conversationMode = .office
         let channel = route["channel"] ?? ""
         let unitID = route["unitId"] ?? ""
-        if channel.hasPrefix("group:") {
+        if channel.hasPrefix("group:") || channel.hasPrefix("dm:crew:") {
             selectedThreadChannel = channel
-            selectedThreadName = nil
+            selectedThreadName = channel.hasPrefix("dm:crew:") ? "Office direct" : nil
         } else {
             selectedThreadChannel = nil
             selectedThreadName = nil
@@ -526,9 +526,9 @@ struct HaloCommsView: View {
     }
 
     private func openMessage(_ message: HaloMessage) {
-        if message.channel.hasPrefix("group:") {
+        if message.channel.hasPrefix("group:") || message.channel.hasPrefix("dm:crew:") {
             selectedThreadChannel = message.channel
-            selectedThreadName = message.threadName
+            selectedThreadName = message.threadName ?? (message.channel.hasPrefix("dm:crew:") ? "Office direct" : nil)
         }
         if let unitID = message.unitID {
             selectedJobID = unitID
