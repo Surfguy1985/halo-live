@@ -221,6 +221,14 @@ private struct ManagerLiveView: View {
         }
         .task(id: session.activationToken) {
             await refresh()
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(15))
+                if network.isConnected { await refresh() }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .haloDataInvalidated)) { _ in
+            guard network.isConnected else { return }
+            Task { await refresh() }
         }
         .task(id: network.isConnected) {
             guard network.isConnected else { return }
