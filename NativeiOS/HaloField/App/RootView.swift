@@ -139,6 +139,7 @@ private struct ManagerLiveView: View {
             case "Live": stateMatch = location.locationState == "live"
             case "Recent": stateMatch = location.locationState.hasPrefix("recent")
             case "On clock": stateMatch = ["checked_in", "paused", "lunch"].contains(location.status)
+            case "Needs attention": stateMatch = !["live", "recent", "recent_verified"].contains(location.locationState)
             default: stateMatch = location.locationState == "live" || location.locationState.hasPrefix("recent")
             }
             return propertyMatch && stateMatch
@@ -251,7 +252,7 @@ private struct ManagerLiveView: View {
                 }
 
                 Menu {
-                    ForEach(["Active", "Live", "Recent", "On clock"], id: \.self) { state in
+                    ForEach(["Active", "Live", "Recent", "On clock", "Needs attention"], id: \.self) { state in
                         Button(state) { selectedState = state; selectedCrewID = nil }
                     }
                 } label: {
@@ -309,6 +310,27 @@ private struct ManagerLiveView: View {
         .padding(.vertical, 7)
     }
 
+    private func locationStateLabel(_ state: String) -> String {
+        switch state {
+        case "live": "LIVE"
+        case "recent": "RECENT"
+        case "recent_verified": "VERIFIED RECENT"
+        case "permission_required": "PERMISSION NEEDED"
+        case "background_stopped": "BACKGROUND OFF"
+        case "sharing_stopped": "SHARING STOPPED"
+        case "expired": "EXPIRED"
+        default: "LOCATION UNAVAILABLE"
+        }
+    }
+
+    private func locationStateColor(_ state: String) -> Color {
+        switch state {
+        case "live": HaloTheme.lime
+        case "permission_required", "background_stopped": HaloTheme.warning
+        default: .white.opacity(0.55)
+        }
+    }
+
     private func selectedCrewCard(_ crew: HaloManagerCrewLocation) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
@@ -347,10 +369,10 @@ private struct ManagerLiveView: View {
                 Spacer()
 
                 VStack(alignment: .trailing, spacing: 4) {
-                    Text(crew.locationState == "live" ? "LIVE" : "RECENT")
+                    Text(locationStateLabel(crew.locationState))
                         .font(HaloType.body(8, weight: .bold))
                         .tracking(0.8)
-                        .foregroundStyle(crew.locationState == "live" ? HaloTheme.lime : .white.opacity(0.55))
+                        .foregroundStyle(locationStateColor(crew.locationState))
                     if let accuracy = crew.accuracy {
                         Text("±\(Int(accuracy.rounded()))m")
                             .font(HaloType.body(9, weight: .semibold))
