@@ -1,5 +1,6 @@
 import AVFoundation
 import CoreLocation
+import SwiftData
 import SwiftUI
 import UIKit
 
@@ -8,6 +9,8 @@ struct WorkSessionCard: View {
 
     @EnvironmentObject private var session: HaloSessionStore
     @EnvironmentObject private var store: JobStore
+    @EnvironmentObject private var network: NetworkMonitor
+    @Environment(\.modelContext) private var modelContext
     @State private var status: HaloClockStatus?
     @State private var fetchedAt = Date()
     @State private var action: String?
@@ -540,6 +543,11 @@ private struct WorkPunchView: View {
         errorMessage = nil
 
         Task {
+            if !network.isConnected {
+                await queueClockPunch(jpeg: jpeg, fix: fix, token: token)
+                return
+            }
+
             do {
                 _ = try await HaloAPI.shared.punchClock(
                     kind: kind,
@@ -556,11 +564,53 @@ private struct WorkPunchView: View {
                     dismiss()
                 }
             } catch {
+                if case HaloAPIError.transport = error {
+                    await queueClockPunch(jpeg: jpeg, fix: fix, token: token)
+                    return
+                }
+                if case let HaloAPIError.http(status, _) = error, status >= 500 || status == 408 || status == 429 {
+                    await queueClockPunch(jpeg: jpeg, fix: fix, token: token)
+                    return
+                }
                 await MainActor.run {
                     isSubmitting = false
                     errorMessage = error.localizedDescription
                     UINotificationFeedbackGenerator().notificationOccurred(.error)
                 }
+            }
+        }
+    }
+
+    private func queueClockPunch(jpeg: Data, fix: CLLocation, token: String) async {
+        do {
+            let file = try await OfflineMediaStore.shared.save(jpeg, preferredExtension: "jpg")
+            await MainActor.run {
+                OfflineQueue.shared.enqueue(
+                    id: requestID,
+                    jobID: job.id,
+                    kind: .clockPunch,
+                    payload: [
+                        "kind": kind,
+                        "imagePath": file.path,
+                        "lat": String(fix.coordinate.latitude),
+                        "lng": String(fix.coordinate.longitude),
+                        "accuracy": String(fix.horizontalAccuracy),
+                        "capturedAt": ISO8601DateFormatter().string(from: fix.timestamp)
+                    ],
+                    activationToken: token,
+                    context: modelContext
+                )
+                isSubmitting = false
+                errorMessage = "Saved offline · HALO will sync this verified punch when service returns."
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                onComplete()
+                dismiss()
+            }
+        } catch {
+            await MainActor.run {
+                isSubmitting = false
+                errorMessage = "HALO could not secure this offline punch. \(error.localizedDescription)"
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
             }
         }
     }
