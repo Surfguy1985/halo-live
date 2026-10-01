@@ -340,8 +340,6 @@ struct JobDetailView: View {
                         .foregroundStyle(.white.opacity(0.46))
                 }
             }
-
-            }
         }
     }
 
