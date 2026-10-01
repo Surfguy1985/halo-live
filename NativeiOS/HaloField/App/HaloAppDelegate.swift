@@ -54,19 +54,20 @@ final class HaloAppDelegate: NSObject, UIApplicationDelegate, UNUserNotification
             .value ?? ""
 
         if category == "message" || category == "mention" || category == "gps_request" || !channel.isEmpty {
-            NotificationCenter.default.post(
-                name: .haloOpenComms,
-                object: [
-                    "unitId": unitID,
-                    "channel": channel,
-                    "category": category,
-                    "gpsSession": gpsSession
-                ]
-            )
+            let route = [
+                "unitId": unitID,
+                "channel": channel,
+                "category": category,
+                "gpsSession": gpsSession
+            ]
+            UserDefaults.standard.set(route, forKey: "halo.pending.push-route")
+            NotificationCenter.default.post(name: .haloOpenComms, object: route)
         } else if !unitID.isEmpty {
             NotificationCenter.default.post(name: .haloOpenJob, object: unitID)
         } else {
-            NotificationCenter.default.post(name: .haloOpenComms, object: ["category": category])
+            let route = ["category": category]
+            UserDefaults.standard.set(route, forKey: "halo.pending.push-route")
+            NotificationCenter.default.post(name: .haloOpenComms, object: route)
         }
     }
 
