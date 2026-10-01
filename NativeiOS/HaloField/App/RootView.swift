@@ -52,6 +52,7 @@ struct RootView: View {
                 fieldSync.refreshPendingCount(context: modelContext, activationToken: session.activationToken)
                 return
             }
+            await session.refreshValidation()
             await store.loadIfNeeded(activationToken: session.activationToken)
             if network.isConnected {
                 await fieldSync.flush(context: modelContext, activationToken: session.activationToken)
@@ -102,9 +103,15 @@ struct RootView: View {
                 .tabItem { Label("Halo", systemImage: "sparkles") }
                 .tag(2)
 
+            if session.managerLiveAccess {
+                NavigationStack { ManagerLiveView() }
+                    .tabItem { Label("Live", systemImage: "map.fill") }
+                    .tag(3)
+            }
+
             NavigationStack { ProfileView() }
                 .tabItem { Label("Me", systemImage: "person.crop.circle") }
-                .tag(3)
+                .tag(4)
         }
         .tint(HaloTheme.lime)
     }
