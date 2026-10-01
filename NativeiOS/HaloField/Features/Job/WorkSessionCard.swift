@@ -250,6 +250,8 @@ private struct WorkPunchView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var session: HaloSessionStore
     @EnvironmentObject private var location: LocationService
+    @EnvironmentObject private var network: NetworkMonitor
+    @Environment(\.modelContext) private var modelContext
 
     @StateObject private var camera: HaloCameraController
     @State private var isSubmitting = false
