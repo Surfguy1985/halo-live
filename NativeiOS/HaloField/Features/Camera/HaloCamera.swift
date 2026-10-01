@@ -18,6 +18,7 @@ final class HaloCameraController: NSObject, ObservableObject, AVCapturePhotoCapt
 
     nonisolated(unsafe) let session = AVCaptureSession()
     nonisolated(unsafe) private let output = AVCapturePhotoOutput()
+    nonisolated(unsafe) private var activeDevice: AVCaptureDevice?
     private let queue = DispatchQueue(label: "com.archangel.halofield.camera")
     private let cameraPosition: AVCaptureDevice.Position
 
@@ -67,7 +68,16 @@ final class HaloCameraController: NSObject, ObservableObject, AVCapturePhotoCapt
         return
 #endif
         let settings = AVCapturePhotoSettings()
-        settings.flashMode = .auto
+        settings.photoQualityPrioritization = .quality
+        if let device = activeDevice, device.hasFlash, device.isFlashModeSupported(.auto) {
+            settings.flashMode = .auto
+        } else {
+            settings.flashMode = .off
+        }
+        if let connection = output.connection(with: .video),
+           connection.isVideoMirroringSupported {
+            connection.isVideoMirrored = cameraPosition == .front
+        }
         output.capturePhoto(with: settings, delegate: self)
     }
 
@@ -139,8 +149,12 @@ final class HaloCameraController: NSObject, ObservableObject, AVCapturePhotoCapt
             self.session.sessionPreset = .photo
             defer { self.session.commitConfiguration() }
 
+            let preferred = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: self.cameraPosition)
+            let fallbackPosition: AVCaptureDevice.Position = self.cameraPosition == .front ? .back : .front
+            let fallback = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: fallbackPosition)
+
             guard
-                let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: self.cameraPosition),
+                let device = preferred ?? fallback,
                 let input = try? AVCaptureDeviceInput(device: device),
                 self.session.canAddInput(input),
                 self.session.canAddOutput(self.output)
@@ -152,6 +166,7 @@ final class HaloCameraController: NSObject, ObservableObject, AVCapturePhotoCapt
                 return
             }
 
+            self.activeDevice = device
             self.session.addInput(input)
             self.session.addOutput(self.output)
             self.output.maxPhotoQualityPrioritization = .quality
