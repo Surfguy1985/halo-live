@@ -45,7 +45,10 @@ actor ProofStorage {
         location: CLLocation?,
         source: String
     ) throws -> StoredProof {
-        guard let jpeg = image.jpegData(compressionQuality: 0.9) else {
+        let jpeg: Data
+        do {
+            jpeg = try HaloImagePipeline.normalizedJPEG(from: image)
+        } catch {
             throw ProofStorageError.jpegEncodingFailed
         }
 
