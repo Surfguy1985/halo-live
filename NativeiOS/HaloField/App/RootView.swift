@@ -10,6 +10,8 @@ struct RootView: View {
     @EnvironmentObject private var network: NetworkMonitor
     @EnvironmentObject private var fieldSync: FieldSyncController
     @EnvironmentObject private var realtime: HaloRealtimeService
+    @EnvironmentObject private var location: LocationService
+    @EnvironmentObject private var attendanceTracking: AttendanceTrackingController
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab = 0
@@ -44,6 +46,7 @@ struct RootView: View {
             }
             await session.refreshValidation()
             await store.loadIfNeeded(activationToken: session.activationToken)
+            await attendanceTracking.reconcile(activationToken: session.activationToken, location: location)
             if network.isConnected {
                 await fieldSync.flush(context: modelContext, activationToken: session.activationToken)
             }
@@ -66,6 +69,7 @@ struct RootView: View {
             await fieldSync.flush(context: modelContext, activationToken: session.activationToken)
             if session.isActivated {
                 await store.refresh(activationToken: session.activationToken)
+                await attendanceTracking.reconcile(activationToken: session.activationToken, location: location)
             }
         }
         .task(id: scenePhase) {
@@ -74,6 +78,7 @@ struct RootView: View {
             if network.isConnected {
                 await store.refresh(activationToken: session.activationToken)
                 await fieldSync.flush(context: modelContext, activationToken: session.activationToken)
+                await attendanceTracking.reconcile(activationToken: session.activationToken, location: location)
             }
         }
         .onChange(of: session.activationToken) { _, _ in selectedTab = 0 }
@@ -87,6 +92,15 @@ struct RootView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .haloOpenComms)) { _ in
             selectedTab = 2
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .haloClockStateChanged)) { _ in
+            guard session.isActivated else {
+                attendanceTracking.deactivateLocationOnly()
+                return
+            }
+            Task {
+                await attendanceTracking.reconcile(activationToken: session.activationToken, location: location)
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .haloPendingActionCreated)) { _ in
             fieldSync.refreshPendingCount(context: modelContext, activationToken: session.activationToken)
