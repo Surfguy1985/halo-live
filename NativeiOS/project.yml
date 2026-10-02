@@ -1,0 +1,84 @@
+name: HaloField
+options:
+  bundleIdPrefix: com.archangel
+  deploymentTarget:
+    iOS: "17.0"
+settings:
+  base:
+    SWIFT_VERSION: 5.9
+    PRODUCT_BUNDLE_IDENTIFIER: com.archangel.halofield
+
+targets:
+  HaloFieldWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - HaloFieldWidgets
+      - HaloShared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.archangel.halofield.widgets
+        INFOPLIST_FILE: HaloFieldWidgets/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
+
+  HaloField:
+    type: application
+    platform: iOS
+    sources:
+      - HaloField
+      - HaloShared
+    dependencies:
+      - target: HaloFieldWidgets
+        embed: true
+    settings:
+      base:
+        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_FILE: HaloField/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        APS_ENVIRONMENT: development
+        SUPPORTS_MACCATALYST: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_ENTITLEMENTS: HaloField/HaloField.entitlements
+        CODE_SIGN_STYLE: Automatic
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+      configs:
+        Debug:
+          APS_ENVIRONMENT: development
+        Release:
+          APS_ENVIRONMENT: production
+
+  HaloFieldTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - HaloFieldTests
+    dependencies:
+      - target: HaloField
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.archangel.halofield.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+
+schemes:
+  HaloField:
+    build:
+      targets:
+        HaloField: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - HaloFieldTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
