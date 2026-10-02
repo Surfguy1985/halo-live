@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BRANCH="ios-swift-native-v1"
-STAMP="NATIVE-CLOCK-HARVEST-R6"
+STAMP="NATIVE-LIVE-STABILITY-R7"
 DERIVED="$SCRIPT_DIR/.device-derived-data"
 GLOBAL_DERIVED="$HOME/Library/Developer/Xcode/DerivedData"
 
