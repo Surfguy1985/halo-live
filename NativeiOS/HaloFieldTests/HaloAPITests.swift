@@ -248,6 +248,28 @@ final class HaloAPITests: XCTestCase {
         XCTAssertTrue(officeInfo.officeAccess)
     }
 
+    @MainActor
+    func testClearedSessionIgnoresAnInflightJobResponse() async throws {
+        let api = makeAPI(status: 200, data: Data())
+        let started = expectation(description: "Request started")
+        let release = DispatchSemaphore(value: 0)
+        MockURLProtocol.handler = { request in
+            started.fulfill()
+            _ = release.wait(timeout: .now() + 5)
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(#"{"jobs":[{"id":"previous-account","status":"scheduled"}]}"#.utf8))
+        }
+        let store = JobStore(api: api)
+        let refresh = Task { await store.refresh(activationToken: "test-token-1234567890") }
+        await fulfillment(of: [started], timeout: 3)
+        store.clear()
+        release.signal()
+        await refresh.value
+        XCTAssertTrue(store.jobs.isEmpty)
+        XCTAssertNil(store.lastSyncedAt)
+        XCTAssertFalse(store.isRefreshing)
+    }
+
     private func makeAPI(status: Int, data: Data) -> HaloAPI {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]

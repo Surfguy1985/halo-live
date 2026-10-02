@@ -17,6 +17,7 @@ final class JobStore: ObservableObject {
     private let cache: OfflineJobCache
     private var hasLoaded = false
     private var loadedToken: String?
+    private var refreshID = UUID()
 
     init(api: HaloAPI = .shared, cache: OfflineJobCache = .shared) {
         self.api = api
@@ -42,11 +43,14 @@ final class JobStore: ObservableObject {
             return
         }
         guard !hasLoaded || loadedToken != activationToken else { return }
-        if loadedToken != nil && loadedToken != activationToken {
+        if loadedToken != activationToken {
             clear()
+            loadedToken = activationToken
         }
+        let cacheRequestID = refreshID
 
         if jobs.isEmpty, let snapshot = try? await cache.load(token: activationToken) {
+            guard !Task.isCancelled, refreshID == cacheRequestID, loadedToken == activationToken else { return }
             withAnimation(.snappy(duration: 0.22)) {
                 jobs = snapshot.jobs
                 HaloIntentStore.save(nextJob)
@@ -56,23 +60,32 @@ final class JobStore: ObservableObject {
             syncError = "Offline-ready cache loaded. Refreshing live HALO…"
         }
 
+        guard !Task.isCancelled, refreshID == cacheRequestID, loadedToken == activationToken else { return }
         await refresh(activationToken: activationToken, initial: true)
     }
 
     func refresh(activationToken: String?, initial: Bool = false) async {
+        guard let activationToken, !activationToken.isEmpty else {
+            clear()
+            return
+        }
+        if loadedToken != activationToken {
+            clear()
+            loadedToken = activationToken
+        }
+        let requestID = UUID()
+        refreshID = requestID
         if initial { isLoading = true } else { isRefreshing = true }
         defer {
-            isLoading = false
-            isRefreshing = false
-        }
-
-        guard let activationToken, !activationToken.isEmpty else {
-            syncError = "This iPhone is not activated for a HALO crew."
-            return
+            if refreshID == requestID {
+                isLoading = false
+                isRefreshing = false
+            }
         }
 
         do {
             let live = try await api.fetchJobs(activationToken: activationToken)
+            guard !Task.isCancelled, refreshID == requestID, loadedToken == activationToken else { return }
             withAnimation(.snappy(duration: 0.28)) {
                 jobs = live
                 HaloIntentStore.save(nextJob)
@@ -83,6 +96,7 @@ final class JobStore: ObservableObject {
             loadedToken = activationToken
             try? await cache.save(jobs: live, token: activationToken)
         } catch {
+            guard !Task.isCancelled, refreshID == requestID, loadedToken == activationToken else { return }
             if jobs.isEmpty {
                 syncError = error.localizedDescription
             } else {
@@ -108,6 +122,9 @@ final class JobStore: ObservableObject {
 #endif
 
     func clear(removeCache: Bool = false) {
+        refreshID = UUID()
+        isLoading = false
+        isRefreshing = false
         let tokenToRemove = loadedToken
         jobs = []
         HaloIntentStore.save(nil)
