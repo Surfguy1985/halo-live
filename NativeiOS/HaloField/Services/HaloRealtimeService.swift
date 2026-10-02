@@ -37,6 +37,7 @@ final class HaloRealtimeService: ObservableObject {
     private var reconnectTask: Task<Void, Never>?
     private var reconnectAttempt = 0
     private var generation = UUID()
+    private var lastHealthReportAt = Date.distantPast
 
     func start(activationToken token: String?) {
         let clean = token?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -147,7 +148,8 @@ final class HaloRealtimeService: ObservableObject {
             guard !Task.isCancelled, generation == expectedGeneration else { return }
             lastError = error.localizedDescription
             state = .reconnecting
-            if reconnectAttempt == 0, let activationToken {
+            if let activationToken, Date().timeIntervalSince(lastHealthReportAt) >= 300 {
+                lastHealthReportAt = Date()
                 Task { await api.reportHealth(category: "realtime", message: "Realtime connection dropped: \(error.localizedDescription)", source: "HaloRealtimeService", activationToken: activationToken) }
             }
             scheduleReconnect()
@@ -234,7 +236,19 @@ final class HaloRealtimeService: ObservableObject {
         guard reconnectTask == nil else { return }
 
         reconnectAttempt += 1
-        let delay = min(pow(1.7, Double(max(0, reconnectAttempt - 1))), 15.0)
+        let pollingFallback = reconnectAttempt >= 3
+        let delay = pollingFallback
+            ? 60.0
+            : min(pow(1.7, Double(max(0, reconnectAttempt - 1))), 15.0)
+
+        // A flaky WebSocket must never make the field app unusable. After three
+        // consecutive failures, expose the service as stopped so RootView uses its
+        // 15-second HTTP refresh path, then quietly retry realtime later.
+        if pollingFallback {
+            state = .stopped
+            lastError = "Live socket unavailable — HALO is using resilient polling."
+        }
+
         reconnectTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(delay))
             guard !Task.isCancelled else { return }
