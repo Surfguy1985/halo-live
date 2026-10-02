@@ -14,6 +14,7 @@ final class HaloCameraController: NSObject, ObservableObject, AVCapturePhotoCapt
     @Published private(set) var authorization: AVAuthorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
     @Published private(set) var capturedImage: UIImage?
     @Published private(set) var isReady = false
+    @Published private(set) var isCapturing = false
     @Published private(set) var errorMessage: String?
 
     nonisolated(unsafe) let session = AVCaptureSession()
@@ -61,9 +62,12 @@ final class HaloCameraController: NSObject, ObservableObject, AVCapturePhotoCapt
     }
 
     func capture() {
-        guard isReady else { return }
+        guard isReady, !isCapturing else { return }
+        isCapturing = true
+        isReady = false
 #if targetEnvironment(simulator)
         capturedImage = simulatorImage()
+        isCapturing = false
         isReady = false
         return
 #endif
@@ -82,6 +86,7 @@ final class HaloCameraController: NSObject, ObservableObject, AVCapturePhotoCapt
     }
 
     func retake() {
+        guard !isCapturing else { return }
         capturedImage = nil
         errorMessage = nil
 #if targetEnvironment(simulator)
@@ -185,16 +190,44 @@ final class HaloCameraController: NSObject, ObservableObject, AVCapturePhotoCapt
         error: Error?
     ) {
         if let error {
-            Task { @MainActor in self.errorMessage = error.localizedDescription }
+            Task { @MainActor in
+                self.errorMessage = error.localizedDescription
+                self.isCapturing = false
+                self.isReady = true
+            }
             return
         }
-        guard let data = photo.fileDataRepresentation(), let image = UIImage(data: data) else {
-            Task { @MainActor in self.errorMessage = "HALO could not process this photo." }
+
+        guard let data = photo.fileDataRepresentation() else {
+            Task { @MainActor in
+                self.errorMessage = "HALO could not read this photo."
+                self.isCapturing = false
+                self.isReady = true
+            }
             return
         }
-        Task { @MainActor in
-            self.capturedImage = image
-            self.stop()
+
+        do {
+            let normalized = try autoreleasepool {
+                try HaloImagePipeline.normalizedJPEG(fromEncodedData: data)
+            }
+            Task { @MainActor in
+                guard let image = UIImage(data: normalized, scale: UIScreen.main.scale) else {
+                    self.errorMessage = "HALO could not prepare this photo."
+                    self.isCapturing = false
+                    self.isReady = true
+                    return
+                }
+                self.capturedImage = image
+                self.isCapturing = false
+                self.stop()
+            }
+        } catch {
+            Task { @MainActor in
+                self.errorMessage = error.localizedDescription
+                self.isCapturing = false
+                self.isReady = true
+            }
         }
     }
 }
