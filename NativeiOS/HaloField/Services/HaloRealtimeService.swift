@@ -35,6 +35,8 @@ final class HaloRealtimeService: ObservableObject {
     private var receiveTask: Task<Void, Never>?
     private var heartbeatTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
+    private var fallbackTask: Task<Void, Never>?
+    private var fallbackCursor: HaloRealtimeCursorSnapshot?
     private var reconnectAttempt = 0
     private var generation = UUID()
     private var lastHealthReportAt = Date.distantPast
@@ -47,13 +49,15 @@ final class HaloRealtimeService: ObservableObject {
         }
 
         if activationToken == clean,
-           state == .connected || state == .connecting || state == .reconnecting {
+           socket != nil || fallbackTask != nil {
             return
         }
 
         stopSocket(clearToken: false)
+        stopFallback()
         activationToken = clean
         reconnectAttempt = 0
+        fallbackCursor = nil
         connect()
     }
 
@@ -61,13 +65,19 @@ final class HaloRealtimeService: ObservableObject {
         activationToken = nil
         reconnectAttempt = 0
         stopSocket(clearToken: false)
+        stopFallback()
         state = .stopped
         lastError = nil
     }
 
     func requestRefresh() {
-        guard state == .connected else { return }
-        send(["type": "refresh"])
+        if state == .connected, socket != nil {
+            send(["type": "refresh"])
+        } else {
+            Task { [weak self] in
+                await self?.pollFallbackOnce()
+            }
+        }
     }
 
     private func connect() {
@@ -94,6 +104,7 @@ final class HaloRealtimeService: ObservableObject {
         guard let url = components.url else {
             lastError = "HALO realtime URL could not be created."
             state = .reconnecting
+            beginFallbackPolling()
             scheduleReconnect()
             return
         }
@@ -117,15 +128,12 @@ final class HaloRealtimeService: ObservableObject {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(12))
                 guard !Task.isCancelled, self.generation == connectionGeneration else { return }
-                if self.state == .connected {
+                if self.socket === task, self.state == .connected {
                     self.send(["type": "ping"])
                 }
             }
         }
 
-        // URLSession queues a send once the WebSocket task has resumed. The actor
-        // also sends a hello immediately; sending here makes authentication fast
-        // even if that first server frame is delayed.
         sendAuth(activationToken)
     }
 
@@ -146,13 +154,7 @@ final class HaloRealtimeService: ObservableObject {
             }
         } catch {
             guard !Task.isCancelled, generation == expectedGeneration else { return }
-            lastError = error.localizedDescription
-            state = .reconnecting
-            if let activationToken, Date().timeIntervalSince(lastHealthReportAt) >= 300 {
-                lastHealthReportAt = Date()
-                Task { await api.reportHealth(category: "realtime", message: "Realtime connection dropped: \(error.localizedDescription)", source: "HaloRealtimeService", activationToken: activationToken) }
-            }
-            scheduleReconnect()
+            handleSocketFailure(error)
         }
     }
 
@@ -170,6 +172,8 @@ final class HaloRealtimeService: ObservableObject {
 
         case "authenticated":
             reconnectAttempt = 0
+            fallbackCursor = nil
+            stopFallback()
             state = .connected
             lastError = nil
             lastEventAt = Date()
@@ -190,19 +194,47 @@ final class HaloRealtimeService: ObservableObject {
             state = .expired
             lastError = "This device activation expired. Activate HALO again."
             if let activationToken {
-                Task { await api.reportHealth(category: "realtime", message: "Native realtime session expired.", severity: "high", source: "HaloRealtimeService", activationToken: activationToken) }
+                Task {
+                    await api.reportHealth(
+                        category: "realtime",
+                        message: "Native realtime session expired.",
+                        severity: "high",
+                        source: "HaloRealtimeService",
+                        activationToken: activationToken
+                    )
+                }
             }
             stopSocket(clearToken: false)
+            stopFallback()
 
         case "error":
             lastError = raw["message"] as? String ?? "HALO realtime is temporarily unavailable."
 
         case "pong":
-            break
+            lastEventAt = Date()
 
         default:
             break
         }
+    }
+
+    private func handleSocketFailure(_ error: Error) {
+        lastError = error.localizedDescription
+        state = .reconnecting
+
+        if let activationToken, Date().timeIntervalSince(lastHealthReportAt) >= 300 {
+            lastHealthReportAt = Date()
+            Task {
+                await api.reportHealth(
+                    category: "realtime",
+                    message: "Realtime connection dropped: \(error.localizedDescription)",
+                    source: "HaloRealtimeService",
+                    activationToken: activationToken
+                )
+            }
+        }
+
+        scheduleReconnect()
     }
 
     private func sendAuth(_ token: String) {
@@ -221,12 +253,8 @@ final class HaloRealtimeService: ObservableObject {
         socket.send(.string(text)) { [weak self] error in
             guard let error else { return }
             Task { @MainActor in
-                guard let self else { return }
-                self.lastError = error.localizedDescription
-                if self.state != .expired {
-                    self.state = .reconnecting
-                    self.scheduleReconnect()
-                }
+                guard let self, self.state != .expired else { return }
+                self.handleSocketFailure(error)
             }
         }
     }
@@ -236,17 +264,13 @@ final class HaloRealtimeService: ObservableObject {
         guard reconnectTask == nil else { return }
 
         reconnectAttempt += 1
-        let pollingFallback = reconnectAttempt >= 3
-        let delay = pollingFallback
+        let shouldFallback = reconnectAttempt >= 2
+        let delay = shouldFallback
             ? 60.0
-            : min(pow(1.7, Double(max(0, reconnectAttempt - 1))), 15.0)
+            : min(pow(1.7, Double(max(0, reconnectAttempt - 1))), 8.0)
 
-        // A flaky WebSocket must never make the field app unusable. After three
-        // consecutive failures, expose the service as stopped so RootView uses its
-        // 15-second HTTP refresh path, then quietly retry realtime later.
-        if pollingFallback {
-            state = .stopped
-            lastError = "Live socket unavailable — HALO is using resilient polling."
+        if shouldFallback {
+            beginFallbackPolling()
         }
 
         reconnectTask = Task { [weak self] in
@@ -259,6 +283,77 @@ final class HaloRealtimeService: ObservableObject {
                 self.connect()
             }
         }
+    }
+
+    private func beginFallbackPolling() {
+        guard fallbackTask == nil,
+              let activationToken,
+              !activationToken.isEmpty,
+              state != .expired else { return }
+
+        fallbackTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                await self.pollFallbackOnce()
+                try? await Task.sleep(for: .seconds(5))
+            }
+        }
+    }
+
+    private func pollFallbackOnce() async {
+        guard let activationToken, !activationToken.isEmpty, state != .expired else { return }
+
+        do {
+            let next = try await api.fetchRealtimeCursor(activationToken: activationToken)
+            let previous = fallbackCursor
+            fallbackCursor = next
+            lastEventAt = Date()
+            state = .connected
+            lastError = nil
+
+            guard let previous else {
+                NotificationCenter.default.post(
+                    name: .haloDataInvalidated,
+                    object: ["source": "cursor_poll", "scopes": ["jobs", "messages", "live"]]
+                )
+                return
+            }
+
+            var scopes: [String] = []
+            if previous.jobs != next.jobs { scopes.append("jobs") }
+            if previous.messages != next.messages { scopes.append("messages") }
+            if previous.live != next.live { scopes.append("live") }
+
+            if !scopes.isEmpty {
+                NotificationCenter.default.post(
+                    name: .haloDataInvalidated,
+                    object: ["source": "cursor_poll", "scopes": scopes]
+                )
+            }
+        } catch let error as HaloAPIError {
+            if case let .http(status, _) = error, status == 401 || status == 403 {
+                state = .expired
+                lastError = "This device activation expired. Activate HALO again."
+                stopFallback()
+                stopSocket(clearToken: false)
+                return
+            }
+            if socket == nil {
+                state = .reconnecting
+                lastError = "Live sync is reconnecting…"
+            }
+        } catch {
+            if socket == nil {
+                state = .reconnecting
+                lastError = "Live sync is reconnecting…"
+            }
+        }
+    }
+
+    private func stopFallback() {
+        fallbackTask?.cancel()
+        fallbackTask = nil
+        fallbackCursor = nil
     }
 
     private func stopSocket(clearToken: Bool, cancelReconnect: Bool = true) {
