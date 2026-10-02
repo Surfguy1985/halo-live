@@ -39,6 +39,10 @@ jobs:
         working-directory: NativeiOS
         run: bash scripts/app-store-readiness.sh
 
+      - name: Native crash-safety audit
+        working-directory: NativeiOS
+        run: bash scripts/native-safety-audit.sh
+
       - name: Pick available iPhone simulator
         id: simulator
         run: |
