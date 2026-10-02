@@ -97,6 +97,13 @@ fi
 echo "Verifying runnable HaloField scheme..."
 xcodebuild -project HaloField.xcodeproj -list | sed -n '/Schemes:/,$p'
 
+echo "Verifying XcodeGen left tracked metadata clean..."
+git diff --exit-code -- HaloField/Info.plist HaloField/HaloField.entitlements HaloFieldWidgets/Info.plist >/dev/null || {
+  echo "ERROR: XcodeGen changed tracked native metadata."
+  git diff -- HaloField/Info.plist HaloField/HaloField.entitlements HaloFieldWidgets/Info.plist
+  exit 1
+}
+
 UDID="$(xcrun simctl list devices booted -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next((x["udid"] for rows in d.values() for x in rows if x.get("state")=="Booted" and "iPhone" in x.get("name","")), ""))')"
 
 if [ -z "$UDID" ]; then
