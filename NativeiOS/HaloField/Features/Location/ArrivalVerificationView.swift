@@ -551,12 +551,15 @@ struct ArrivalVerificationView: View {
     }
 
     private func verifiedJPEG(_ image: UIImage) -> Data? {
-        for quality in [0.72, 0.60, 0.48, 0.36] {
-            if let data = image.jpegData(compressionQuality: quality),
-               data.count <= 4 * 1024 * 1024 {
-                return data
-            }
+        do {
+            return try HaloImagePipeline.normalizedJPEG(
+                from: image,
+                maxPixelSize: 2200,
+                maxBytes: 3_000_000
+            )
+        } catch {
+            message = error.localizedDescription
+            return nil
         }
-        return nil
     }
 }
