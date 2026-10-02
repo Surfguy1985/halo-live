@@ -3,7 +3,7 @@ import ImageIO
 import UIKit
 import UniformTypeIdentifiers
 
-enum HaloImagePipelineError: LocalizedError {
+enum HaloImagePipelineError: LocalizedError, Equatable {
     case emptyData
     case sourceTooLarge
     case unreadableImage
