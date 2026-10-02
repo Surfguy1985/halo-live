@@ -66,6 +66,23 @@ echo "Verifying project and scheme..."
 test -f HaloField.xcodeproj/project.pbxproj
 xcodebuild -project HaloField.xcodeproj -list | sed -n '/Schemes:/,$p'
 
+echo "Verifying XcodeGen did not mutate tracked native metadata..."
+git diff --exit-code -- HaloField/Info.plist HaloField/HaloField.entitlements HaloFieldWidgets/Info.plist >/dev/null || {
+  echo "ERROR: XcodeGen changed a tracked plist/entitlements file. Refusing to open a dirty native project."
+  git diff -- HaloField/Info.plist HaloField/HaloField.entitlements HaloFieldWidgets/Info.plist
+  exit 1
+}
+
+grep -q '\$(APS_ENVIRONMENT)' HaloField/HaloField.entitlements || {
+  echo "ERROR: APNs entitlement is not wired to APS_ENVIRONMENT."
+  exit 1
+}
+
+grep -q 'CODE_SIGN_STYLE: Automatic' project.yml || {
+  echo "ERROR: Native target is not configured for automatic signing."
+  exit 1
+}
+
 echo "Opening exact native HALO project..."
 open -a Xcode "$SCRIPT_DIR/HaloField.xcodeproj"
 
