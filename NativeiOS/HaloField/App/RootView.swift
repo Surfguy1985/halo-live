@@ -477,12 +477,16 @@ private struct ProfileView: View {
         profilePhotoBusy = true
         defer { profilePhotoBusy = false; selectedProfilePhoto = nil }
         do {
-            guard let raw = try await item.loadTransferable(type: Data.self),
-                  let image = UIImage(data: raw),
-                  let jpeg = image.jpegData(compressionQuality: 0.88) else {
-                profilePhotoError = "That photo could not be loaded."; return
+            guard let raw = try await item.loadTransferable(type: Data.self) else {
+                throw HaloImagePipelineError.emptyData
             }
-            guard jpeg.count <= 5 * 1024 * 1024 else { profilePhotoError = "Profile photo must be 5 MB or smaller."; return }
+            let jpeg = try await Task.detached(priority: .userInitiated) {
+                try HaloImagePipeline.normalizedJPEG(
+                    fromEncodedData: raw,
+                    maxPixelSize: 1600,
+                    maxBytes: 2_000_000
+                )
+            }.value
             let profile = try await HaloAPI.shared.uploadProfilePhoto(imageData: jpeg, activationToken: token)
             profilePhotoURL = profile.url
             profilePhotoError = nil
