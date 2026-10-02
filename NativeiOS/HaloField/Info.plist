@@ -1,17 +1,32 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-<key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-<key>CFBundleName</key><string>$(PRODUCT_NAME)</string>
-<key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>1.0.0</string>
-<key>CFBundleVersion</key><string>2</string>
-<key>CFBundleURLTypes</key>
-<array>
-  <dict>
-    <key>CFBundleURLName</key><string>com.archangel.halofield.activation</string>
-    <key>CFBundleURLSchemes</key>
-    <array><string>halo</string></array>
-  </dict>
-</array>
-</dict></plist>
+<plist version="1.0">
+<dict>
+    <key>CFBundleDisplayName</key><string>HALO</string>
+    <key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleName</key><string>$(PRODUCT_NAME)</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>1.0.0</string>
+    <key>CFBundleVersion</key><string>2</string>
+    <key>LSApplicationCategoryType</key><string>public.app-category.business</string>
+    <key>UILaunchScreen</key><dict/>
+    <key>NSSupportsLiveActivities</key><true/>
+    <key>NSCameraUsageDescription</key><string>HALO uses the camera to document verified field work.</string>
+    <key>NSLocationWhenInUseUsageDescription</key><string>HALO uses your location to verify job check-in and route you to assigned work.</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key><string>HALO uses background location only while you explicitly share live crew location with the office.</string>
+    <key>NSPhotoLibraryUsageDescription</key><string>HALO lets you attach existing job photos when needed.</string>
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>location</string>
+        <string>remote-notification</string>
+    </array>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key><string>com.archangel.halofield.activation</string>
+            <key>CFBundleURLSchemes</key>
+            <array><string>halo</string></array>
+        </dict>
+    </array>
+</dict>
+</plist>
