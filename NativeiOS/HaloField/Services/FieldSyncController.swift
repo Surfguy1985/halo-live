@@ -175,9 +175,11 @@ final class FieldSyncController: ObservableObject {
                 let capturedAt = ISO8601DateFormatter().date(from: capturedText)
             else { throw HaloAPIError.malformedPayload }
             let bytes = try Data(contentsOf: URL(fileURLWithPath: imagePath))
+            let attendanceOnly = (raw["attendanceOnly"] as? String) == "true" || (raw["attendanceOnly"] as? Bool) == true
             try await api.replayClockPunch(
                 kind: kind,
                 jobID: action.jobID,
+                attendanceOnly: attendanceOnly,
                 imageData: bytes,
                 latitude: latitude,
                 longitude: longitude,
