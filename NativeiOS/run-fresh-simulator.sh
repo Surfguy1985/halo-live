@@ -6,6 +6,7 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BRANCH="ios-swift-native-v1"
 BUNDLE_ID="com.archangel.halofield"
 LEGACY_BUNDLE_ID="com.archangel.halolive"
+EXPECTED_STAMP="NATIVE-PHOTO-MAP-R4"
 
 # First pass: make the local checkout exactly match the remote native branch.
 # Any local work is preserved in an automatic stash before the reset.
@@ -64,12 +65,34 @@ if ! command -v xcodegen >/dev/null 2>&1; then
   exit 1
 fi
 
+echo "Verifying required native photo/map sources..."
+for required in \
+  "HaloField/Features/Camera/CameraProofView.swift" \
+  "HaloField/Features/Map/ManagerLiveView.swift" \
+  "HaloField/Models/HaloMapGeofence.swift" \
+  "HaloField/Design/HaloPremiumMotion.swift"; do
+  if [ ! -f "$required" ]; then
+    echo "ERROR: Missing required native source: $required"
+    exit 1
+  fi
+done
+
+if ! grep -q "$EXPECTED_STAMP" "HaloField/App/HaloBuildStamp.swift"; then
+  echo "ERROR: Local source does not contain expected build stamp $EXPECTED_STAMP"
+  exit 1
+fi
+
 echo "Purging generated Xcode project and build caches..."
 rm -rf HaloField.xcodeproj "$DERIVED"
 find "$GLOBAL_DERIVED" -maxdepth 1 -type d -name 'HaloField-*' -prune -exec rm -rf {} + 2>/dev/null || true
 
 echo "Generating HaloField.xcodeproj from the synced project.yml..."
 xcodegen generate
+
+if [ ! -f "HaloField.xcodeproj/project.pbxproj" ]; then
+  echo "ERROR: Xcode project generation failed."
+  exit 1
+fi
 
 echo "Verifying runnable HaloField scheme..."
 xcodebuild -project HaloField.xcodeproj -list | sed -n '/Schemes:/,$p'
@@ -117,9 +140,15 @@ echo "Installed app container: $INSTALLED_BUNDLE"
 echo "Launching $BUNDLE_ID..."
 xcrun simctl launch "$UDID" "$BUNDLE_ID"
 
+echo "Opening the exact regenerated native Xcode project..."
+open -a Xcode "$PWD/HaloField.xcodeproj" >/dev/null 2>&1 || true
+
 echo
 echo "SUCCESS: REMOTE-SYNCED HALO FIELD NATIVE build launched."
 echo "Native source commit: $(git rev-parse HEAD)"
 echo "Bundle launched: $BUNDLE_ID"
-echo "Open Me and confirm the DEBUG build stamp starts with PREMIUM-UI."
-echo "Expected nav: Today · Jobs · HALO · Live(if authorized) · Me"
+echo "Expected DEBUG build stamp in Me: $EXPECTED_STAMP"
+echo "Expected nav: Today · Jobs · Messages · Live(if authorized) · Me"
+echo "Photo proof source: CameraProofView.swift"
+echo "Live map source: ManagerLiveView.swift + HaloMapGeofence.swift"
+echo "If Xcode was already open and prompts about an external project change, choose the version ON DISK."
