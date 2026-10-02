@@ -6,7 +6,7 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BRANCH="ios-swift-native-v1"
 BUNDLE_ID="com.archangel.halofield"
 LEGACY_BUNDLE_ID="com.archangel.halolive"
-EXPECTED_STAMP="NATIVE-PHOTO-MAP-R4"
+EXPECTED_STAMP="NATIVE-CLOCK-HARVEST-R6"
 
 # First pass: make the local checkout exactly match the remote native branch.
 # Any local work is preserved in an automatic stash before the reset.
