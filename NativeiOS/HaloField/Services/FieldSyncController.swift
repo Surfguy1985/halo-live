@@ -50,6 +50,25 @@ final class FieldSyncController: ObservableObject {
                 queue.remove(action, context: context)
             } catch {
                 let message = error.localizedDescription
+
+                // The live Unit record is authoritative. If an offline action refers
+                // to a task/schema state that no longer exists, or a speculative
+                // workflow advance is rejected by current server gates, do not trap
+                // the iPhone in a permanent red "sync failed" state. Drop only these
+                // known superseded actions and let the next live refresh repaint UI.
+                if shouldDiscardSuperseded(action: action, error: error, message: message) {
+                    queue.remove(action, context: context)
+                    lastError = nil
+                    await api.reportHealth(
+                        category: "offline_queue",
+                        message: "Discarded superseded queued \(action.kind) action after server reconciliation: \(message)",
+                        source: "FieldSyncController",
+                        jobID: action.jobID.isEmpty ? nil : action.jobID,
+                        activationToken: activationToken
+                    )
+                    continue
+                }
+
                 if let apiError = error as? HaloAPIError,
                    case let .http(status, _) = apiError,
                    status >= 400, status < 500,
@@ -116,10 +135,11 @@ final class FieldSyncController: ObservableObject {
 
             let imageURL = URL(fileURLWithPath: imagePath)
             let metadataURL = URL(fileURLWithPath: metadataPath)
-            let bytes = try Data(contentsOf: imageURL)
+            let bytes = try await Self.readFileData(imageURL)
+            let metadataData = try await Self.readFileData(metadataURL)
             let metadata = try JSONDecoder().decode(
                 ProofMetadata.self,
-                from: Data(contentsOf: metadataURL)
+                from: metadataData
             )
 
             try await api.uploadProof(
@@ -148,8 +168,11 @@ final class FieldSyncController: ObservableObject {
             let text = raw["text"] as? String ?? ""
             let channel = raw["channel"] as? String
             let attachmentPath = raw["attachmentPath"] as? String
-            let attachmentData = try attachmentPath.flatMap { path in
-                try Data(contentsOf: URL(fileURLWithPath: path))
+            let attachmentData: Data?
+            if let attachmentPath {
+                attachmentData = try await Self.readFileData(URL(fileURLWithPath: attachmentPath))
+            } else {
+                attachmentData = nil
             }
             try await api.sendMessage(
                 text: text,
@@ -174,7 +197,7 @@ final class FieldSyncController: ObservableObject {
                 let capturedText = raw["capturedAt"] as? String,
                 let capturedAt = ISO8601DateFormatter().date(from: capturedText)
             else { throw HaloAPIError.malformedPayload }
-            let bytes = try Data(contentsOf: URL(fileURLWithPath: imagePath))
+            let bytes = try await Self.readFileData(URL(fileURLWithPath: imagePath))
             let attendanceOnly = (raw["attendanceOnly"] as? String) == "true" || (raw["attendanceOnly"] as? Bool) == true
             try await api.replayClockPunch(
                 kind: kind,
@@ -201,7 +224,7 @@ final class FieldSyncController: ObservableObject {
                 let capturedAt = ISO8601DateFormatter().date(from: capturedText)
             else { throw HaloAPIError.malformedPayload }
 
-            let bytes = try Data(contentsOf: URL(fileURLWithPath: imagePath))
+            let bytes = try await Self.readFileData(URL(fileURLWithPath: imagePath))
             _ = try await api.verifyCheckIn(
                 jobID: action.jobID,
                 latitude: latitude,
@@ -215,4 +238,33 @@ final class FieldSyncController: ObservableObject {
             await OfflineMediaStore.shared.remove(path: imagePath)
         }
     }
+    private func shouldDiscardSuperseded(action: PendingFieldAction, error: Error, message: String) -> Bool {
+        guard let apiError = error as? HaloAPIError,
+              case let .http(status, _) = apiError else { return false }
+
+        let lower = message.lowercased()
+        if action.kind == PendingActionKind.taskToggle.rawValue {
+            return (status == 400 || status == 409) && (
+                lower.contains("unknown task")
+                || lower.contains("task no longer exists")
+                || lower.contains("checklist item no longer exists")
+            )
+        }
+
+        if action.kind == PendingActionKind.workflowState.rawValue, status == 409 {
+            return lower.contains("finish every required")
+                || lower.contains("finish every checklist")
+                || lower.contains("before review")
+                || lower.contains("unsupported workflow")
+        }
+
+        return false
+    }
+
+    nonisolated private static func readFileData(_ url: URL) async throws -> Data {
+        try await Task.detached(priority: .utility) {
+            try Data(contentsOf: url, options: [.mappedIfSafe])
+        }.value
+    }
+
 }
