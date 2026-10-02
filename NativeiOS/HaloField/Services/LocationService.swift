@@ -6,6 +6,8 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
     @Published private(set) var location: CLLocation?
     @Published private(set) var authorization: CLAuthorizationStatus = .notDetermined
     @Published private(set) var errorMessage: String?
+    @Published private(set) var attendanceTrackingActive = false
+    @Published private(set) var liveSharingActive = false
 
     private let manager = CLLocationManager()
 
@@ -54,23 +56,52 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
 
     func startLiveSharing() {
         errorMessage = nil
-        if authorization == .authorizedWhenInUse {
-            manager.requestAlwaysAuthorization()
-        }
-        manager.desiredAccuracy = kCLLocationAccuracyBest
-        manager.distanceFilter = 20
-        manager.pausesLocationUpdatesAutomatically = false
-        manager.allowsBackgroundLocationUpdates = true
-        manager.showsBackgroundLocationIndicator = true
-        manager.startUpdatingLocation()
+        liveSharingActive = true
+        requestBackgroundPermissionIfNeeded()
+        applyBackgroundTrackingState()
     }
 
     func stopLiveSharing() {
-        manager.stopUpdatingLocation()
-        manager.allowsBackgroundLocationUpdates = false
-        manager.showsBackgroundLocationIndicator = false
-        manager.pausesLocationUpdatesAutomatically = true
-        manager.distanceFilter = kCLDistanceFilterNone
+        liveSharingActive = false
+        applyBackgroundTrackingState()
+    }
+
+    func startAttendanceTracking() {
+        errorMessage = nil
+        attendanceTrackingActive = true
+        requestBackgroundPermissionIfNeeded()
+        applyBackgroundTrackingState()
+    }
+
+    func stopAttendanceTracking() {
+        attendanceTrackingActive = false
+        applyBackgroundTrackingState()
+    }
+
+    private func requestBackgroundPermissionIfNeeded() {
+        if authorization == .notDetermined {
+            manager.requestWhenInUseAuthorization()
+        } else if authorization == .authorizedWhenInUse {
+            manager.requestAlwaysAuthorization()
+        }
+    }
+
+    private func applyBackgroundTrackingState() {
+        let backgroundRequired = attendanceTrackingActive || liveSharingActive
+        if backgroundRequired {
+            manager.desiredAccuracy = kCLLocationAccuracyBest
+            manager.distanceFilter = 20
+            manager.pausesLocationUpdatesAutomatically = false
+            manager.allowsBackgroundLocationUpdates = true
+            manager.showsBackgroundLocationIndicator = true
+            manager.startUpdatingLocation()
+        } else {
+            manager.allowsBackgroundLocationUpdates = false
+            manager.showsBackgroundLocationIndicator = false
+            manager.pausesLocationUpdatesAutomatically = true
+            manager.distanceFilter = kCLDistanceFilterNone
+            manager.stopUpdatingLocation()
+        }
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
@@ -79,6 +110,10 @@ final class LocationService: NSObject, ObservableObject, CLLocationManagerDelega
             if authorization == .authorizedWhenInUse || authorization == .authorizedAlways {
                 self.manager.desiredAccuracy = kCLLocationAccuracyBest
                 self.manager.requestLocation()
+                if self.attendanceTrackingActive || self.liveSharingActive {
+                    self.requestBackgroundPermissionIfNeeded()
+                    self.applyBackgroundTrackingState()
+                }
             }
         }
     }
