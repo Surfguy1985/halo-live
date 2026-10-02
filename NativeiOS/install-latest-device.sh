@@ -1,0 +1,127 @@
+#!/bin/bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+BRANCH="ios-swift-native-v1"
+BUNDLE_ID="com.archangel.halofield"
+DERIVED="$SCRIPT_DIR/.iphone-install-derived-data"
+
+echo "== HALO CLEAN IPHONE INSTALL =="
+echo "Pull exact remote HEAD -> regenerate Xcode -> sign -> clean install -> launch"
+
+if [ ! -d "/Applications/Xcode.app" ]; then
+  echo "ERROR: Xcode.app is not installed in /Applications."
+  exit 2
+fi
+
+export DEVELOPER_DIR="/Applications/Xcode.app/Contents/Developer"
+
+if pgrep -x Xcode >/dev/null 2>&1; then
+  osascript -e 'tell application "Xcode" to quit' >/dev/null 2>&1 || true
+  sleep 2
+fi
+
+cd "$ROOT"
+git fetch --prune origin "$BRANCH"
+
+if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+  BACKUP="halo-before-device-install-$(date +%Y%m%d-%H%M%S)"
+  echo "Preserving local changes in stash: $BACKUP"
+  git stash push -u -m "$BACKUP"
+fi
+
+git switch "$BRANCH"
+if [ "$(git rev-list --count "origin/$BRANCH..HEAD")" -gt 0 ]; then
+  BACKUP_BRANCH="halo-local-commit-backup-$(date +%Y%m%d-%H%M%S)"
+  git branch "$BACKUP_BRANCH" HEAD
+  echo "Preserved local commits on $BACKUP_BRANCH"
+fi
+git reset --hard "origin/$BRANCH"
+
+LOCAL="$(git rev-parse HEAD)"
+REMOTE="$(git rev-parse "origin/$BRANCH")"
+[ "$LOCAL" = "$REMOTE" ] || { echo "ERROR: local HEAD does not match remote HEAD."; exit 1; }
+
+cd "$SCRIPT_DIR"
+command -v xcodegen >/dev/null 2>&1 || {
+  echo "ERROR: XcodeGen is required. Install it with: brew install xcodegen"
+  exit 2
+}
+
+echo "Detecting connected iPhone..."
+DEVICE_ID="${HALO_DEVICE_ID:-}"
+if [ -z "$DEVICE_ID" ]; then
+  DEVICE_ID="$(xcrun xctrace list devices 2>/dev/null | sed -nE '/iPhone.*\([0-9A-Fa-f-]{20,}\)$/ { s/.*\(([0-9A-Fa-f-]{20,})\)$/\1/p; q; }')"
+fi
+
+if [ -z "$DEVICE_ID" ]; then
+  echo "ERROR: No connected physical iPhone was detected."
+  echo "Unlock the iPhone, connect USB, tap Trust, enable Developer Mode, then rerun."
+  echo "You can also run: HALO_DEVICE_ID=<UDID> bash install-latest-device.sh"
+  exit 3
+fi
+
+echo "iPhone: $DEVICE_ID"
+
+TEAM="${HALO_DEVELOPMENT_TEAM:-}"
+if [ -z "$TEAM" ]; then
+  TEAM="$(security find-identity -v -p codesigning 2>/dev/null | sed -nE 's/.*Apple Development:.*\(([A-Z0-9]{10})\).*/\1/p' | head -1)"
+fi
+
+if [ -z "$TEAM" ]; then
+  echo "ERROR: No Apple Development signing team/certificate was found."
+  echo "Open Xcode > Settings > Accounts, sign in with your Apple ID, then create/download an Apple Development certificate."
+  echo "Or rerun with: HALO_DEVELOPMENT_TEAM=<TEAM_ID> bash install-latest-device.sh"
+  exit 4
+fi
+
+echo "Signing team: $TEAM"
+echo "Remote commit: $LOCAL"
+
+echo "Purging stale HALO projects and DerivedData..."
+rm -rf HaloField.xcodeproj "$DERIVED"
+find "$HOME/Library/Developer/Xcode/DerivedData" -maxdepth 1 -type d -name 'HaloField-*' -prune -exec rm -rf {} + 2>/dev/null || true
+
+echo "Regenerating Xcode project..."
+xcodegen generate
+
+echo "Building and signing for the connected iPhone..."
+xcodebuild \
+  -project HaloField.xcodeproj \
+  -scheme HaloField \
+  -configuration Debug \
+  -destination "id=$DEVICE_ID" \
+  -derivedDataPath "$DERIVED" \
+  -allowProvisioningUpdates \
+  -allowProvisioningDeviceRegistration \
+  DEVELOPMENT_TEAM="$TEAM" \
+  CODE_SIGN_STYLE=Automatic \
+  clean build
+
+APP="$DERIVED/Build/Products/Debug-iphoneos/HaloField.app"
+[ -d "$APP" ] || { echo "ERROR: Signed HALO app was not produced at $APP"; exit 5; }
+
+echo "Removing stale HALO install if present..."
+xcrun devicectl device uninstall app --device "$DEVICE_ID" "$BUNDLE_ID" >/dev/null 2>&1 || true
+
+echo "Installing signed HALO app..."
+xcrun devicectl device install app --device "$DEVICE_ID" "$APP"
+
+echo "Launching HALO..."
+if ! xcrun devicectl device process launch --device "$DEVICE_ID" "$BUNDLE_ID"; then
+  echo
+  echo "INSTALL SUCCEEDED, BUT iOS BLOCKED LAUNCH."
+  echo "On iPhone verify:"
+  echo "  1. Settings > Privacy & Security > Developer Mode = ON"
+  echo "  2. iPhone is unlocked and still connected/trusted"
+  echo "  3. If Settings shows VPN & Device Management / Developer App, trust your Apple ID"
+  echo "Then rerun this script. The app itself is already signed and installed."
+  exit 6
+fi
+
+echo
+echo "HALO INSTALLED + LAUNCHED"
+echo "Commit: $LOCAL"
+echo "Bundle: $BUNDLE_ID"
+echo "Device: $DEVICE_ID"
