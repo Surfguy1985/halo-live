@@ -106,6 +106,8 @@ struct HaloClockEntry: Hashable, Sendable {
     let pauseReason: String?
     let sessionType: String
     let gpsSessionID: String?
+    let harvestStatus: String?
+    let harvestEntryID: String?
 }
 
 struct HaloClockStatus: Hashable, Sendable {
@@ -740,7 +742,9 @@ actor HaloAPI {
                 workedMs: Self.int(row["workedMs"]) ?? 0,
                 pauseReason: Self.string(row["pauseReason"]),
                 sessionType: Self.string(row["sessionType"]) ?? "unit_work",
-                gpsSessionID: nil
+                gpsSessionID: nil,
+                harvestStatus: (row["harvestSync"] as? [String: Any]).flatMap { Self.string($0["status"]) },
+                harvestEntryID: (row["harvestSync"] as? [String: Any]).flatMap { Self.string($0["harvestEntryId"]) }
             )
         }()
 
@@ -821,7 +825,9 @@ actor HaloAPI {
             workedMs: Self.int(root["workedMs"]) ?? 0,
             pauseReason: kind == "pause" ? "break" : nil,
             sessionType: attendanceOnly ? "attendance" : "unit_work",
-            gpsSessionID: Self.string(root["gpsSessionId"])
+            gpsSessionID: Self.string(root["gpsSessionId"]),
+            harvestStatus: (root["harvest"] as? [String: Any]).flatMap { Self.string($0["status"]) },
+            harvestEntryID: (root["harvest"] as? [String: Any]).flatMap { Self.string($0["harvestEntryId"]) }
         )
     }
 
