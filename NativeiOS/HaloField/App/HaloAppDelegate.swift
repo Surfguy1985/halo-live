@@ -5,6 +5,7 @@ extension Notification.Name {
     static let haloAPNSDeviceToken = Notification.Name("halo.apns.device-token")
     static let haloAPNSRegistrationFailed = Notification.Name("halo.apns.registration-failed")
     static let haloOpenJob = Notification.Name("halo.push.open-job")
+    static let haloOpenJobs = Notification.Name("halo.native.open-jobs")
     static let haloOpenComms = Notification.Name("halo.push.open-comms")
     static let haloDataInvalidated = Notification.Name("halo.push.data-invalidated")
 }
