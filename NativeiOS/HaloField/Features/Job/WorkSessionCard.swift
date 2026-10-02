@@ -63,7 +63,9 @@ struct WorkSessionCard: View {
                         }
                     }
                 } else if let entry = status?.entry {
-                    if entry.jobID == job.id {
+                    if entry.attendanceOnly {
+                        attendanceShift(entry)
+                    } else if entry.jobID == job.id {
                         currentSession(entry)
                     } else {
                         HStack(spacing: 12) {
@@ -110,6 +112,44 @@ struct WorkSessionCard: View {
                     }
                 }
             }
+        }
+    }
+
+    private func attendanceShift(_ entry: HaloClockEntry) -> some View {
+        VStack(alignment: .leading, spacing: 13) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill((entry.running ? HaloTheme.fieldLive : HaloTheme.warning).opacity(0.12))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: entry.running ? "clock.badge.checkmark.fill" : "cup.and.saucer.fill")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(entry.running ? HaloTheme.fieldLive : HaloTheme.warning)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(entry.running ? "Daily time clock is running" : "Daily time clock is paused")
+                        .font(HaloType.body(14, weight: .bold))
+                        .foregroundStyle(.white)
+                    Text("This unit stays under your verified shift. Use the Clock tab for lunch, resume, or photo clock-out.")
+                        .font(HaloType.body(11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.44))
+                }
+                Spacer()
+            }
+
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text(elapsedText(entry: entry, now: context.date))
+                    .font(.system(size: 28, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(.white)
+            }
+
+            HaloStatusPill(
+                text: entry.running ? "SHIFT CLOCK LIVE" : (entry.pauseReason == "lunch" ? "ON LUNCH" : "SHIFT PAUSED"),
+                tint: entry.running ? HaloTheme.fieldLive : HaloTheme.warning,
+                icon: entry.running ? "location.fill" : "pause.fill"
+            )
         }
     }
 
