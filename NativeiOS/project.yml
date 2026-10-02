@@ -17,11 +17,6 @@ targets:
       - HaloShared
     info:
       path: HaloFieldWidgets/Info.plist
-      properties:
-        CFBundleDisplayName: HALO
-        CFBundlePackageType: XPC!
-        NSExtension:
-          NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.archangel.halofield.widgets
@@ -39,28 +34,8 @@ targets:
         embed: true
     info:
       path: HaloField/Info.plist
-      properties:
-        CFBundleDisplayName: HALO
-        CFBundleShortVersionString: "1.0.0"
-        CFBundleVersion: "2"
-        LSApplicationCategoryType: public.app-category.business
-        UILaunchScreen: {}
-        NSSupportsLiveActivities: YES
-        NSCameraUsageDescription: HALO uses the camera to document verified field work.
-        NSLocationWhenInUseUsageDescription: HALO uses your location to verify job check-in and route you to assigned work.
-        NSLocationAlwaysAndWhenInUseUsageDescription: HALO uses background location only while you explicitly share live crew location with the office.
-        NSPhotoLibraryUsageDescription: HALO lets you attach existing job photos when needed.
-        UIBackgroundModes:
-          - location
-          - remote-notification
-        CFBundleURLTypes:
-          - CFBundleURLName: com.archangel.halofield.activation
-            CFBundleURLSchemes:
-              - halo
     entitlements:
       path: HaloField/HaloField.entitlements
-      properties:
-        aps-environment: "$(APS_ENVIRONMENT)"
     settings:
       base:
         TARGETED_DEVICE_FAMILY: "1"
