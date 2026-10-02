@@ -3,6 +3,6 @@
 <plist version="1.0">
 <dict>
     <key>aps-environment</key>
-    <string>$(APNS_ENVIRONMENT)</string>
+    <string>$(APS_ENVIRONMENT)</string>
 </dict>
 </plist>
