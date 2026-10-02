@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BRANCH="ios-swift-native-v1"
-EXPECTED_STAMP="NATIVE-PHOTO-MAP-R4"
+EXPECTED_STAMP="NATIVE-LIVE-STABILITY-R7"
 
 cd "$ROOT"
 
