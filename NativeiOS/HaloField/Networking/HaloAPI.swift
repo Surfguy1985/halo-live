@@ -85,6 +85,13 @@ struct HaloClockAnchor: Hashable, Sendable {
     let radius: Double
 }
 
+struct HaloClockTracking: Hashable, Sendable {
+    let sessionID: String
+    let active: Bool
+    let capturedAt: String?
+    let accuracy: Double?
+}
+
 struct HaloClockEntry: Hashable, Sendable {
     let id: String
     let jobID: String?
@@ -98,6 +105,7 @@ struct HaloClockEntry: Hashable, Sendable {
     let workedMs: Int
     let pauseReason: String?
     let sessionType: String
+    let gpsSessionID: String?
 }
 
 struct HaloClockStatus: Hashable, Sendable {
@@ -107,6 +115,7 @@ struct HaloClockStatus: Hashable, Sendable {
     let todayWorkedMs: Int
     let latestPhotoURL: String?
     let anchor: HaloClockAnchor?
+    let gpsTracking: HaloClockTracking?
     let entry: HaloClockEntry?
 }
 
@@ -730,7 +739,8 @@ actor HaloAPI {
                 startedAt: Self.string(row["startedAt"]),
                 workedMs: Self.int(row["workedMs"]) ?? 0,
                 pauseReason: Self.string(row["pauseReason"]),
-                sessionType: Self.string(row["sessionType"]) ?? "unit_work"
+                sessionType: Self.string(row["sessionType"]) ?? "unit_work",
+                gpsSessionID: nil
             )
         }()
 
@@ -742,6 +752,17 @@ actor HaloAPI {
             return HaloClockAnchor(latitude: latitude, longitude: longitude, radius: Self.double(row["radius"]) ?? 500)
         }()
 
+        let gpsTracking: HaloClockTracking? = {
+            guard let row = root["gpsTracking"] as? [String: Any],
+                  let sessionID = Self.string(row["sessionId"]) else { return nil }
+            return HaloClockTracking(
+                sessionID: sessionID,
+                active: (row["active"] as? Bool) ?? false,
+                capturedAt: Self.string(row["capturedAt"]),
+                accuracy: Self.double(row["accuracy"])
+            )
+        }()
+
         return HaloClockStatus(
             configured: configured,
             employeeID: employeeID,
@@ -749,6 +770,7 @@ actor HaloAPI {
             todayWorkedMs: Self.int(root["todayWorkedMs"]) ?? 0,
             latestPhotoURL: Self.string(root["latestPhotoURL"]),
             anchor: anchor,
+            gpsTracking: gpsTracking,
             entry: entry
         )
     }
@@ -798,7 +820,8 @@ actor HaloAPI {
             startedAt: nil,
             workedMs: Self.int(root["workedMs"]) ?? 0,
             pauseReason: kind == "pause" ? "break" : nil,
-            sessionType: attendanceOnly ? "attendance" : "unit_work"
+            sessionType: attendanceOnly ? "attendance" : "unit_work",
+            gpsSessionID: Self.string(root["gpsSessionId"])
         )
     }
 
