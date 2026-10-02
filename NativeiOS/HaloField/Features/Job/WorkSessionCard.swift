@@ -145,11 +145,16 @@ struct WorkSessionCard: View {
                     .foregroundStyle(.white)
             }
 
-            HaloStatusPill(
-                text: entry.running ? "SHIFT CLOCK LIVE" : (entry.pauseReason == "lunch" ? "ON LUNCH" : "SHIFT PAUSED"),
-                tint: entry.running ? HaloTheme.fieldLive : HaloTheme.warning,
-                icon: entry.running ? "location.fill" : "pause.fill"
-            )
+            HStack(spacing: 8) {
+                HaloStatusPill(
+                    text: entry.running ? "SHIFT CLOCK LIVE" : (entry.pauseReason == "lunch" ? "ON LUNCH" : "SHIFT PAUSED"),
+                    tint: entry.running ? HaloTheme.fieldLive : HaloTheme.warning,
+                    icon: entry.running ? "location.fill" : "pause.fill"
+                )
+                if let harvest = entry.harvestStatus {
+                    harvestPill(harvest)
+                }
+            }
         }
     }
 
@@ -202,9 +207,28 @@ struct WorkSessionCard: View {
                 )
             }
 
-            Text("Every punch is verified with a live photo and fresh GPS. HALO Enforcer checks the action before paid time changes.")
+            HStack(spacing: 8) {
+                HaloStatusPill(text: "PHOTO + GPS VERIFIED", tint: HaloTheme.fieldLive, icon: "checkmark.shield.fill")
+                if let harvest = entry.harvestStatus { harvestPill(harvest) }
+            }
+
+            Text("HALO commits verified time first. Harvest mirrors the verified day total without ever blocking or losing the photo/GPS punch.")
                 .font(HaloType.body(9, weight: .medium))
-                .foregroundStyle(.white.opacity(0.32))
+                .foregroundStyle(.white.opacity(0.36))
+        }
+    }
+
+    @ViewBuilder
+    private func harvestPill(_ status: String) -> some View {
+        switch status {
+        case "synced":
+            HaloStatusPill(text: "HARVEST SYNCED", tint: HaloTheme.lime, icon: "checkmark.icloud.fill")
+        case "pending_config", "pending_user", "pending_connection":
+            HaloStatusPill(text: "HARVEST PENDING", tint: HaloTheme.warning, icon: "arrow.triangle.2.circlepath")
+        case "no_time":
+            HaloStatusPill(text: "HARVEST READY", tint: HaloTheme.actionBlue, icon: "clock")
+        default:
+            EmptyView()
         }
     }
 
@@ -297,6 +321,8 @@ private struct WorkPunchView: View {
     @State private var isSubmitting = false
     @State private var errorMessage: String?
     @State private var requestID = UUID()
+    @State private var completionTitle: String?
+    @State private var completionSubtitle = ""
 
     init(job: FieldJob, kind: String, onComplete: @escaping () -> Void) {
         self.job = job
@@ -310,7 +336,23 @@ private struct WorkPunchView: View {
             ZStack {
                 Color.black.ignoresSafeArea()
 
-                if let image = camera.capturedImage {
+                if let completionTitle {
+                    ZStack {
+                        HaloTheme.fieldBackground.ignoresSafeArea()
+                        RadialGradient(
+                            colors: [HaloTheme.lime.opacity(0.14), .clear],
+                            center: .center,
+                            startRadius: 20,
+                            endRadius: 420
+                        ).ignoresSafeArea()
+                        HaloMilestoneOverlay(
+                            title: completionTitle,
+                            subtitle: completionSubtitle,
+                            kind: .verified
+                        )
+                        .padding(24)
+                    }
+                } else if let image = camera.capturedImage {
                     review(image)
                 } else {
                     cameraView
@@ -591,7 +633,7 @@ private struct WorkPunchView: View {
             }
 
             do {
-                _ = try await HaloAPI.shared.punchClock(
+                let result = try await HaloAPI.shared.punchClock(
                     kind: kind,
                     jobID: job.id,
                     imageData: jpeg,
@@ -601,7 +643,12 @@ private struct WorkPunchView: View {
                 )
                 await MainActor.run {
                     isSubmitting = false
+                    completionTitle = kind == "submit" ? "Work verified" : (kind == "pause" ? "Break started" : (kind == "resume" ? "Work resumed" : "Clock started"))
+                    completionSubtitle = completionCopy(for: result.harvestStatus)
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
+                }
+                try? await Task.sleep(for: .milliseconds(850))
+                await MainActor.run {
                     onComplete()
                     dismiss()
                 }
@@ -620,6 +667,21 @@ private struct WorkPunchView: View {
                     UINotificationFeedbackGenerator().notificationOccurred(.error)
                 }
             }
+        }
+    }
+
+    private func completionCopy(for harvestStatus: String?) -> String {
+        switch harvestStatus {
+        case "synced":
+            return "Live photo + fresh GPS verified. HALO committed the punch and Harvest is updated."
+        case "pending_config":
+            return "Photo + GPS verified and safely committed. Harvest needs project/task setup; HALO retained the time."
+        case "pending_user":
+            return "Photo + GPS verified and safely committed. Harvest user mapping is pending; HALO retained the time."
+        case "pending_connection":
+            return "Photo + GPS verified and safely committed. Harvest will reconcile from HALO when the connection returns."
+        default:
+            return "Live photo + fresh GPS verified. HALO committed the paid-time change."
         }
     }
 
