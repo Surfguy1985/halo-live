@@ -51,6 +51,7 @@ struct HaloCommsView: View {
     @State private var pendingAttachmentCaption: String?
     @State private var showFileImporter = false
     @State private var isLoading = false
+    @State private var isPreparingAttachment = false
     @State private var isSending = false
     @State private var errorMessage: String?
     @State private var conversationMode: HaloConversationMode = .office
@@ -1135,46 +1136,66 @@ struct HaloCommsView: View {
 
     @MainActor
     private func loadCapturedPhoto(_ image: UIImage) {
-        guard let jpeg = image.jpegData(compressionQuality: 0.88) else {
-            errorMessage = "That photo could not be prepared."
-            return
-        }
-        guard jpeg.count <= 10 * 1024 * 1024 else {
-            errorMessage = "Message attachments must be 10 MB or smaller."
-            return
-        }
-        pendingAttachmentData = jpeg
-        pendingAttachmentName = "halo-camera-(Int(Date().timeIntervalSince1970)).jpg"
-        pendingAttachmentContentType = "image/jpeg"
-        pendingAttachmentPreview = image
-        pendingAttachmentCaption = nil
-        selectedPhotoItem = nil
+        guard !isPreparingAttachment else { return }
+        isPreparingAttachment = true
         errorMessage = nil
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        Task {
+            do {
+                let jpeg = try await Task.detached(priority: .userInitiated) {
+                    try HaloImagePipeline.normalizedJPEG(from: image)
+                }.value
+                guard let preview = UIImage(data: jpeg, scale: UIScreen.main.scale) else {
+                    throw HaloImagePipelineError.unreadableImage
+                }
+                await MainActor.run {
+                    pendingAttachmentData = jpeg
+                    pendingAttachmentName = "halo-camera-\(Int(Date().timeIntervalSince1970)).jpg"
+                    pendingAttachmentContentType = "image/jpeg"
+                    pendingAttachmentPreview = preview
+                    pendingAttachmentCaption = nil
+                    selectedPhotoItem = nil
+                    isPreparingAttachment = false
+                    errorMessage = nil
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                }
+            } catch {
+                await MainActor.run {
+                    isPreparingAttachment = false
+                    errorMessage = error.localizedDescription
+                    UINotificationFeedbackGenerator().notificationOccurred(.error)
+                }
+            }
+        }
     }
 
     @MainActor
     private func loadSelectedPhoto(_ item: PhotosPickerItem) async {
+        guard !isPreparingAttachment else { return }
+        isPreparingAttachment = true
+        errorMessage = nil
+        defer { isPreparingAttachment = false }
+
         do {
-            guard let raw = try await item.loadTransferable(type: Data.self),
-                  let image = UIImage(data: raw),
-                  let jpeg = image.jpegData(compressionQuality: 0.88)
-            else {
-                errorMessage = "That photo could not be loaded."
-                return
+            guard let raw = try await item.loadTransferable(type: Data.self) else {
+                throw HaloImagePipelineError.emptyData
             }
-            guard jpeg.count <= 10 * 1024 * 1024 else {
-                errorMessage = "Message attachments must be 10 MB or smaller."
-                return
+            let jpeg = try await Task.detached(priority: .userInitiated) {
+                try HaloImagePipeline.normalizedJPEG(fromEncodedData: raw)
+            }.value
+            guard let preview = UIImage(data: jpeg, scale: UIScreen.main.scale) else {
+                throw HaloImagePipelineError.unreadableImage
             }
             pendingAttachmentData = jpeg
             pendingAttachmentName = "halo-photo-\(Int(Date().timeIntervalSince1970)).jpg"
             pendingAttachmentContentType = "image/jpeg"
-            pendingAttachmentPreview = image
+            pendingAttachmentPreview = preview
             pendingAttachmentCaption = nil
+            selectedPhotoItem = nil
             errorMessage = nil
         } catch {
+            selectedPhotoItem = nil
             errorMessage = error.localizedDescription
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
         }
     }
 
