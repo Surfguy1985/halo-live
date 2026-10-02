@@ -19,6 +19,7 @@ struct NativeClockView: View {
     @State private var errorMessage: String?
     @State private var gpsExpanded = false
     @State private var helpExpanded = false
+    @State private var pendingAttendanceKind: String?
 
     var body: some View {
         ScrollView {
@@ -90,8 +91,26 @@ struct NativeClockView: View {
             .ignoresSafeArea()
         )
         .toolbar(.hidden, for: .navigationBar)
-        .task(id: session.activationToken) { await refresh() }
-        .refreshable { await refresh() }
+        .task(id: session.activationToken) {
+            refreshPending()
+            await refresh()
+        }
+        .task(id: network.isConnected) {
+            guard network.isConnected, let token = session.activationToken else { return }
+            await fieldSync.flush(context: modelContext, activationToken: token)
+            refreshPending()
+            await refresh()
+        }
+        .refreshable {
+            if network.isConnected, let token = session.activationToken {
+                await fieldSync.flush(context: modelContext, activationToken: token)
+            }
+            refreshPending()
+            await refresh()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .haloPendingActionCreated)) { _ in
+            refreshPending()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .haloDataInvalidated)) { note in
             guard network.isConnected else { return }
             if let payload = note.object as? [String: Any],
@@ -247,7 +266,36 @@ struct NativeClockView: View {
 
     @ViewBuilder
     private var attendanceActions: some View {
-        if let entry = status?.entry {
+        if let pendingAttendanceKind {
+            VStack(alignment: .leading, spacing: 11) {
+                Label("Saved verified punch", systemImage: "icloud.and.arrow.up.fill")
+                    .font(HaloType.body(12, weight: .bold))
+                    .foregroundStyle(HaloTheme.lime)
+                Text("\(pendingLabel(pendingAttendanceKind)) is securely saved on this iPhone and must sync before another time punch.")
+                    .font(HaloType.body(11, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.48))
+                if network.isConnected {
+                    Button {
+                        Task {
+                            guard let token = session.activationToken else { return }
+                            await fieldSync.flush(context: modelContext, activationToken: token)
+                            refreshPending()
+                            await refresh()
+                        }
+                    } label: {
+                        Label("Sync saved punch", systemImage: "arrow.triangle.2.circlepath")
+                            .font(HaloType.body(12, weight: .bold))
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .foregroundStyle(HaloTheme.ink)
+                            .background(HaloTheme.lime, in: Capsule())
+                    }
+                    .buttonStyle(HaloPressableStyle())
+                }
+            }
+            .padding(14)
+            .background(HaloTheme.lime.opacity(0.06), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(HaloTheme.lime.opacity(0.14)) }
+        } else if let entry = status?.entry {
             if entry.running {
                 actionButton(title: "Photo clock-out", icon: "camera.fill", primary: true) {
                     punchKind = "checkout"
@@ -366,6 +414,30 @@ struct NativeClockView: View {
         let minutes = (total % 3600) / 60
         let seconds = total % 60
         return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+    }
+
+    private func refreshPending() {
+        let pending = OfflineQueue.shared.scopedActions(in: modelContext, activationToken: session.activationToken)
+            .filter { $0.kind == PendingActionKind.clockPunch.rawValue && $0.jobID == "__attendance__" }
+            .sorted { $0.createdAt > $1.createdAt }
+            .first
+        guard let pending,
+              let object = try? JSONSerialization.jsonObject(with: pending.payload) as? [String: String]
+        else {
+            pendingAttendanceKind = nil
+            return
+        }
+        pendingAttendanceKind = object["kind"]
+    }
+
+    private func pendingLabel(_ kind: String) -> String {
+        switch kind {
+        case "start": "Photo clock-in"
+        case "pause": "Lunch punch"
+        case "resume": "Photo clock-in again"
+        case "checkout": "Photo clock-out"
+        default: "Time punch"
+        }
     }
 
     @MainActor
