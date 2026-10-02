@@ -391,7 +391,7 @@ private struct CrewMapBubble: View {
         VStack(spacing: 0) {
             HStack(spacing: 7) {
                 ZStack {
-                    if state == "live" { HaloPulseRing(tint: color).frame(width: 40, height: 40) }
+                    if state == "live" && selected { HaloPulseRing(tint: color).frame(width: 42, height: 42) }
                     CrewMapAvatar(crew: crew, size: selected ? 44 : 36)
                         .overlay { Circle().stroke(color, lineWidth: 2) }
                 }
