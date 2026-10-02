@@ -15,11 +15,11 @@ targets:
     sources:
       - HaloFieldWidgets
       - HaloShared
-    info:
-      path: HaloFieldWidgets/Info.plist
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.archangel.halofield.widgets
+        INFOPLIST_FILE: HaloFieldWidgets/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
         APPLICATION_EXTENSION_API_ONLY: YES
         SKIP_INSTALL: YES
 
@@ -32,13 +32,11 @@ targets:
     dependencies:
       - target: HaloFieldWidgets
         embed: true
-    info:
-      path: HaloField/Info.plist
-    entitlements:
-      path: HaloField/HaloField.entitlements
     settings:
       base:
         TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_FILE: HaloField/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
         APS_ENVIRONMENT: development
         SUPPORTS_MACCATALYST: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
