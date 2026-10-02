@@ -4,7 +4,7 @@
 - App name: HALO
 - Bundle ID: com.archangel.halofield
 - Version: 1.0.0
-- Build: 1
+- Build: 2
 - Primary category: Business
 - Minimum iOS: 17.0
 - Device family: iPhone

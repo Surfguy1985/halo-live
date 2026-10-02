@@ -40,11 +40,13 @@ struct CameraProofView: View {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 13, weight: .bold))
-                            .frame(width: 38, height: 38)
+                            .frame(width: 44, height: 44)
                             .background(.black.opacity(0.46))
                             .clipShape(Circle())
                     }
                     .foregroundStyle(.white)
+                    .accessibilityLabel("Close camera")
+                    .disabled(isSaving)
                 }
                 ToolbarItem(placement: .principal) { HaloLogo(height: 22) }
             }
@@ -55,6 +57,7 @@ struct CameraProofView: View {
                 camera.start()
             }
             .onDisappear { camera.stop() }
+            .interactiveDismissDisabled(isSaving)
         }
     }
 
@@ -155,6 +158,7 @@ struct CameraProofView: View {
                         .clipShape(Circle())
                 }
                 .foregroundStyle(.white)
+                .accessibilityLabel("Choose proof photo from library")
                 .onChange(of: pickerItem) { _, newValue in
                     Task {
                         guard
@@ -225,7 +229,7 @@ struct CameraProofView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(spacing: 8) {
                         metadataChip(icon: "clock.fill", text: Date().formatted(date: .omitted, time: .shortened))
-                        metadataChip(icon: "location.fill", text: location.location == nil ? "GPS pending" : "GPS verified")
+                        metadataChip(icon: "location.fill", text: location.location == nil ? "GPS pending" : "GPS recorded")
                         metadataChip(icon: "camera.fill", text: phase)
                     }
 
@@ -265,6 +269,7 @@ struct CameraProofView: View {
                         pickerItem = nil
                         camera.retake()
                     }
+                    .disabled(isSaving)
                     .font(HaloType.body(13, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.72))
                     .frame(maxWidth: .infinity, minHeight: 44)

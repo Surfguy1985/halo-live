@@ -116,6 +116,7 @@ struct HaloActivationInfo: Hashable, Sendable {
     let expiresAt: String?
     let nativePushDeliveryConfigured: Bool
     let managerLiveAccess: Bool
+    var officeAccess: Bool = false
 }
 
 struct HaloManagerLiveSummary: Hashable, Sendable {
@@ -191,7 +192,8 @@ actor HaloAPI {
             crewName: crewName,
             expiresAt: Self.string(root["expiresAt"]),
             nativePushDeliveryConfigured: (capabilities?["nativePushDeliveryConfigured"] as? Bool) ?? false,
-            managerLiveAccess: (capabilities?["managerLive"] as? Bool) ?? false
+            managerLiveAccess: (capabilities?["managerLive"] as? Bool) ?? false,
+            officeAccess: (capabilities?["officeAccess"] as? Bool) ?? false
         )
     }
 
@@ -272,8 +274,8 @@ actor HaloAPI {
         return CrewProfilePhoto(crewID: crewID, name: "", url: Self.string(root["profilePhotoUrl"]))
     }
 
-    func fetchJobs(activationToken: String) async throws -> [FieldJob] {
-        let body = try JSONSerialization.data(withJSONObject: ["action": "feed"])
+    func fetchJobs(activationToken: String, scope: String = "assigned") async throws -> [FieldJob] {
+        let body = try JSONSerialization.data(withJSONObject: ["action": "feed", "scope": scope])
         let data = try await request(
             path: "/functions/nativeFieldMobile",
             method: "POST",
@@ -917,12 +919,17 @@ actor HaloAPI {
         let boardStatus = (string(row["boardStatus"]) ?? "").lowercased()
 
         let kind: JobKind = {
+            let stream = string(row["workStream"])?.lowercased()
+            if stream == "turns" || stream == "turn" { return .turn }
+            if stream == "maintenance" { return .maintenance }
+            if category?.lowercased() == "turn" { return .turn }
+            if category?.lowercased() == "maintenance" { return .maintenance }
             let haystack = ([category, description] + serviceNames).compactMap { $0 }.joined(separator: " ").lowercased()
             return haystack.contains("maintenance") || haystack.contains("repair") ? .maintenance : .turn
         }()
 
         let tasks: [JobTask] = serverTasks.isEmpty
-            ? serviceNames.prefix(12).enumerated().map { index, service in
+            ? serviceNames.enumerated().map { index, service in
                 JobTask(
                     id: "\(id)-task-\(index)",
                     title: service,

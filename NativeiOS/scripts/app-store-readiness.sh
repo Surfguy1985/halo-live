@@ -13,8 +13,8 @@ ICON="HaloField/Assets.xcassets/AppIcon.appiconset/Contents.json"
 
 grep -q 'PRODUCT_BUNDLE_IDENTIFIER: com.archangel.halofield' "$PROJECT" || fail "production bundle identifier missing"
 grep -q 'CFBundleShortVersionString: "1.0.0"' "$PROJECT" || fail "marketing version is not 1.0.0"
-grep -q 'CFBundleVersion: "1"' "$PROJECT" || fail "build number is not 1"
-grep -q 'APNS_ENVIRONMENT: production' "$PROJECT" || fail "Release APNs environment is not production"
+grep -Eq 'CFBundleVersion: "[1-9][0-9]*"' "$PROJECT" || fail "build number must be a positive integer"
+grep -q 'APS_ENVIRONMENT: production' "$PROJECT" || fail "Release APNs environment is not production"
 grep -q 'remote-notification' "$PROJECT" || fail "remote notification background mode missing"
 grep -q 'location' "$PROJECT" || fail "location background mode missing"
 grep -q 'NSCameraUsageDescription' "$PROJECT" || fail "camera purpose string missing"
@@ -23,9 +23,12 @@ grep -q 'NSLocationAlwaysAndWhenInUseUsageDescription' "$PROJECT" || fail "backg
 grep -q 'NSPhotoLibraryUsageDescription' "$PROJECT" || fail "photo library purpose string missing"
 grep -q 'NSSupportsLiveActivities: YES' "$PROJECT" || fail "Live Activities declaration missing"
 
-plutil -lint "$INFO" >/dev/null || fail "Info.plist invalid"
-plutil -lint "$PRIVACY" >/dev/null || fail "PrivacyInfo.xcprivacy invalid"
-plutil -lint "$ENTITLEMENTS" >/dev/null || fail "entitlements invalid"
+python3 - "$INFO" "$PRIVACY" "$ENTITLEMENTS" <<'PYPLIST'
+import plistlib, sys
+for path in sys.argv[1:]:
+    with open(path, 'rb') as source:
+        plistlib.load(source)
+PYPLIST
 grep -q 'NSPrivacyTracking' "$PRIVACY" || fail "privacy tracking declaration missing"
 grep -q 'NSPrivacyCollectedDataTypePreciseLocation' "$PRIVACY" || fail "precise location privacy disclosure missing"
 grep -q 'NSPrivacyCollectedDataTypePhotosorVideos' "$PRIVACY" || fail "photo/video privacy disclosure missing"
@@ -34,15 +37,29 @@ grep -q 'NSPrivacyAccessedAPICategoryUserDefaults' "$PRIVACY" || fail "UserDefau
 grep -q 'CA92.1' "$PRIVACY" || fail "UserDefaults approved reason missing"
 
 python3 - "$ICON" <<'PY'
-import json,sys
-p=sys.argv[1]
-data=json.load(open(p))
-images=data.get("images",[])
-if not images:
-    raise SystemExit("App icon catalog has no image entries")
-missing=[x for x in images if x.get("idiom")=="universal" and x.get("platform")=="ios" and not x.get("filename")]
-if missing:
-    raise SystemExit("Universal iOS app icon entry is missing a filename")
+import json, sys, pathlib, struct
+p=pathlib.Path(sys.argv[1])
+images=json.loads(p.read_text()).get("images", [])
+icons=[x for x in images if x.get("idiom")=="universal" and x.get("platform")=="ios"]
+if not icons:
+    raise SystemExit("Universal iOS app icon is missing")
+for entry in icons:
+    path=p.parent / entry.get("filename", "")
+    if not path.is_file() or path.suffix.lower() != '.png':
+        raise SystemExit("App Store icon must reference an existing PNG")
+    data=path.read_bytes()
+    if data[:8] != b'\x89PNG\r\n\x1a\n':
+        raise SystemExit("App Store icon is not a PNG")
+    width,height,depth,color=struct.unpack('>IIBB',data[16:26])
+    if (width,height)!=(1024,1024) or depth != 8 or color != 2:
+        raise SystemExit("App Store icon must be 1024x1024 opaque 8-bit RGB")
+    offset=8
+    while offset < len(data):
+        length=struct.unpack('>I',data[offset:offset+4])[0]
+        if data[offset+4:offset+8] == b'tRNS':
+            raise SystemExit("App Store icon must not contain transparency")
+        offset += length+12
+
 PY
 
 pass "bundle/version/release configuration"

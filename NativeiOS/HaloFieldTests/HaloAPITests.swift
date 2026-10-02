@@ -201,6 +201,53 @@ final class HaloAPITests: XCTestCase {
         XCTAssertEqual(jobs[0].state, .active)
     }
 
+    func testExplicitTurnStreamWinsOverRepairServiceName() async throws {
+        let payload = #"{"jobs":[{"id":"turn-repair","category":"Turn","workStream":"turns","services":["Drywall repair"],"status":"scheduled"}]}"#.data(using: .utf8)!
+        let jobs = try await makeAPI(status: 200, data: payload).fetchJobs(activationToken: "test-token-1234567890")
+        XCTAssertEqual(jobs.first?.kind, .turn)
+    }
+
+    func testFullServiceScopeIsNeverTruncated() async throws {
+        let services = (1...20).map { "Service \($0)" }
+        let payload = try JSONSerialization.data(withJSONObject: ["jobs": [["id": "large-scope", "services": services, "workStream": "turns"]]])
+        let jobs = try await makeAPI(status: 200, data: payload).fetchJobs(activationToken: "test-token-1234567890")
+        XCTAssertEqual(jobs.first?.tasks.count, 20)
+    }
+
+    func testJobBrowserCombinesScopeSearchAndAttention() async throws {
+        let payload = #"{"jobs":[{"id":"a","propertyName":"Thornbury","unitNo":"2418","services":["Paint"],"status":"active","rework":true},{"id":"b","propertyName":"Thornbury","unitNo":"1104","services":["Clean"],"status":"scheduled"},{"id":"c","propertyName":"Other","unitNo":"2418","services":["Paint"],"status":"active","rework":true}]}"#.data(using: .utf8)!
+        let jobs = try await makeAPI(status: 200, data: payload).fetchJobs(activationToken: "test-token-1234567890")
+        var query = JobBrowserQuery()
+        query.text = "2418 paint"
+        query.property = "Thornbury"
+        query.attentionOnly = true
+        XCTAssertEqual(query.apply(to: jobs).map(\.id), ["a"])
+        query.kind = .maintenance
+        XCTAssertTrue(query.apply(to: jobs).isEmpty)
+    }
+
+    func testHistoryRemainsCompleteAndDoesNotNeedAttention() async throws {
+        let payload = #"{"jobs":[{"id":"closed","status":"complete","rework":true,"flaggedCount":3}]}"#.data(using: .utf8)!
+        let jobs = try await makeAPI(status: 200, data: payload).fetchJobs(activationToken: "test-token-1234567890", scope: "history")
+        let job = try XCTUnwrap(jobs.first)
+        XCTAssertTrue(job.isClosed)
+        XCTAssertFalse(JobBrowserQuery.needsAttention(job))
+    }
+
+    func testCrewCannotSelectOfficeBoards() {
+        XCTAssertEqual(JobBrowserScope.available(officeAccess: false), [.assigned])
+        XCTAssertEqual(JobBrowserScope.available(officeAccess: true), [.assigned, .board, .history])
+    }
+
+    func testOfficeAccessRequiresExplicitServerCapability() async throws {
+        let crew = #"{"ok":true,"crew":{"id":"crew-1","name":"Crew"},"capabilities":{"managerLive":true}}"#.data(using: .utf8)!
+        let crewInfo = try await makeAPI(status: 200, data: crew).validateActivation(token: "test-token-1234567890")
+        XCTAssertFalse(crewInfo.officeAccess)
+        let office = #"{"ok":true,"crew":{"id":"office-1","name":"Office"},"capabilities":{"officeAccess":true}}"#.data(using: .utf8)!
+        let officeInfo = try await makeAPI(status: 200, data: office).validateActivation(token: "test-token-1234567890")
+        XCTAssertTrue(officeInfo.officeAccess)
+    }
+
     private func makeAPI(status: Int, data: Data) -> HaloAPI {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]

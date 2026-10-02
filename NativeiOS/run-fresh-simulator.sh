@@ -23,6 +23,11 @@ if [ "${HALO_REMOTE_SYNCED:-0}" != "1" ]; then
   fi
 
   git switch "$BRANCH"
+  if [ "$(git rev-list --count "origin/$BRANCH..HEAD")" -gt 0 ]; then
+    BACKUP="halo-backup-before-sync-$(date +%Y%m%d-%H%M%S)"
+    git branch "$BACKUP" HEAD
+    echo "Local commits preserved on $BACKUP"
+  fi
   git reset --hard "origin/$BRANCH"
 
   LOCAL="$(git rev-parse HEAD)"
@@ -83,11 +88,9 @@ if [ -z "$UDID" ]; then
   xcrun simctl bootstatus "$UDID" -b
 fi
 
-echo "Removing legacy Capacitor HALO and native HALO from simulator..."
+echo "Stopping HALO before reinstall (preserving offline photos and queued work)..."
 xcrun simctl terminate "$UDID" "$LEGACY_BUNDLE_ID" >/dev/null 2>&1 || true
-xcrun simctl uninstall "$UDID" "$LEGACY_BUNDLE_ID" >/dev/null 2>&1 || true
 xcrun simctl terminate "$UDID" "$BUNDLE_ID" >/dev/null 2>&1 || true
-xcrun simctl uninstall "$UDID" "$BUNDLE_ID" >/dev/null 2>&1 || true
 
 echo "Building exact HaloField scheme from verified remote source..."
 xcodebuild \

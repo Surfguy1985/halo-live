@@ -76,6 +76,10 @@ struct RootView: View {
                 await fieldSync.flush(context: modelContext, activationToken: session.activationToken)
             }
         }
+        .onChange(of: session.managerLiveAccess) { _, allowed in
+            if !allowed && selectedTab == 3 { selectedTab = 0 }
+        }
+        .onChange(of: session.activationToken) { _, _ in selectedTab = 0 }
         .onReceive(NotificationCenter.default.publisher(for: .haloOpenJob)) { note in
             guard let jobID = note.object as? String else { return }
             store.selectedJobID = jobID
@@ -148,7 +152,7 @@ private struct HaloNativeTabBar: View {
         var rows: [(Int, String, String)] = [
             (0, "Today", "bolt.fill"),
             (1, "Jobs", "square.stack.3d.up.fill"),
-            (2, "Halo", "sparkles")
+            (2, "Messages", "bubble.left.and.bubble.right.fill")
         ]
         if managerLiveAccess {
             rows.append((3, "Live", "map.fill"))
@@ -208,7 +212,7 @@ private struct HaloNativeTabBar: View {
             .frame(height: 28)
 
             Text(item.title)
-                .font(HaloType.body(9, weight: .semibold))
+                .font(HaloType.body(11, weight: .semibold))
                 .foregroundStyle(selected ? .white : .white.opacity(0.42))
         }
         .frame(maxWidth: .infinity, minHeight: HaloTheme.minimumTapTarget)
@@ -230,8 +234,8 @@ private struct HaloNativeTabBar: View {
             }
             .scaleEffect(selected ? 1.05 : 1)
 
-            Text("HALO")
-                .font(HaloType.body(8, weight: .bold))
+            Text("Messages")
+                .font(HaloType.body(10, weight: .bold))
                 .tracking(0.35)
                 .foregroundStyle(selected ? HaloTheme.lime : .white.opacity(0.48))
         }
@@ -662,51 +666,6 @@ private struct ManagerLiveView: View {
             }
         } catch {
             errorMessage = error.localizedDescription
-        }
-    }
-}
-
-private struct JobsView: View {
-    @EnvironmentObject var store: JobStore
-    var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 18) {
-                TurnsPickupView()
-
-                if !store.jobs.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("MY JOBS")
-                                .font(HaloType.body(9, weight: .bold))
-                                .tracking(1.6)
-                                .foregroundStyle(.white.opacity(0.38))
-                            Spacer()
-                            Text("\(store.activeJobCount) active")
-                                .font(HaloType.body(10, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.42))
-                        }
-
-                        ForEach(store.jobs) { job in
-                            NavigationLink { JobDetailView(jobID: job.id) } label: {
-                                FieldJobCard(job: job, hero: false)
-                            }
-                            .buttonStyle(HaloPressableStyle())
-                        }
-                    }
-                }
-            }
-            .padding(16)
-        }
-        .background(HaloTheme.fieldBackground.ignoresSafeArea())
-        .navigationTitle("Jobs")
-        .toolbarColorScheme(.dark, for: .navigationBar)
-        .navigationDestination(isPresented: Binding(
-            get: { store.selectedJobID != nil },
-            set: { if !$0 { store.selectedJobID = nil } }
-        )) {
-            if let jobID = store.selectedJobID {
-                JobDetailView(jobID: jobID)
-            }
         }
     }
 }

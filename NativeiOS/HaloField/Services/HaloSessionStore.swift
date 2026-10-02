@@ -54,6 +54,8 @@ final class HaloSessionStore: ObservableObject {
         }
     }
 
+    var officeAccess: Bool { activationInfo?.officeAccess == true }
+
     var managerLiveAccess: Bool {
         activationInfo?.managerLiveAccess == true
     }
