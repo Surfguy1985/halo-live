@@ -149,6 +149,7 @@ final class OfflineQueue {
 
 extension Notification.Name {
     static let haloPendingActionCreated = Notification.Name("halo.pendingActionCreated")
+    static let haloClockStateChanged = Notification.Name("halo.clockStateChanged")
 }
 
 
