@@ -270,6 +270,13 @@ final class HaloAPITests: XCTestCase {
         XCTAssertFalse(store.isRefreshing)
     }
 
+    func testLiveMapDecodesOnlyValidGeofences() async throws {
+        let payload = #"{"summary":{},"locations":[],"geofences":[{"id":"valid","name":"Property","latitude":33,"longitude":-96,"radiusMeters":300},{"id":"invalid","name":"Bad","latitude":200,"longitude":-96,"radiusMeters":300}]}"#.data(using: .utf8)!
+        let result = try await makeAPI(status: 200, data: payload).fetchManagerLive(activationToken: "test-token-1234567890")
+        XCTAssertEqual(result.geofences.map(\.id), ["valid"])
+        XCTAssertEqual(result.geofences.first?.radiusMeters, 300)
+    }
+
     private func makeAPI(status: Int, data: Data) -> HaloAPI {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]

@@ -185,7 +185,7 @@ struct JobsView: View {
 
 // Board and historical records are intentionally read-only. Assignment and
 // work authorization continue to be enforced by the native action gateway.
-private struct JobRecordView: View {
+struct JobRecordView: View {
     let job: FieldJob
     var body: some View {
         ScrollView {

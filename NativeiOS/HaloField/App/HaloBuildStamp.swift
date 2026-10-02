@@ -1,5 +1,5 @@
 import Foundation
 
 enum HaloBuildStamp {
-    static let revision = "POLISH-1002"
+    static let revision = "LIVE-MAP-1002"
 }

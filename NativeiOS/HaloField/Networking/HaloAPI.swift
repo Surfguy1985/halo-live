@@ -150,6 +150,7 @@ struct HaloManagerCrewLocation: Identifiable, Hashable, Sendable {
 struct HaloManagerLiveSnapshot: Sendable {
     let summary: HaloManagerLiveSummary
     let locations: [HaloManagerCrewLocation]
+    var geofences: [HaloMapGeofence] = []
 }
 
 actor HaloAPI {
@@ -240,7 +241,16 @@ actor HaloAPI {
             )
         }
 
-        return HaloManagerLiveSnapshot(summary: summary, locations: locations)
+        let fences = (root["geofences"] as? [[String: Any]] ?? []).compactMap { row -> HaloMapGeofence? in
+            guard let id = Self.string(row["id"]), let name = Self.string(row["name"]),
+                  let latitude = Self.double(row["latitude"]), let longitude = Self.double(row["longitude"]),
+                  let radius = Self.double(row["radiusMeters"]),
+                  HaloMapGeofence.valid(latitude: latitude, longitude: longitude),
+                  radius.isFinite, radius >= 50, radius <= 1000 else { return nil }
+            return HaloMapGeofence(id: id, name: name, address: Self.string(row["address"]) ?? "",
+                                   latitude: latitude, longitude: longitude, radiusMeters: radius)
+        }
+        return HaloManagerLiveSnapshot(summary: summary, locations: locations, geofences: fences)
     }
 
     struct CrewProfilePhoto: Sendable {

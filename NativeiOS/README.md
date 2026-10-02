@@ -40,7 +40,7 @@ cd NativeiOS
 bash run-fresh-simulator.sh
 ```
 
-The launcher removes both the legacy Capacitor bundle and the native bundle before installing a clean native build.
+The launcher preserves local edits in a stash and local commits on a backup branch, syncs the native branch, regenerates the Xcode project, and rebuilds the native app. Reinstallation preserves queued photos, offline work, and activation. Run the HaloField scheme, never the legacy Capacitor workspace.
 
 ## App Store readiness
 ```bash
@@ -51,3 +51,15 @@ bash scripts/app-store-readiness.sh
 See `APP_STORE_SUBMISSION.md` for App Review notes, privacy declarations, screenshots, and release-owner gates.
 
 Native CI regenerates the project, validates App Store static gates, runs the test target, and creates an unsigned generic-iOS Release archive.
+
+## Native Live Operations map
+Office credentials receive the live map. Crew credentials retain their assigned daily work.
+- Branded crew photo bubbles and searchable roster, including crews with unavailable GPS.
+- Standard/satellite maps, property filters, follow-selected-crew, and fit-to-view controls.
+- GPS freshness ages locally: live through two minutes, recent through fifteen, then removed from the map.
+- Blue arrival-geofence circles come from configured property coordinates and the native check-in radius.
+- Selected crew accuracy circles and inside/outside/boundary status account for GPS uncertainty. Stale or imprecise GPS cannot produce a confident fence result.
+- Messaging and read-only open-unit details are reachable from crew cards.
+- Geofence visualization does not change payroll or auto-clock-out rules. Arrival verification remains authoritative on the server.
+
+Physical-device GPS, background sharing, and permissions still require device testing. Simulator CI verifies compilation, tests, and unsigned Release archives; it does not verify a physical crew's location.
