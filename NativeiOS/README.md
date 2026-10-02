@@ -44,6 +44,18 @@ bash force-latest-xcode.sh
 
 The expected debug stamp on **Me** is `NATIVE-CLOCK-HARVEST-R6`. The complete build includes `CameraProofView.swift`, `ManagerLiveView.swift`, `HaloMapGeofence.swift`, map clustering, photo proof, Unit Journey, and premium motion primitives.
 
+## Force the latest build onto a physical iPhone
+Use this when Xcode says **Build Failed**, shows an older HALO UI, or a local Info.plist change blocks git pull. The script preserves local work, syncs the exact remote native branch, removes stale HALO DerivedData, regenerates Xcode, and performs an unsigned generic-iPhone compile before reopening the correct project.
+
+```bash
+cd NativeiOS
+bash force-latest-device.sh
+```
+
+A successful script run proves the Swift/device target compiles. Then select the **HaloField** scheme and your connected iPhone in Xcode and press **Command-R**. Apple signing is intentionally account-local: select your Apple Developer Team under **HaloField → Signing & Capabilities** if Xcode has not already resolved one.
+
+Expected fingerprint in **Me**: `NATIVE-CLOCK-HARVEST-R6`.
+
 ## Deterministic simulator launch
 ```bash
 cd NativeiOS
