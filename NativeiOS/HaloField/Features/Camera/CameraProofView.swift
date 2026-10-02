@@ -18,6 +18,7 @@ struct CameraProofView: View {
     @State private var pickerItem: PhotosPickerItem?
     @State private var importedImage: UIImage?
     @State private var source = "camera"
+    @State private var isImporting = false
     @State private var isSaving = false
     @State private var saveError: String?
     @State private var savedProof: StoredProof?
@@ -46,7 +47,7 @@ struct CameraProofView: View {
                     }
                     .foregroundStyle(.white)
                     .accessibilityLabel("Close camera")
-                    .disabled(isSaving)
+                    .disabled(isSaving || isImporting)
                 }
                 ToolbarItem(placement: .principal) { HaloLogo(height: 22) }
             }
@@ -159,15 +160,37 @@ struct CameraProofView: View {
                 }
                 .foregroundStyle(.white)
                 .accessibilityLabel("Choose proof photo from library")
+                .disabled(isImporting || isSaving)
                 .onChange(of: pickerItem) { _, newValue in
+                    guard let newValue else { return }
+                    isImporting = true
+                    saveError = nil
                     Task {
-                        guard
-                            let data = try? await newValue?.loadTransferable(type: Data.self),
-                            let photo = UIImage(data: data)
-                        else { return }
-                        source = "library"
-                        importedImage = photo
-                        camera.stop()
+                        do {
+                            guard let data = try await newValue.loadTransferable(type: Data.self) else {
+                                throw HaloImagePipelineError.emptyData
+                            }
+                            let normalized = try await Task.detached(priority: .userInitiated) {
+                                try HaloImagePipeline.normalizedJPEG(fromEncodedData: data)
+                            }.value
+                            guard let photo = UIImage(data: normalized, scale: UIScreen.main.scale) else {
+                                throw HaloImagePipelineError.unreadableImage
+                            }
+                            await MainActor.run {
+                                source = "library"
+                                importedImage = photo
+                                camera.stop()
+                                isImporting = false
+                            }
+                        } catch {
+                            await MainActor.run {
+                                pickerItem = nil
+                                importedImage = nil
+                                isImporting = false
+                                saveError = error.localizedDescription
+                                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                            }
+                        }
                     }
                 }
             }
@@ -181,8 +204,8 @@ struct CameraProofView: View {
                     Circle().stroke(.black.opacity(0.28), lineWidth: 3).frame(width: 66, height: 66)
                 }
             }
-            .disabled(!camera.isReady)
-            .opacity(camera.isReady ? 1 : 0.5)
+            .disabled(!camera.isReady || camera.isCapturing || isImporting || isSaving)
+            .opacity(camera.isReady && !camera.isCapturing ? 1 : 0.5)
             .accessibilityLabel("Capture proof photo")
 
             Text("HALO PROOF · JOB \(job.jobNo ?? job.id.prefix(8).uppercased())")
@@ -249,7 +272,7 @@ struct CameraProofView: View {
                         save(image)
                     } label: {
                         HStack {
-                            Text(isSaving ? "Saving Proof…" : "Use This Proof")
+                            Text(isSaving ? "Saving Proof…" : (isImporting ? "Preparing Photo…" : "Use This Proof"))
                             Spacer()
                             Image(systemName: "checkmark")
                         }
