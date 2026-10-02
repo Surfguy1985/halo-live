@@ -141,6 +141,13 @@ struct HaloActivationInfo: Hashable, Sendable {
     var officeAccess: Bool = false
 }
 
+struct HaloRealtimeCursorSnapshot: Hashable, Sendable {
+    let jobs: String
+    let messages: String
+    let live: String
+    let office: Bool
+}
+
 struct HaloManagerLiveSummary: Hashable, Sendable {
     let live: Int
     let recent: Int
@@ -217,6 +224,31 @@ actor HaloAPI {
             nativePushDeliveryConfigured: (capabilities?["nativePushDeliveryConfigured"] as? Bool) ?? false,
             managerLiveAccess: (capabilities?["managerLive"] as? Bool) ?? false,
             officeAccess: (capabilities?["officeAccess"] as? Bool) ?? false
+        )
+    }
+
+    func fetchRealtimeCursor(activationToken: String) async throws -> HaloRealtimeCursorSnapshot {
+        let body = try JSONSerialization.data(withJSONObject: ["action": "realtimeCursor"])
+        let data = try await request(
+            path: "/functions/nativeFieldMobile",
+            method: "POST",
+            body: body,
+            bearerToken: activationToken
+        )
+        guard
+            let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let cursors = root["cursors"] as? [String: Any],
+            let jobs = Self.string(cursors["jobs"]),
+            let messages = Self.string(cursors["messages"]),
+            let live = Self.string(cursors["live"])
+        else {
+            throw HaloAPIError.malformedPayload
+        }
+        return HaloRealtimeCursorSnapshot(
+            jobs: jobs,
+            messages: messages,
+            live: live,
+            office: (root["office"] as? Bool) ?? false
         )
     }
 
