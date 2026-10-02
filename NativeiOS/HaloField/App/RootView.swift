@@ -76,13 +76,13 @@ struct RootView: View {
                 await fieldSync.flush(context: modelContext, activationToken: session.activationToken)
             }
         }
-        .onChange(of: session.managerLiveAccess) { _, allowed in
-            if !allowed && selectedTab == 3 { selectedTab = 0 }
-        }
         .onChange(of: session.activationToken) { _, _ in selectedTab = 0 }
         .onReceive(NotificationCenter.default.publisher(for: .haloOpenJob)) { note in
             guard let jobID = note.object as? String else { return }
             store.selectedJobID = jobID
+            selectedTab = 1
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .haloOpenJobs)) { _ in
             selectedTab = 1
         }
         .onReceive(NotificationCenter.default.publisher(for: .haloOpenComms)) { _ in
@@ -123,6 +123,9 @@ struct RootView: View {
             if session.managerLiveAccess {
                 NavigationStack { ManagerLiveView() }
                     .tag(3)
+            } else {
+                NavigationStack { NativeClockView() }
+                    .tag(3)
             }
 
             NavigationStack { ProfileView() }
@@ -156,6 +159,8 @@ private struct HaloNativeTabBar: View {
         ]
         if managerLiveAccess {
             rows.append((3, "Live", "map.fill"))
+        } else {
+            rows.append((3, "Clock", "clock.badge.checkmark.fill"))
         }
         rows.append((4, "Me", "person.crop.circle.fill"))
         return rows
