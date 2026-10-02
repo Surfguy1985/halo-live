@@ -10,6 +10,8 @@ struct NativeClockView: View {
     @EnvironmentObject private var store: JobStore
     @EnvironmentObject private var network: NetworkMonitor
     @EnvironmentObject private var fieldSync: FieldSyncController
+    @EnvironmentObject private var location: LocationService
+    @EnvironmentObject private var attendanceTracking: AttendanceTrackingController
     @Environment(\.modelContext) private var modelContext
 
     @State private var status: HaloClockStatus?
@@ -111,6 +113,12 @@ struct NativeClockView: View {
         .onReceive(NotificationCenter.default.publisher(for: .haloPendingActionCreated)) { _ in
             refreshPending()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .haloClockStateChanged)) { _ in
+            Task {
+                await attendanceTracking.reconcile(activationToken: session.activationToken, location: location)
+                await refresh()
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .haloDataInvalidated)) { note in
             guard network.isConnected else { return }
             if let payload = note.object as? [String: Any],
@@ -199,6 +207,8 @@ struct NativeClockView: View {
             }
             .padding(16)
 
+            enterpriseStatusStrip
+
             Divider().overlay(HaloTheme.hairline)
 
             VStack(alignment: .leading, spacing: 18) {
@@ -262,6 +272,44 @@ struct NativeClockView: View {
             .padding(18)
         }
         .haloDarkCard()
+    }
+
+    private var enterpriseStatusStrip: some View {
+        HStack(spacing: 0) {
+            verificationMetric(
+                icon: "camera.fill",
+                title: "PHOTO",
+                value: status?.entry != nil ? "VERIFIED" : "REQUIRED",
+                tint: status?.entry != nil ? HaloTheme.fieldLive : .white.opacity(0.34)
+            )
+            Divider().overlay(HaloTheme.hairline).frame(height: 38)
+            verificationMetric(
+                icon: "location.fill",
+                title: "GPS",
+                value: location.hasLocationPermission ? "ALLOWED" : "REQUIRED",
+                tint: location.hasLocationPermission ? HaloTheme.fieldLive : HaloTheme.warning
+            )
+            Divider().overlay(HaloTheme.hairline).frame(height: 38)
+            verificationMetric(
+                icon: "location.circle.fill",
+                title: "TRACKING",
+                value: attendanceTracking.isTracking ? "LIVE" : ((status?.entry?.running == true) ? "STARTING" : "OFF"),
+                tint: attendanceTracking.isTracking ? HaloTheme.fieldLive : ((status?.entry?.running == true) ? HaloTheme.warning : .white.opacity(0.34))
+            )
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 10)
+        .background(Color.white.opacity(0.025))
+    }
+
+    private func verificationMetric(icon: String, title: String, value: String, tint: Color) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon).font(.system(size: 12, weight: .semibold)).foregroundStyle(tint)
+            Text(title).font(HaloType.body(7, weight: .bold)).tracking(0.8).foregroundStyle(.white.opacity(0.28))
+            Text(value).font(HaloType.body(8, weight: .bold)).tracking(0.5).foregroundStyle(tint)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder
@@ -496,6 +544,7 @@ private struct AttendancePunchView: View {
     @EnvironmentObject private var session: HaloSessionStore
     @EnvironmentObject private var location: LocationService
     @EnvironmentObject private var network: NetworkMonitor
+    @EnvironmentObject private var attendanceTracking: AttendanceTrackingController
     @Environment(\.modelContext) private var modelContext
 
     @StateObject private var camera = HaloCameraController(position: .front)
@@ -527,8 +576,6 @@ private struct AttendancePunchView: View {
             }
             .toolbarBackground(.hidden, for: .navigationBar)
             .onAppear {
-                location.requestPermission()
-                location.refresh()
                 camera.start()
             }
             .onDisappear { camera.stop() }
@@ -568,8 +615,9 @@ private struct AttendancePunchView: View {
                         .foregroundStyle(.white.opacity(0.62))
 
                     Button {
-                        location.refresh()
                         camera.capture()
+                        location.requestPermission()
+                        location.refresh()
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     } label: {
                         ZStack {
@@ -726,7 +774,7 @@ private struct AttendancePunchView: View {
                 return
             }
             do {
-                _ = try await HaloAPI.shared.punchClock(
+                let result = try await HaloAPI.shared.punchClock(
                     kind: kind,
                     jobID: "__attendance__",
                     attendanceOnly: true,
@@ -736,6 +784,16 @@ private struct AttendancePunchView: View {
                     activationToken: token
                 )
                 await MainActor.run {
+                    if (kind == "start" || kind == "resume"), let gpsSessionID = result.gpsSessionID {
+                        attendanceTracking.activate(
+                            sessionID: gpsSessionID,
+                            activationToken: token,
+                            location: location
+                        )
+                    } else if kind == "pause" || kind == "checkout" {
+                        attendanceTracking.deactivateLocationOnly()
+                    }
+                    NotificationCenter.default.post(name: .haloClockStateChanged, object: nil)
                     isSubmitting = false
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
                     onComplete()
