@@ -22,6 +22,7 @@ struct ManagerLiveView: View {
     @State private var requestID = UUID()
     @State private var openedJob: FieldJob?
     @State private var openingJob = false
+    @State private var selectedCluster: HaloCrewCluster?
 
     private var fences: [HaloMapGeofence] {
         (snapshot?.geofences ?? []).filter { property == "All properties" || $0.name == property }
@@ -68,6 +69,29 @@ struct ManagerLiveView: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { openedJob = nil } }
             } }
         }
+        .sheet(item: $selectedCluster) { cluster in
+            NavigationStack {
+                List(cluster.crews) { crew in
+                    Button {
+                        selectedCluster = nil
+                        select(crew, now: .now)
+                    } label: {
+                        HStack(spacing: 12) {
+                            CrewMapAvatar(crew: crew, size: 44)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(crew.crewName).font(.headline).foregroundStyle(.white)
+                                Text("Unit \(crew.unitNumber) · \(stateLabel(crew.displayState(at: .now)))")
+                                    .font(.caption).foregroundStyle(HaloTheme.lime)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.caption)
+                        }.padding(.vertical, 5)
+                    }
+                }.navigationTitle("\(cluster.crews.count) crews here")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { selectedCluster = nil } } }
+            }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible)
+        }
         .task(id: session.activationToken) {
             snapshot = nil; selectedCrewID = nil; lastRefresh = nil
             await refresh()
@@ -79,7 +103,7 @@ struct ManagerLiveView: View {
             }
         }
         .onChange(of: session.managerLiveAccess) { _, allowed in
-            if !allowed { requestID = UUID(); snapshot = nil; selectedCrewID = nil; openedJob = nil; loading = false }
+            if !allowed { requestID = UUID(); snapshot = nil; selectedCrewID = nil; openedJob = nil; selectedCluster = nil; loading = false }
         }
         .onChange(of: network.isConnected) { _, connected in
             if connected { Task { await refresh() } }
@@ -127,15 +151,30 @@ struct ManagerLiveView: View {
             MapCircle(center: point, radius: accuracy)
                 .foregroundStyle(HaloTheme.lime.opacity(0.10)).stroke(HaloTheme.lime.opacity(0.35), lineWidth: 1)
         }
-        ForEach(rows(at: now)) { crew in
-            if let point = crew.mapCoordinate(at: now) {
-                Annotation(crew.crewName, coordinate: point, anchor: .bottom) {
+        ForEach(HaloCrewCluster.group(rows(at: now), at: now)) { cluster in
+            Annotation(cluster.crews.count > 1 ? "\(cluster.crews.count) crews" : cluster.crews[0].crewName, coordinate: cluster.coordinate, anchor: .bottom) {
+                if cluster.crews.count > 1 {
+                    Button { selectedCluster = cluster } label: {
+                        VStack(spacing: 2) {
+                            HStack(spacing: -12) {
+                                ForEach(Array(cluster.crews.prefix(3))) { crew in
+                                    CrewMapAvatar(crew: crew, size: 36).overlay { Circle().stroke(HaloTheme.fieldChrome, lineWidth: 3) }
+                                }
+                                Text("\(cluster.crews.count)").font(.caption.weight(.heavy)).foregroundStyle(HaloTheme.ink)
+                                    .frame(width: 28, height: 28).background(HaloTheme.lime, in: Circle()).padding(.leading, 14)
+                            }.padding(8).background(HaloTheme.fieldChrome, in: Capsule())
+                                .overlay { Capsule().stroke(HaloTheme.lime, lineWidth: 2) }
+                            Image(systemName: "arrowtriangle.down.fill").font(.system(size: 10)).foregroundStyle(HaloTheme.lime)
+                        }
+                    }.buttonStyle(.plain).accessibilityLabel("\(cluster.crews.count) crews at this location. Show crew list.")
+                } else {
+                    let crew = cluster.crews[0]
                     Button { select(crew, now: now) } label: {
                         CrewMapBubble(crew: crew, state: crew.displayState(at: now), selected: selectedCrewID == crew.crewID)
                     }.buttonStyle(.plain)
                         .accessibilityLabel("\(crew.crewName), \(stateLabel(crew.displayState(at: now))), \(crew.property), unit \(crew.unitNumber)")
-                }.annotationTitles(.hidden)
-            }
+                }
+            }.annotationTitles(.hidden)
         }
     }
 

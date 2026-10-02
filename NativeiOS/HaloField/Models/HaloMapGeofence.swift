@@ -56,3 +56,27 @@ extension HaloManagerCrewLocation {
     }
     var initials: String { crewName.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined().uppercased() }
 }
+
+struct HaloCrewCluster: Identifiable {
+    let crews: [HaloManagerCrewLocation]
+    let latitude: Double
+    let longitude: Double
+    var id: String { crews.map(\.crewID).sorted().joined(separator: ":") }
+    var coordinate: CLLocationCoordinate2D { .init(latitude: latitude, longitude: longitude) }
+    static func group(_ crews: [HaloManagerCrewLocation], at now: Date) -> [Self] {
+        var groups: [[HaloManagerCrewLocation]] = []
+        for crew in crews.sorted(by: { $0.crewID < $1.crewID }) {
+            guard let point = crew.mapCoordinate(at: now) else { continue }
+            let fix = CLLocation(latitude: point.latitude, longitude: point.longitude)
+            if let index = groups.firstIndex(where: { group in
+                guard let anchor = group.first?.mapCoordinate(at: now) else { return false }
+                return fix.distance(from: CLLocation(latitude: anchor.latitude, longitude: anchor.longitude)) < 30
+            }) { groups[index].append(crew) }
+            else { groups.append([crew]) }
+        }
+        return groups.compactMap { group in
+            guard let point = group.first?.mapCoordinate(at: now) else { return nil }
+            return Self(crews: group, latitude: point.latitude, longitude: point.longitude)
+        }
+    }
+}

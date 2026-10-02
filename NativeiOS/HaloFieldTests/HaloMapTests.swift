@@ -29,6 +29,11 @@ final class HaloMapTests: XCTestCase {
         XCTAssertEqual(fence.assessment(for: crew(age: 121), now: now), .unavailable)
         XCTAssertEqual(fence.assessment(for: crew(state: "recent_verified"), now: now), .unavailable)
     }
+    func testNearbyBubblesGroupAndStaleCrewsStayOffMap() {
+        let groups = HaloCrewCluster.group([crew(), crew(latitude: 33.0001), crew(latitude: 33.01), crew(age: 901)], at: now)
+        XCTAssertEqual(groups.count, 2)
+        XCTAssertEqual(groups.map { $0.crews.count }.sorted(), [1, 2])
+    }
     func testInvalidCoordinatesNeverBecomeMapPins() {
         XCTAssertNil(crew(latitude: 100).mapCoordinate(at: now))
         XCTAssertFalse(HaloMapGeofence.valid(latitude: .nan, longitude: -96))
