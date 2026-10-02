@@ -12,16 +12,26 @@ ENTITLEMENTS="HaloField/HaloField.entitlements"
 ICON="HaloField/Assets.xcassets/AppIcon.appiconset/Contents.json"
 
 grep -q 'PRODUCT_BUNDLE_IDENTIFIER: com.archangel.halofield' "$PROJECT" || fail "production bundle identifier missing"
-grep -q 'CFBundleShortVersionString: "1.0.0"' "$PROJECT" || fail "marketing version is not 1.0.0"
-grep -Eq 'CFBundleVersion: "[1-9][0-9]*"' "$PROJECT" || fail "build number must be a positive integer"
 grep -q 'APS_ENVIRONMENT: production' "$PROJECT" || fail "Release APNs environment is not production"
-grep -q 'remote-notification' "$PROJECT" || fail "remote notification background mode missing"
-grep -q 'location' "$PROJECT" || fail "location background mode missing"
-grep -q 'NSCameraUsageDescription' "$PROJECT" || fail "camera purpose string missing"
-grep -q 'NSLocationWhenInUseUsageDescription' "$PROJECT" || fail "when-in-use location purpose string missing"
-grep -q 'NSLocationAlwaysAndWhenInUseUsageDescription' "$PROJECT" || fail "background location purpose string missing"
-grep -q 'NSPhotoLibraryUsageDescription' "$PROJECT" || fail "photo library purpose string missing"
-grep -q 'NSSupportsLiveActivities: YES' "$PROJECT" || fail "Live Activities declaration missing"
+
+python3 - "$INFO" <<'PYINFO'
+import plistlib, sys
+with open(sys.argv[1], 'rb') as source:
+    info = plistlib.load(source)
+if info.get("CFBundleShortVersionString") != "1.0.0":
+    raise SystemExit("marketing version is not 1.0.0")
+try:
+    assert int(info.get("CFBundleVersion", "0")) > 0
+except Exception:
+    raise SystemExit("build number must be a positive integer")
+modes=set(info.get("UIBackgroundModes", []))
+if "remote-notification" not in modes: raise SystemExit("remote notification background mode missing")
+if "location" not in modes: raise SystemExit("location background mode missing")
+for key in ["NSCameraUsageDescription","NSLocationWhenInUseUsageDescription","NSLocationAlwaysAndWhenInUseUsageDescription","NSPhotoLibraryUsageDescription"]:
+    if not info.get(key): raise SystemExit(f"{key} missing")
+if info.get("NSSupportsLiveActivities") is not True:
+    raise SystemExit("Live Activities declaration missing")
+PYINFO
 
 python3 - "$INFO" "$PRIVACY" "$ENTITLEMENTS" <<'PYPLIST'
 import plistlib, sys
