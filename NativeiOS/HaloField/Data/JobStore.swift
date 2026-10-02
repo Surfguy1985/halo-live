@@ -18,6 +18,7 @@ final class JobStore: ObservableObject {
     private var hasLoaded = false
     private var loadedToken: String?
     private var refreshID = UUID()
+    private var refreshRequestedWhileBusy = false
 
     init(api: HaloAPI = .shared, cache: OfflineJobCache = .shared) {
         self.api = api
@@ -73,22 +74,31 @@ final class JobStore: ObservableObject {
             clear()
             loadedToken = activationToken
         }
+
+        // Lifecycle, WebSocket/cursor invalidation, push and offline replay can all
+        // request a refresh at nearly the same time on a physical iPhone. Coalesce
+        // them into one network request plus at most one follow-up refresh.
+        if isLoading || isRefreshing {
+            refreshRequestedWhileBusy = true
+            return
+        }
+
         let requestID = UUID()
         refreshID = requestID
         if initial { isLoading = true } else { isRefreshing = true }
-        defer {
-            if refreshID == requestID {
-                isLoading = false
-                isRefreshing = false
-            }
-        }
 
         do {
             let live = try await api.fetchJobs(activationToken: activationToken)
-            guard !Task.isCancelled, refreshID == requestID, loadedToken == activationToken else { return }
-            withAnimation(.snappy(duration: 0.28)) {
-                jobs = live
-                HaloIntentStore.save(nextJob)
+            guard !Task.isCancelled, refreshID == requestID, loadedToken == activationToken else {
+                finishRefresh(requestID: requestID, activationToken: activationToken)
+                return
+            }
+
+            if live != jobs {
+                withAnimation(.snappy(duration: 0.22)) {
+                    jobs = live
+                    HaloIntentStore.save(nextJob)
+                }
             }
             syncError = nil
             lastSyncedAt = .now
@@ -96,7 +106,10 @@ final class JobStore: ObservableObject {
             loadedToken = activationToken
             try? await cache.save(jobs: live, token: activationToken)
         } catch {
-            guard !Task.isCancelled, refreshID == requestID, loadedToken == activationToken else { return }
+            guard !Task.isCancelled, refreshID == requestID, loadedToken == activationToken else {
+                finishRefresh(requestID: requestID, activationToken: activationToken)
+                return
+            }
             if jobs.isEmpty {
                 syncError = error.localizedDescription
             } else {
@@ -104,6 +117,24 @@ final class JobStore: ObservableObject {
                 hasLoaded = true
                 loadedToken = activationToken
             }
+        }
+
+        finishRefresh(requestID: requestID, activationToken: activationToken)
+    }
+
+    private func finishRefresh(requestID: UUID, activationToken: String) {
+        guard refreshID == requestID else { return }
+        isLoading = false
+        isRefreshing = false
+
+        guard refreshRequestedWhileBusy, loadedToken == activationToken else {
+            refreshRequestedWhileBusy = false
+            return
+        }
+
+        refreshRequestedWhileBusy = false
+        Task { [weak self] in
+            await self?.refresh(activationToken: activationToken)
         }
     }
 
@@ -123,6 +154,7 @@ final class JobStore: ObservableObject {
 
     func clear(removeCache: Bool = false) {
         refreshID = UUID()
+        refreshRequestedWhileBusy = false
         isLoading = false
         isRefreshing = false
         let tokenToRemove = loadedToken
