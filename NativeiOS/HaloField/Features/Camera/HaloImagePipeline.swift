@@ -89,7 +89,7 @@ enum HaloImagePipeline {
 
     static func displayImage(fromEncodedData data: Data) throws -> UIImage {
         let normalized = try normalizedJPEG(fromEncodedData: data)
-        guard let image = UIImage(data: normalized, scale: UIScreen.main.scale) else {
+        guard let image = UIImage(data: normalized) else {
             throw HaloImagePipelineError.unreadableImage
         }
         return image
