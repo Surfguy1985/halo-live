@@ -42,7 +42,7 @@ cd NativeiOS
 bash force-latest-xcode.sh
 ```
 
-The expected debug stamp on **Me** is `NATIVE-PHOTO-MAP-R4`. The complete build includes `CameraProofView.swift`, `ManagerLiveView.swift`, `HaloMapGeofence.swift`, map clustering, photo proof, Unit Journey, and premium motion primitives.
+The expected debug stamp on **Me** is `NATIVE-CLOCK-HARVEST-R6`. The complete build includes `CameraProofView.swift`, `ManagerLiveView.swift`, `HaloMapGeofence.swift`, map clustering, photo proof, Unit Journey, and premium motion primitives.
 
 ## Deterministic simulator launch
 ```bash
