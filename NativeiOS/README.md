@@ -34,13 +34,23 @@ open HaloField.xcodeproj
 
 Run the `HaloField` scheme, not `HaloFieldWidgets`.
 
+## Force the complete latest build into Xcode
+If Xcode is showing an older HALO UI, use the force-refresh launcher. It closes the in-memory project first, preserves local edits, syncs the exact remote native branch, deletes generated project/build caches, regenerates `HaloField.xcodeproj`, clean-builds, installs the simulator binary, launches HALO, and reopens the correct Xcode project.
+
+```bash
+cd NativeiOS
+bash force-latest-xcode.sh
+```
+
+The expected debug stamp on **Me** is `NATIVE-PHOTO-MAP-R4`. The complete build includes `CameraProofView.swift`, `ManagerLiveView.swift`, `HaloMapGeofence.swift`, map clustering, photo proof, Unit Journey, and premium motion primitives.
+
 ## Deterministic simulator launch
 ```bash
 cd NativeiOS
 bash run-fresh-simulator.sh
 ```
 
-The launcher preserves local edits in a stash and local commits on a backup branch, syncs the native branch, regenerates the Xcode project, and rebuilds the native app. Reinstallation preserves queued photos, offline work, and activation. Run the HaloField scheme, never the legacy Capacitor workspace.
+The normal launcher preserves local edits in a stash and local commits on a backup branch, syncs the native branch, regenerates the Xcode project, and rebuilds the native app. Reinstallation preserves queued photos, offline work, and activation. Run the `HaloField` scheme, never the legacy Capacitor workspace. If Xcode warns that the project changed externally, choose the version **on disk**.
 
 ## App Store readiness
 ```bash
