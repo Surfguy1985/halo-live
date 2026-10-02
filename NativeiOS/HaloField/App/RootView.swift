@@ -15,6 +15,7 @@ struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab = 0
+    @State private var bootstrappedToken: String?
 
     var body: some View {
         Group {
@@ -44,12 +45,22 @@ struct RootView: View {
                 fieldSync.refreshPendingCount(context: modelContext, activationToken: session.activationToken)
                 return
             }
+            let token = session.activationToken
+            bootstrappedToken = nil
+
+            // Physical-device startup is deliberately serialized. Previously the
+            // activation, jobs feed, attendance reconcile, offline replay and the
+            // scene/network tasks could all hit the backend at once as the app
+            // became active, which made a real iPhone feel frozen under poor radio.
             await session.refreshValidation()
-            await store.loadIfNeeded(activationToken: session.activationToken)
-            await attendanceTracking.reconcile(activationToken: session.activationToken, location: location)
+            await store.loadIfNeeded(activationToken: token)
             if network.isConnected {
-                await fieldSync.flush(context: modelContext, activationToken: session.activationToken)
+                await fieldSync.flush(context: modelContext, activationToken: token)
+                await store.refresh(activationToken: token)
             }
+            await attendanceTracking.reconcile(activationToken: token, location: location)
+            guard session.activationToken == token else { return }
+            bootstrappedToken = token
 
             // Keep Today + Jobs synchronized while the app is open. APNs remains
             // the immediate invalidation path; this 15-second refresh is the
@@ -66,22 +77,26 @@ struct RootView: View {
                 fieldSync.refreshPendingCount(context: modelContext, activationToken: session.activationToken)
                 return
             }
+            guard session.isActivated,
+                  bootstrappedToken == session.activationToken else { return }
             await fieldSync.flush(context: modelContext, activationToken: session.activationToken)
-            if session.isActivated {
-                await store.refresh(activationToken: session.activationToken)
-                await attendanceTracking.reconcile(activationToken: session.activationToken, location: location)
-            }
+            await store.refresh(activationToken: session.activationToken)
+            await attendanceTracking.reconcile(activationToken: session.activationToken, location: location)
         }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
             fieldSync.refreshPendingCount(context: modelContext, activationToken: session.activationToken)
+            guard bootstrappedToken == session.activationToken else { return }
             if network.isConnected {
-                await store.refresh(activationToken: session.activationToken)
                 await fieldSync.flush(context: modelContext, activationToken: session.activationToken)
+                await store.refresh(activationToken: session.activationToken)
                 await attendanceTracking.reconcile(activationToken: session.activationToken, location: location)
             }
         }
-        .onChange(of: session.activationToken) { _, _ in selectedTab = 0 }
+        .onChange(of: session.activationToken) { _, _ in
+            selectedTab = 0
+            bootstrappedToken = nil
+        }
         .onReceive(NotificationCenter.default.publisher(for: .haloOpenJob)) { note in
             guard let jobID = note.object as? String else { return }
             store.selectedJobID = jobID
