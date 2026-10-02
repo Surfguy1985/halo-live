@@ -189,6 +189,7 @@ final class FieldSyncController: ObservableObject {
                 activationToken: activationToken
             )
             await OfflineMediaStore.shared.remove(path: imagePath)
+            NotificationCenter.default.post(name: .haloClockStateChanged, object: nil)
 
         case .arrivalCheckIn:
             guard
