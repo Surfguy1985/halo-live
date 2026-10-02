@@ -79,11 +79,18 @@ struct HaloGPSSession: Identifiable, Hashable, Sendable {
     let expiresAt: String?
 }
 
+struct HaloClockAnchor: Hashable, Sendable {
+    let latitude: Double
+    let longitude: Double
+    let radius: Double
+}
+
 struct HaloClockEntry: Hashable, Sendable {
     let id: String
     let jobID: String?
     let property: String?
     let unitNumber: String?
+    let attendanceOnly: Bool
     let running: Bool
     let status: String
     let reviewStatus: String
@@ -96,6 +103,10 @@ struct HaloClockEntry: Hashable, Sendable {
 struct HaloClockStatus: Hashable, Sendable {
     let configured: Bool
     let employeeID: String?
+    let profileName: String
+    let todayWorkedMs: Int
+    let latestPhotoURL: String?
+    let anchor: HaloClockAnchor?
     let entry: HaloClockEntry?
 }
 
@@ -712,6 +723,7 @@ actor HaloAPI {
                 jobID: Self.string(row["jobId"]),
                 property: Self.string(row["property"]),
                 unitNumber: Self.string(row["unitNumber"]),
+                attendanceOnly: (row["attendanceOnly"] as? Bool) ?? false,
                 running: (row["running"] as? Bool) ?? false,
                 status: Self.string(row["status"]) ?? "working",
                 reviewStatus: Self.string(row["reviewStatus"]) ?? "",
@@ -722,12 +734,29 @@ actor HaloAPI {
             )
         }()
 
-        return HaloClockStatus(configured: configured, employeeID: employeeID, entry: entry)
+        let anchor: HaloClockAnchor? = {
+            guard let row = root["anchor"] as? [String: Any],
+                  let latitude = Self.double(row["latitude"]),
+                  let longitude = Self.double(row["longitude"])
+            else { return nil }
+            return HaloClockAnchor(latitude: latitude, longitude: longitude, radius: Self.double(row["radius"]) ?? 500)
+        }()
+
+        return HaloClockStatus(
+            configured: configured,
+            employeeID: employeeID,
+            profileName: Self.string(root["profileName"]) ?? "",
+            todayWorkedMs: Self.int(root["todayWorkedMs"]) ?? 0,
+            latestPhotoURL: Self.string(root["latestPhotoURL"]),
+            anchor: anchor,
+            entry: entry
+        )
     }
 
     func punchClock(
         kind: String,
-        jobID: String,
+        jobID: String = "",
+        attendanceOnly: Bool = false,
         imageData: Data,
         location: CLLocation,
         requestID: UUID,
@@ -737,6 +766,7 @@ actor HaloAPI {
             "action": "clockPunch",
             "kind": kind,
             "jobId": jobID,
+            "attendanceOnly": attendanceOnly,
             "imageBase64": imageData.base64EncodedString(),
             "lat": location.coordinate.latitude,
             "lng": location.coordinate.longitude,
@@ -761,19 +791,21 @@ actor HaloAPI {
             jobID: jobID,
             property: nil,
             unitNumber: nil,
+            attendanceOnly: attendanceOnly,
             running: kind == "start" || kind == "resume",
             status: Self.string(root["status"]) ?? (kind == "submit" ? "closed" : "working"),
             reviewStatus: Self.string(root["reviewStatus"]) ?? "",
             startedAt: nil,
             workedMs: Self.int(root["workedMs"]) ?? 0,
             pauseReason: kind == "pause" ? "break" : nil,
-            sessionType: "unit_work"
+            sessionType: attendanceOnly ? "attendance" : "unit_work"
         )
     }
 
     func replayClockPunch(
         kind: String,
         jobID: String,
+        attendanceOnly: Bool = false,
         imageData: Data,
         latitude: Double,
         longitude: Double,
@@ -786,6 +818,7 @@ actor HaloAPI {
             "action": "clockPunch",
             "kind": kind,
             "jobId": jobID,
+            "attendanceOnly": attendanceOnly,
             "imageBase64": imageData.base64EncodedString(),
             "lat": latitude,
             "lng": longitude,
