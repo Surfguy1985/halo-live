@@ -12,6 +12,7 @@ struct HaloFieldApp: App {
     @StateObject private var notifications = HaloNotificationService()
     @StateObject private var liveActivity = HaloLiveActivityController()
     @StateObject private var realtime = HaloRealtimeService()
+    @StateObject private var attendanceTracking = AttendanceTrackingController()
 
     var body: some Scene {
         WindowGroup {
@@ -24,6 +25,7 @@ struct HaloFieldApp: App {
                 .environmentObject(notifications)
                 .environmentObject(liveActivity)
                 .environmentObject(realtime)
+                .environmentObject(attendanceTracking)
                 .preferredColorScheme(.dark)
                 .onOpenURL { url in
                     Task { await session.handle(url: url) }
