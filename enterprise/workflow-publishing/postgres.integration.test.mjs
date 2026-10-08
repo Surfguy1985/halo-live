@@ -39,6 +39,8 @@ test("Postgres: concurrent publish, durability, tenant isolation, rollback and r
     await client.query("CREATE ROLE halo_workflow_executor NOLOGIN NOBYPASSRLS");
     const rlsMigration = await readFile(fileURLToPath(new URL("./migrations/002_tenant_rls.sql",import.meta.url)),"utf8");
     await client.query(rlsMigration);
+    const runtimeMigration=await readFile(fileURLToPath(new URL("./migrations/004_runtime_role.sql",import.meta.url)),"utf8");
+    await client.query(runtimeMigration);
     const membershipMigration=await readFile(fileURLToPath(new URL("./migrations/003_identity_memberships.sql",import.meta.url)),"utf8");
     await client.query(membershipMigration);
     const publisher = new WorkflowTemplatePublisher(new PostgresWorkflowStore(pool));
@@ -104,6 +106,16 @@ test("Postgres: concurrent publish, durability, tenant isolation, rollback and r
       assert.equal(await loader.load("unknown-actor"),null);
       await pool.query("UPDATE halo_workflow.identity_memberships SET active=false,revision=revision+1 WHERE actor_id=$1",["member-a"]);
       assert.equal(await loader.load("member-a"),null);
+    });
+    await t.test("runtime role has no direct table read privileges",async()=>{
+      const isolated=await pool.connect();
+      try {
+        await isolated.query("SET ROLE halo_workflow_runtime");
+        await assert.rejects(()=>isolated.query("SELECT * FROM halo_workflow.template_heads"),/permission denied/);
+      } finally {
+        await isolated.query("RESET ROLE").catch(()=>{});
+        isolated.release();
+      }
     });
     await t.test("restricted role: no scope denied, scoped reads isolated, cross-tenant insert denied", async()=>{
       // Dedicated connection: never leak SET ROLE to the admin test connection.
