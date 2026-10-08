@@ -39,6 +39,8 @@ test("Postgres: concurrent publish, durability, tenant isolation, rollback and r
     await client.query("CREATE ROLE halo_workflow_executor NOLOGIN NOBYPASSRLS");
     const rlsMigration = await readFile(fileURLToPath(new URL("./migrations/002_tenant_rls.sql",import.meta.url)),"utf8");
     await client.query(rlsMigration);
+    const membershipMigration=await readFile(fileURLToPath(new URL("./migrations/003_identity_memberships.sql",import.meta.url)),"utf8");
+    await client.query(membershipMigration);
     const publisher = new WorkflowTemplatePublisher(new PostgresWorkflowStore(pool));
 
     await t.test("simultaneous first publishes never both win",async()=>{
@@ -90,6 +92,18 @@ test("Postgres: concurrent publish, durability, tenant isolation, rollback and r
         const r=await pool.query(`SELECT count(*)::integer AS n FROM halo_workflow.${table} WHERE tenant_id=$1`,[rollbackTenant]);
         assert.equal(r.rows[0].n,0,table);
       }
+    });
+    await t.test("revocation and membership isolation survive database reads",async()=>{
+      const {PostgresMembershipLoader}=await import("./membership-store.mjs");
+      const loader=new PostgresMembershipLoader(pool); // Integration DBA role only.
+      await pool.query(`INSERT INTO halo_workflow.identity_memberships
+        (actor_id,tenant_id,active,industry_ids,permissions)
+        VALUES($1,$2,true,$3::jsonb,$4::jsonb)`,
+        ["member-a","tenant-a",JSON.stringify(["construction"]),JSON.stringify(["workflow:publish"])]);
+      assert.equal((await loader.load("member-a")).tenantID,"tenant-a");
+      assert.equal(await loader.load("unknown-actor"),null);
+      await pool.query("UPDATE halo_workflow.identity_memberships SET active=false,revision=revision+1 WHERE actor_id=$1",["member-a"]);
+      assert.equal(await loader.load("member-a"),null);
     });
     await t.test("restricted role: no scope denied, scoped reads isolated, cross-tenant insert denied", async()=>{
       // Dedicated connection: never leak SET ROLE to the admin test connection.
