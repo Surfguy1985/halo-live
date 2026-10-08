@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test publisher.test.mjs postgres-store.test.mjs api-handler.test.mjs trusted-auth.test.mjs membership-store.test.mjs jwt-verifier.test.mjs rotating-jwks.test.mjs enterprise-pipeline.test.mjs http-server.test.mjs request-guard.test.mjs distributed-guard.test.mjs readiness.test.mjs",
+    "test": "node --test publisher.test.mjs postgres-store.test.mjs api-handler.test.mjs trusted-auth.test.mjs membership-store.test.mjs jwt-verifier.test.mjs rotating-jwks.test.mjs enterprise-pipeline.test.mjs http-server.test.mjs request-guard.test.mjs distributed-guard.test.mjs readiness.test.mjs observability.test.mjs",
     "test:postgres": "node --test postgres.integration.test.mjs && node --test http-postgres.integration.test.mjs"
   },
   "devDependencies": {
