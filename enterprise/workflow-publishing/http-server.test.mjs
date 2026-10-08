@@ -66,3 +66,18 @@ test("readiness reports dependencies only when check passes",()=>withServer({
  assert.equal(r.status,200);
  assert.deepEqual(await r.json(),{status:"ready"});
 }));
+
+test("shared Redis limiter is used instead of local limiter when configured",()=>withServer({
+ enabled:true,rateLimit:1,rateLimitRedis:{eval:async()=>2},
+ gateway:async()=>{throw Error("gateway must not run");}
+},async url=>{
+ const r=await fetch(url+"/v1/workflow-templates/a/publish",{method:"POST",body:"{}"});
+ assert.equal(r.status,429);
+}));
+test("Redis limiter failure returns 503 without invoking workflow",()=>withServer({
+ enabled:true,rateLimitRedis:{eval:async()=>{throw Error("cache down");}},
+ gateway:async()=>{throw Error("gateway must not run");}
+},async url=>{
+ const r=await fetch(url+"/v1/workflow-templates/a/publish",{method:"POST",body:"{}"});
+ assert.equal(r.status,503);
+}));
