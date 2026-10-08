@@ -53,3 +53,16 @@ test("integrated per-peer guard returns 429 before gateway on excess traffic",()
  assert.equal((await fetch(endpoint,options)).status,200);
  assert.equal((await fetch(endpoint,options)).status,429);
 }));
+
+test("readiness fails closed unless explicitly configured and healthy",()=>withServer({
+ enabled:true,gateway:async()=>({status:200,body:"{}"})
+},async url=>{
+ assert.equal((await fetch(url+"/health/ready")).status,503);
+}));
+test("readiness reports dependencies only when check passes",()=>withServer({
+ enabled:true,readinessCheck:async()=>true,gateway:async()=>({status:200,body:"{}"})
+},async url=>{
+ const r=await fetch(url+"/health/ready");
+ assert.equal(r.status,200);
+ assert.deepEqual(await r.json(),{status:"ready"});
+}));
