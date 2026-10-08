@@ -15,6 +15,10 @@ export class PostgresWorkflowStore {
     try {
       await client.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
       active = true;
+      // Restrict DML to the least-privileged executor even if the caller
+      // accidentally supplies a more privileged connection. Deployment must
+      // use a dedicated runtime login and deny arbitrary SQL to API users.
+      await client.query("SET LOCAL ROLE halo_workflow_executor");
       // Transaction-local tenant scope for restrictive RLS policies.
       // tenantID MUST come from a verified server session.
       await client.query("SELECT set_config('halo.tenant_id', $1, true)", [tenantID]);
