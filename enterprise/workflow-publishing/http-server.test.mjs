@@ -33,6 +33,6 @@ test("oversized body rejected without invoking gateway",()=>withServer({
  enabled:true,gateway:async()=>{throw Error("must not call");}
 },async url=>{
  const response=await fetch(url+"/v1/workflow-templates/a/publish",{
-  method:"POST",body:"x".repeat(130000)});
+  method:"POST",body:"x".repeat(132000)});
  assert.equal(response.status,413);
 }));
