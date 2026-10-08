@@ -36,3 +36,20 @@ test("oversized body rejected without invoking gateway",()=>withServer({
   method:"POST",body:"x".repeat(132000)});
  assert.equal(response.status,413);
 }));
+
+test("liveness is available without exposing tenant data",()=>withServer({
+ gateway:async()=>{throw Error("must not call");},enabled:false
+},async url=>{
+ const response=await fetch(url+"/health/live");
+ assert.equal(response.status,200);
+ assert.deepEqual(await response.json(),{status:"alive"});
+}));
+test("integrated per-peer guard returns 429 before gateway on excess traffic",()=>withServer({
+ enabled:true,rateLimit:1,rateWindowMs:60000,
+ gateway:async()=>({status:200,body:"{}"})
+},async url=>{
+ const endpoint=url+"/v1/workflow-templates/a/publish";
+ const options={method:"POST",headers:{"content-type":"application/json"},body:"{}"};
+ assert.equal((await fetch(endpoint,options)).status,200);
+ assert.equal((await fetch(endpoint,options)).status,429);
+}));
