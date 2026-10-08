@@ -11,7 +11,7 @@ const text = x => typeof x === "string" && x.trim().length > 0;
 const keys = obj => obj && typeof obj === "object" && !Array.isArray(obj);
 const canonical = value => Array.isArray(value) ? value.map(canonical) :
   keys(value) ? Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])])) : value;
-const hash = value => createHash("sha256").update(JSON.stringify(canonical(value))).digest("hex");
+export const layoutHash = value => createHash("sha256").update(JSON.stringify(canonical(value))).digest("hex");
 
 export function validateLayout(layout) {
   if (!keys(layout) || layout.schemaVersion !== 1 || !text(layout.templateID) ||
@@ -46,7 +46,7 @@ export class WorkflowTemplatePublisher {
       throw new PublishError("FORBIDDEN", "Tenant or resource mismatch");
     if (!Array.isArray(session.industryIDs) || !session.industryIDs.includes(layout.industryID))
       throw new PublishError("FORBIDDEN", "Industry scope denied");
-    const fingerprint = hash({templateID, proposal});
+    const fingerprint = layoutHash({templateID, proposal});
     // Unique (tenant_id, idempotency_key), immutable revisions and audit event.
     return this.store.transaction(session.tenantID, templateID, async tx => {
       const previous = await tx.getIdempotency(idempotencyKey);
@@ -62,11 +62,11 @@ export class WorkflowTemplatePublisher {
         throw new PublishError("FORBIDDEN", "Industry cannot change");
       const result = Object.freeze({ templateID, revision: revision + 1, templateVersion: layout.templateVersion });
       await tx.saveTemplate({ ...layout, revision: result.revision });
+      await tx.saveIdempotency(idempotencyKey, {fingerprint, response: result});
       await tx.appendAudit({ event: "workflow.template.published", tenantID: session.tenantID,
         actorID: session.actorID, templateID, revision: result.revision,
-        contentHash: hash(layout), idempotencyKey });
-      await tx.saveIdempotency(idempotencyKey, {fingerprint, response: result});
+        contentHash: layoutHash(layout), idempotencyKey });
       return result;
-    });
+    }, layout.industryID, session.actorID);
   }
 }
