@@ -36,6 +36,9 @@ test("Postgres: concurrent publish, durability, tenant isolation, rollback and r
     await client.query("DROP SCHEMA IF EXISTS halo_workflow CASCADE");
     const migration = await readFile(fileURLToPath(new URL("./migrations/001_workflow_publishing.sql",import.meta.url)),"utf8");
     await client.query(migration);
+    await client.query("CREATE ROLE halo_workflow_executor NOLOGIN NOBYPASSRLS");
+    const rlsMigration = await readFile(fileURLToPath(new URL("./migrations/002_tenant_rls.sql",import.meta.url)),"utf8");
+    await client.query(rlsMigration);
     const publisher = new WorkflowTemplatePublisher(new PostgresWorkflowStore(pool));
 
     await t.test("simultaneous first publishes never both win",async()=>{
@@ -86,6 +89,26 @@ test("Postgres: concurrent publish, durability, tenant isolation, rollback and r
       for (const table of ["template_heads","template_revisions","publish_idempotency","publish_audit"]){
         const r=await pool.query(`SELECT count(*)::integer AS n FROM halo_workflow.${table} WHERE tenant_id=$1`,[rollbackTenant]);
         assert.equal(r.rows[0].n,0,table);
+      }
+    });
+    await t.test("restricted role: no scope denied, scoped reads isolated, cross-tenant insert denied", async()=>{
+      // Dedicated connection: never leak SET ROLE to the admin test connection.
+      const scoped = await pool.connect();
+      try {
+        await scoped.query("SET ROLE halo_workflow_executor");
+        const empty = await scoped.query("SELECT count(*)::int AS n FROM halo_workflow.template_heads");
+        assert.equal(empty.rows[0].n,0);
+        await scoped.query("BEGIN");
+        await scoped.query("SELECT set_config('halo.tenant_id', $1, true)",["tenant-a"]);
+        const a = await scoped.query("SELECT tenant_id FROM halo_workflow.template_heads ORDER BY tenant_id");
+        assert.deepEqual(a.rows.map(r=>r.tenant_id),["tenant-a"]);
+        await assert.rejects(()=>scoped.query(
+          "INSERT INTO halo_workflow.template_heads(tenant_id,template_id,industry_id) VALUES($1,$2,$3)",
+          ["tenant-b","probe","construction"]), /row-level security/);
+        await scoped.query("ROLLBACK");
+      } finally {
+        await scoped.query("RESET ROLE").catch(()=>{});
+        scoped.release();
       }
     });
   } finally {
