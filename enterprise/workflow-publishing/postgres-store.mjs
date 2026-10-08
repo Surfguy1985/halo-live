@@ -15,6 +15,9 @@ export class PostgresWorkflowStore {
     try {
       await client.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
       active = true;
+      // Transaction-local tenant scope for restrictive RLS policies.
+      // tenantID MUST come from a verified server session.
+      await client.query("SELECT set_config('halo.tenant_id', $1, true)", [tenantID]);
       // Durable identity and row lock serialize first publishes, too.
       await client.query(
         `INSERT INTO halo_workflow.template_heads(tenant_id,template_id,industry_id)
