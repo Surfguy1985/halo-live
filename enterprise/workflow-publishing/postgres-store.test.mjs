@@ -12,7 +12,7 @@ function fakePool({ failAudit = false } = {}) {
   const client = {
     async query(sql, args = []) {
       calls.push(sql.trim().split(/\s+/).slice(0, 5).join(" ").toUpperCase());
-      if (sql.startsWith("BEGIN") || sql.includes("set_config")) return {rows:[],rowCount:0};
+      if (sql.startsWith("BEGIN") || sql.startsWith("SET LOCAL ROLE") || sql.includes("set_config")) return {rows:[],rowCount:0};
       if (sql === "COMMIT" || sql === "ROLLBACK") return {rows:[],rowCount:0};
       if (sql.includes("INSERT INTO halo_workflow.template_heads")) {
         if (!state.head) state.head={industry_id:args[2],revision:0};
