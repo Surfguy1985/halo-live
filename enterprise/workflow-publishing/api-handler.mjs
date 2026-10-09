@@ -45,7 +45,8 @@ export function createWorkflowPublishHandler({publisher, enabled=false}={}) {
     let parsed;
     try {parsed=JSON.parse(raw.toString("utf8"));} catch {return jsonResponse(400,{error:"INVALID_JSON"});}
     if (!object(parsed) || !token(parsed.requestID) || parsed.requestID!==key ||
-        !object(parsed.layout) || !Number.isSafeInteger(parsed.expectedRevision) || parsed.expectedRevision < 0)
+        !object(parsed.layout) || !Number.isSafeInteger(parsed.expectedRevision) || parsed.expectedRevision < 0 ||
+        parsed.expectedRevision >= Number.MAX_SAFE_INTEGER)
       return jsonResponse(422,{error:"INVALID_REQUEST"});
     try {
       const result=await publisher.publish({

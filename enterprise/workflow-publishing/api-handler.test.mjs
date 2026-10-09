@@ -52,3 +52,14 @@ test("rejects negative, fractional, and unsafe revision numbers before publisher
   assert.deepEqual(JSON.parse(response.body),{error:"INVALID_REQUEST"});
  }
 });
+
+test("rejects next-revision overflow at HTTP boundary before publisher",async()=>{
+ const h=createWorkflowPublishHandler({enabled:true,publisher:{publish:()=>{throw Error("must not call");}}});
+ for(const revision of [Number.MAX_SAFE_INTEGER,Number.MAX_SAFE_INTEGER+1]){
+  const req=request("revision-overflow");
+  req.body=JSON.stringify({requestID:"revision-overflow",expectedRevision:revision,layout});
+  const response=await h(req,session);
+  assert.equal(response.status,422);
+  assert.deepEqual(JSON.parse(response.body),{error:"INVALID_REQUEST"});
+ }
+});

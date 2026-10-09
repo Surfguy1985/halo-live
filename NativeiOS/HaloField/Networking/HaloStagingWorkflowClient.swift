@@ -54,7 +54,7 @@ struct HaloStagingWorkflowClient {
             throw Failure.invalidTemplateID
         }
         guard proposal.expectedRevision >= 0,
-              proposal.expectedRevision <= 9_007_199_254_740_991,
+              proposal.expectedRevision < 9_007_199_254_740_991,
               case .success = HaloWorkflowBlocks.validate(proposal.layout) else {
             throw Failure.invalidSchema
         }

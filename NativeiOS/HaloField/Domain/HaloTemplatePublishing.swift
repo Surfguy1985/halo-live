@@ -24,7 +24,7 @@ enum HaloTemplatePublishing {
             return .failure(.invalidLayout)
         }
         // JSON numbers in the Node publishing service must be JavaScript-safe integers.
-        guard expectedRevision >= 0, expectedRevision <= 9_007_199_254_740_991 else {
+        guard expectedRevision >= 0, expectedRevision < 9_007_199_254_740_991 else {
             return .failure(.invalidRevision)
         }
         guard !actorID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {

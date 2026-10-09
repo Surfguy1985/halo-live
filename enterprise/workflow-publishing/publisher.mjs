@@ -24,7 +24,8 @@ export class WorkflowTemplatePublisher {
       throw new PublishError("FORBIDDEN", "Not authorized");
     if (!text(templateID) || !text(idempotencyKey) || idempotencyKey.length > 128 ||
         !keys(proposal) || !Number.isSafeInteger(proposal.expectedRevision) ||
-        proposal.expectedRevision < 0 || !validateLayout(proposal.layout))
+        proposal.expectedRevision < 0 || proposal.expectedRevision >= Number.MAX_SAFE_INTEGER ||
+        !validateLayout(proposal.layout))
       throw new PublishError("INVALID", "Invalid publishing request");
     const layout = proposal.layout;
     if (layout.tenantID !== session.tenantID || layout.templateID !== templateID)

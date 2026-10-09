@@ -90,6 +90,23 @@ final class HaloStagingWorkflowClientTests: XCTestCase {
         XCTAssertEqual(calls, 0)
     }
 
+    func testRejectsRevisionWhoseNextValueWouldBeUnsafeBeforeNetworkRequest() async throws {
+        var calls = 0
+        let client = try makeClient(status: 200,
+            payload: #"{"templateID":"fleet-dispatch","revision":8,"templateVersion":1}"#) { _ in
+            calls += 1
+        }
+        let invalid = HaloTemplatePublishing.Proposal(
+            requestID: UUID(), expectedRevision: 9_007_199_254_740_991, layout: proposal.layout)
+        do {
+            _ = try await client.publish(proposal: invalid, bearerToken: "staging-test-token")
+            XCTFail("Next revision would be unsafe")
+        } catch let error as HaloStagingWorkflowClient.Failure {
+            XCTAssertEqual(error, .invalidSchema)
+        }
+        XCTAssertEqual(calls, 0)
+    }
+
     func testRejectsRevisionConflictWithoutAutomaticRetry() async throws {
         let client = try makeClient(status: 409, payload: #"{"error":"REVISION_CONFLICT"}"#)
         do {

@@ -78,3 +78,26 @@ test("failed audit rolls back all writes in transactional adapter",async()=>{
     session:session(),templateID:"example",idempotencyKey:"k",proposal:proposal()}));
   assert.equal(base.state.template,null);assert.equal(base.state.keys.size,0);
 });
+
+test("rejects revisions whose next value cannot be represented safely",async()=>{
+ const db=store(),service=new WorkflowTemplatePublisher(db);
+ for(const revision of [Number.MAX_SAFE_INTEGER,Number.MAX_SAFE_INTEGER+1]){
+  await rejects(()=>service.publish({session:session(),templateID:"example",
+   idempotencyKey:"overflow-"+revision,
+   proposal:{...proposal(),expectedRevision:revision}}),"INVALID");
+ }
+ assert.equal(db.state.template,null);
+ assert.equal(db.state.audits.length,0);
+ assert.equal(db.state.keys.size,0);
+});
+test("last safe next revision publishes and idempotently replays once",async()=>{
+ const db=store(),service=new WorkflowTemplatePublisher(db);
+ const current=Number.MAX_SAFE_INTEGER-1;
+ db.state.template={...layout(),revision:current};
+ const input={session:session(),templateID:"example",idempotencyKey:"last-safe",
+  proposal:{...proposal(),expectedRevision:current}};
+ const result=await service.publish(input);
+ assert.equal(result.revision,Number.MAX_SAFE_INTEGER);
+ assert.deepEqual(await service.publish(input),result);
+ assert.equal(db.state.audits.length,1);
+});

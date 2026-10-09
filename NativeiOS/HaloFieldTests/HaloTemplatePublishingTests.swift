@@ -30,6 +30,16 @@ final class HaloTemplatePublishingTests: XCTestCase {
         XCTAssertEqual(result, .failure(.invalidRevision))
     }
 
+    func testRejectsRevisionThatWouldOverflowSafeNextRevision() {
+        let maxSafe = 9_007_199_254_740_991
+        let rejected = HaloTemplatePublishing.prepare(
+            layout: validLayout, expectedRevision: maxSafe, actorID: "admin-1", requestID: UUID())
+        XCTAssertEqual(rejected, .failure(.invalidRevision))
+        let accepted = HaloTemplatePublishing.prepare(
+            layout: validLayout, expectedRevision: maxSafe - 1, actorID: "admin-1", requestID: UUID())
+        guard case .success = accepted else { return XCTFail("Expected last safe next revision") }
+    }
+
     func testRejectsAnonymousActor() {
         let result = HaloTemplatePublishing.prepare(
             layout: validLayout, expectedRevision: 0, actorID: "  ", requestID: UUID())
