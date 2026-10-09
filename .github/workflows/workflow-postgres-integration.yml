@@ -1,5 +1,11 @@
 name: Workflow PostgreSQL Integration
 on:
+  push:
+    branches:
+      - 'release/halo-workflow-rc1-candidate'
+    paths:
+      - 'enterprise/workflow-publishing/**'
+      - '.github/workflows/workflow-postgres-integration.yml'
   pull_request:
     paths:
       - 'enterprise/workflow-publishing/**'
