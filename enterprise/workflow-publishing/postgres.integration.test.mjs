@@ -36,7 +36,8 @@ test("Postgres: concurrent publish, durability, tenant isolation, rollback and r
     await client.query("DROP SCHEMA IF EXISTS halo_workflow CASCADE");
     const migration = await readFile(fileURLToPath(new URL("./migrations/001_workflow_publishing.sql",import.meta.url)),"utf8");
     await client.query(migration);
-    await client.query("DO $ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname=\'halo_workflow_executor\') THEN CREATE ROLE halo_workflow_executor NOLOGIN NOBYPASSRLS; END IF; END $");
+    const executorRole = await client.query("SELECT 1 FROM pg_roles WHERE rolname=$1",["halo_workflow_executor"]);
+    if(executorRole.rowCount===0) await client.query("CREATE ROLE halo_workflow_executor NOLOGIN NOBYPASSRLS");
     const rlsMigration = await readFile(fileURLToPath(new URL("./migrations/002_tenant_rls.sql",import.meta.url)),"utf8");
     await client.query(rlsMigration);
     const runtimeMigration=await readFile(fileURLToPath(new URL("./migrations/004_runtime_role.sql",import.meta.url)),"utf8");
