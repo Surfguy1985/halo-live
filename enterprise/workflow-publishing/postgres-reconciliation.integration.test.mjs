@@ -21,8 +21,9 @@ test("Postgres reconciliation: concurrent CAS, immutable audit, tenant isolation
   const args={session,tenantID:"tenant-a",consumerID:"accounting",eventID,resolution:"confirmed_delivered",expectedRevision:0,evidence};
   const outcome=await Promise.allSettled([svc.resolve(args),svc.resolve(args)]);
   assert.equal(outcome.filter(x=>x.status==="fulfilled").length,1);
-  const stored=await pool.query("SELECT status,outcome,reconciliation_revision FROM halo_execution.consumer_deliveries WHERE tenant_id='tenant-a'");
+  const stored=await pool.query("SELECT status,outcome,reconciliation_revision,delivered_at FROM halo_execution.consumer_deliveries WHERE tenant_id='tenant-a'");
   assert.equal(stored.rows[0].status,"delivered");
+  assert.ok(stored.rows[0].delivered_at instanceof Date,"confirmed delivery must have completion timestamp");
   assert.equal(Number(stored.rows[0].reconciliation_revision),1);
   const audit=await pool.query("SELECT count(*)::int n FROM halo_execution.delivery_reconciliation_audit");
   assert.equal(audit.rows[0].n,1);
