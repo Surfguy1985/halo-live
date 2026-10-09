@@ -19,6 +19,9 @@ test("real PostgreSQL: competing workers, fencing and retries",{skip:!url},async
   const [a,b]=await Promise.all([db.claim({workerID:"worker-a",now,leaseMs:30000}),db.claim({workerID:"worker-b",now,leaseMs:30000})]);
   assert.equal([a,b].filter(Boolean).length,1);
   const claimed=a||b;const owner=a?"worker-a":"worker-b";
+  await assert.rejects(()=>db.retry({workerID:owner,eventID,leaseToken:claimed.leaseToken,errorCode:"TIMEOUT"}),TypeError);
+  await assert.rejects(()=>db.retry({workerID:owner,eventID,leaseToken:claimed.leaseToken,availableAt:Infinity,errorCode:"TIMEOUT"}),TypeError);
+  await assert.rejects(()=>db.deadLetter({workerID:owner,eventID,leaseToken:claimed.leaseToken}),TypeError);
   assert.equal(await db.complete({workerID:"other",eventID,leaseToken:claimed.leaseToken,now:now+100}),false);
   assert.equal(await db.complete({workerID:owner,eventID,leaseToken:"wrong",now:now+100}),false);
   assert.equal(await db.complete({workerID:owner,eventID,leaseToken:claimed.leaseToken,now:now+100}),true);

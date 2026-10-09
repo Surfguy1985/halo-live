@@ -51,13 +51,17 @@ export class PostgresOutboxLeaseStore {
   WHERE event_id=$1 AND lease_owner=$2 AND lease_token=$3
     AND lease_until>clock_timestamp()
     AND published_at IS NULL AND dead_letter_at IS NULL`});}
- async retry(x){return this.finalize({...x,args:[x.availableAt,x.errorCode],sql:`
+ async retry(x){
+  if(!Number.isSafeInteger(x?.availableAt)||x.availableAt<0||!valid(x?.errorCode))throw TypeError("invalid retry schedule");
+  return this.finalize({...x,args:[x.availableAt,x.errorCode],sql:`
   UPDATE halo_execution.transition_outbox SET available_at=GREATEST(to_timestamp($5/1000.0),clock_timestamp()),
     last_error_code=$6,lease_owner=NULL,lease_until=NULL,lease_token=NULL
   WHERE event_id=$1 AND lease_owner=$2 AND lease_token=$3
     AND lease_until>clock_timestamp()
     AND published_at IS NULL AND dead_letter_at IS NULL`});}
- async deadLetter(x){return this.finalize({...x,args:[x.errorCode],sql:`
+ async deadLetter(x){
+  if(!valid(x?.errorCode))throw TypeError("invalid dead-letter reason");
+  return this.finalize({...x,args:[x.errorCode],sql:`
   UPDATE halo_execution.transition_outbox SET dead_letter_at=clock_timestamp(),
     last_error_code=$5,lease_owner=NULL,lease_until=NULL,lease_token=NULL
   WHERE event_id=$1 AND lease_owner=$2 AND lease_token=$3
