@@ -153,7 +153,7 @@ final class HaloStagingWorkflowClientTests: XCTestCase {
             payload: #"{"templateID":"fleet-dispatch","revision":8,"templateVersion":1}"#) { _ in
             calls += 1
         }
-        for invalid in ["", "has spaces", "contains\\nnewline"] {
+        for invalid in ["", "has spaces", "contains\nnewline"] {
             do {
                 _ = try await client.publish(proposal: proposal, bearerToken: invalid)
                 XCTFail("Invalid bearer token must be rejected")
