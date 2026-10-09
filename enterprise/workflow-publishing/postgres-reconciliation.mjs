@@ -30,7 +30,7 @@ export class PostgresReconciliationService {
     WHERE tenant_id=$1 AND consumer_id=$2 AND event_id=$3
       AND reconciliation_revision=$8 AND status='pending' AND outcome='uncertain'
     RETURNING reconciliation_revision`,
-    [tenantID,consumerID,eventID,decision.nextRevision,resolution,
+    [tenantID,consumerID,eventID,decision.nextRevision,resolution==="escalate"?"escalated":resolution,
      decision.nextStatus,decision.nextOutcome,expectedRevision]);
    if(result.rowCount!==1)throw Error("REVISION_CONFLICT");
    await c.query(`INSERT INTO halo_execution.delivery_reconciliation_audit

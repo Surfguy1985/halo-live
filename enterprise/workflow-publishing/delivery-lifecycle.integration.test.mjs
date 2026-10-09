@@ -71,6 +71,8 @@ test("HALO durable delivery lifecycle: outbox -> consumer -> permit -> uncertain
   });
   assert.equal(decision.nextRevision,1);
   assert.equal(decision.nextStatus,"pending");
+  const stored=await pool.query("SELECT reconciliation_state FROM halo_execution.consumer_deliveries WHERE tenant_id=$1 AND event_id=$2",["tenant-a",eventID]);
+  assert.equal(stored.rows[0].reconciliation_state,"escalated");
   const audit=await pool.query(`SELECT
    (SELECT count(*)::int FROM halo_execution.delivery_outcome_audit WHERE event_id=$1) AS outcomes,
    (SELECT count(*)::int FROM halo_execution.delivery_reconciliation_audit WHERE event_id=$1) AS reconciliations`,[eventID]);
