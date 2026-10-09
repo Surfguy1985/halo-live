@@ -32,6 +32,20 @@ export function createWorkflowHTTPServer({gateway,enabled=false,requestTimeoutMs
    response(res,404,{error:"NOT_FOUND"});return;
   }
   if(req.method!=="POST"){response(res,405,{error:"METHOD_NOT_ALLOWED"});return;}
+  // Node may merge repeated incoming headers. Inspect the raw header names
+  // before forwarding credentials or idempotency scope to an auth gateway.
+  const singularHeaders = new Set(["idempotency-key", "authorization", "content-type", "content-length", "transfer-encoding"]);
+  const seenHeaders = new Set();
+  for (let i = 0; i < req.rawHeaders.length; i += 2) {
+   const name = req.rawHeaders[i].toLowerCase();
+   if (singularHeaders.has(name) && seenHeaders.has(name)) {
+    response(res,400,{error:"DUPLICATE_HEADER"});req.resume();return;
+   }
+   seenHeaders.add(name);
+  }
+  if (seenHeaders.has("content-length") && seenHeaders.has("transfer-encoding")) {
+   response(res,400,{error:"AMBIGUOUS_BODY_FRAMING"});req.resume();return;
+  }
   const contentLength=Number(req.headers["content-length"]);
   if(Number.isFinite(contentLength)&&contentLength>MAX_BODY){
    response(res,413,{error:"PAYLOAD_TOO_LARGE"});req.resume();return;
