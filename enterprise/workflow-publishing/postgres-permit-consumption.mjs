@@ -2,7 +2,7 @@
 // Uses authoritative registry lock to serialize against registry updates.
 export class PostgresPermitConsumptionStore{
  constructor(pool){if(typeof pool?.connect!=="function")throw TypeError("pg pool required");this.pool=pool;}
- async consumeIfAuthorized({tenantID,consumerID,eventID,permitID,registrationRevision,now}){
+ async consumeIfAuthorized({tenantID,consumerID,eventID,permitID,registrationRevision}){
   const client=await this.pool.connect();let active=false;
   try{
    await client.query("BEGIN");active=true;
@@ -17,11 +17,11 @@ export class PostgresPermitConsumptionStore{
     await client.query("ROLLBACK");active=false;return false;
    }
    const permit=await client.query(`UPDATE halo_execution.dispatch_permits
-    SET consumed_at=to_timestamp($6/1000.0)
+    SET consumed_at=clock_timestamp()
     WHERE tenant_id=$1 AND consumer_id=$2 AND event_id=$3 AND permit_id=$4::uuid
       AND registration_revision=$5 AND consumed_at IS NULL AND invalidated_at IS NULL
-      AND expires_at>to_timestamp($6/1000.0) RETURNING permit_id`,
-    [tenantID,consumerID,eventID,permitID,registrationRevision,now]);
+      AND expires_at>clock_timestamp() RETURNING permit_id`,
+    [tenantID,consumerID,eventID,permitID,registrationRevision]);
    const accepted=permit.rowCount===1;
    await client.query("COMMIT");active=false;return accepted;
   }catch(error){if(active)await client.query("ROLLBACK").catch(()=>{});throw error;}

@@ -25,6 +25,9 @@ test("Postgres permit: concurrent one-time consumption, expiry, revocation",{ski
   assert.equal(await store.consumeIfAuthorized(input),false);
   const expiredID="00000000-0000-4000-8000-000000000002";await seed(expiredID,now-1);
   assert.equal(await store.consumeIfAuthorized({...input,permitID:expiredID}),false);
+  // Forged historical caller time cannot resurrect an expired permit.
+  const forgedID="00000000-0000-4000-8000-000000000004";await seed(forgedID,now-1000);
+  assert.equal(await store.consumeIfAuthorized({...input,permitID:forgedID,now:now-120_000}),false);
   const revokedID="00000000-0000-4000-8000-000000000003";await seed(revokedID);
   await pool.query("UPDATE halo_execution.integration_registrations SET enabled=false,revision=5 WHERE tenant_id='tenant-a' AND consumer_id='enforcer'");
   assert.equal(await store.consumeIfAuthorized({...input,permitID:revokedID}),false);
