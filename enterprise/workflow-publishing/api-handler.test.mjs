@@ -41,3 +41,14 @@ test("redacts unexpected errors",async()=>{
  assert.equal(result.status,500);
  assert.ok(!result.body.includes("private SQL"));
 });
+
+test("rejects negative, fractional, and unsafe revision numbers before publisher",async()=>{
+ const h=createWorkflowPublishHandler({enabled:true,publisher:{publish:()=>{throw Error("must not call");}}});
+ for(const revision of [-1,-4,0.5,Number.MAX_SAFE_INTEGER+1]){
+  const req=request("revision-check");
+  req.body=JSON.stringify({requestID:"revision-check",expectedRevision:revision,layout});
+  const response=await h(req,session);
+  assert.equal(response.status,422);
+  assert.deepEqual(JSON.parse(response.body),{error:"INVALID_REQUEST"});
+ }
+});
