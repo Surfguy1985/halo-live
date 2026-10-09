@@ -63,3 +63,14 @@ test("rejects next-revision overflow at HTTP boundary before publisher",async()=
   assert.deepEqual(JSON.parse(response.body),{error:"INVALID_REQUEST"});
  }
 });
+
+test("uncertain COMMIT returns explicit reconciliation signal without leaking SQL details",async()=>{
+ const {WorkflowCommitUncertainError}=await import("./postgres-store.mjs");
+ const h=createWorkflowPublishHandler({enabled:true,publisher:{
+  publish:async()=>{throw new WorkflowCommitUncertainError();}
+ }});
+ const response=await h(request("uncertain-commit"),session);
+ assert.equal(response.status,503);
+ assert.deepEqual(JSON.parse(response.body),{error:"COMMIT_OUTCOME_UNKNOWN"});
+ assert.equal(response.body.includes("SQL"),false);
+});

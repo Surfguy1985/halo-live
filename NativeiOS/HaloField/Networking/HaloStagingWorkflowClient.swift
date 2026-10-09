@@ -13,6 +13,7 @@ struct HaloStagingWorkflowClient {
         case idempotencyConflict
         case invalidSchema
         case serviceUnavailable
+        case commitOutcomeUnknown
         case unexpectedStatus(Int)
         case invalidResponse
     }
@@ -90,7 +91,11 @@ struct HaloStagingWorkflowClient {
             if code == "REVISION_CONFLICT" { throw Failure.revisionConflict }
             throw Failure.invalidResponse
         case 422: throw Failure.invalidSchema
-        case 429, 502, 503, 504: throw Failure.serviceUnavailable
+        case 503:
+            let code = (try? JSONDecoder().decode(ErrorPayload.self, from: data))?.error
+            if code == "COMMIT_OUTCOME_UNKNOWN" { throw Failure.commitOutcomeUnknown }
+            throw Failure.serviceUnavailable
+        case 429, 502, 504: throw Failure.serviceUnavailable
         default: throw Failure.unexpectedStatus(http.statusCode)
         }
     }

@@ -117,6 +117,19 @@ final class HaloStagingWorkflowClientTests: XCTestCase {
         }
     }
 
+    func testUncertainCommitRequiresOriginalRequestIDReconciliation() async throws {
+        var calls = 0
+        let client = try makeClient(status: 503,
+            payload: #"{"error":"COMMIT_OUTCOME_UNKNOWN"}"#) { _ in calls += 1 }
+        do {
+            _ = try await client.publish(proposal: proposal, bearerToken: "staging-test-token")
+            XCTFail("Uncertain commit cannot be reported as successful")
+        } catch let error as HaloStagingWorkflowClient.Failure {
+            XCTAssertEqual(error, .commitOutcomeUnknown)
+        }
+        XCTAssertEqual(calls, 1, "Do not automatically replay a potentially committed mutation")
+    }
+
     func testRejectsIdempotencyConflict() async throws {
         let client = try makeClient(status: 409, payload: #"{"error":"IDEMPOTENCY_CONFLICT"}"#)
         do {

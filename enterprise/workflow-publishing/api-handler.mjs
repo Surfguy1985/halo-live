@@ -2,6 +2,7 @@
 // The caller MUST provide a verified, server-issued session; never source it
 // from a body, cookie string, user-supplied header or unsigned token.
 import { PublishError } from "./publisher.mjs";
+import { WorkflowCommitUncertainError } from "./postgres-store.mjs";
 
 const LIMIT_BYTES = 128 * 1024;
 const templatePath = /^\/v1\/workflow-templates\/([a-zA-Z0-9_-]{1,128})\/publish$/;
@@ -55,6 +56,10 @@ export function createWorkflowPublishHandler({publisher, enabled=false}={}) {
       });
       return jsonResponse(200,result);
     } catch (error) {
+      // A lost COMMIT acknowledgement is not a confirmed rollback. Tell the
+      // caller to reconcile with the original request ID, never invent a new one.
+      if (error instanceof WorkflowCommitUncertainError)
+        return jsonResponse(503,{error:"COMMIT_OUTCOME_UNKNOWN"});
       if (error instanceof PublishError)
         return jsonResponse(statusFor(error),{error:error.code});
       // Fail closed. Never echo SQL errors or internal exception messages.
