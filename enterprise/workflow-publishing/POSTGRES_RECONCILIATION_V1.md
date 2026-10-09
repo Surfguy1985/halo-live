@@ -1,0 +1,5 @@
+# PostgreSQL reconciliation writes — isolated v1
+
+The trusted internal service locks an uncertain delivery record, evaluates the tenant-scoped decision, performs revision-guarded state change, and inserts append-only audit within one transaction. A dedicated NOLOGIN role uses a transaction-local tenant setting and FORCE RLS. The disposable PostgreSQL test covers concurrent same-revision attempts, audit uniqueness, fail-closed RLS and mismatched tenant.
+
+**Unresolved security gates:** `serverVerified` evidence is still a supplied object rather than proof generated from a trusted receipt service, operator membership is asserted through an injected session without a connected identity provider, financial dual approval and retry approval are not implemented, and CI is unverified. The proposed role must only be available through trusted server connections, not arbitrary SQL. Escalation and confirmed-not-processed keep deliveries quarantined until a separate reviewed decision. No live integrations, Base44 or Enforcer changes.
