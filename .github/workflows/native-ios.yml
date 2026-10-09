@@ -67,6 +67,8 @@ jobs:
             NativeiOS/HaloField/Domain/HaloTemplatePublishing.swift \
             NativeiOS/TestsSupport/WorkflowWireFixture.swift
           "$RUNNER_TEMP/halo-workflow-wire" > "$RUNNER_TEMP/halo-workflow-proposal.json"
+          node -e 'const fs=require("fs");const assert=require("node:assert/strict");assert.deepStrictEqual(JSON.parse(fs.readFileSync(process.argv[1])),JSON.parse(fs.readFileSync(process.argv[2])))' \
+            "$RUNNER_TEMP/halo-workflow-proposal.json" enterprise/workflow-publishing/fixtures/swift-publish-v1.json
           HALO_SWIFT_WIRE_FIXTURE="$RUNNER_TEMP/halo-workflow-proposal.json" \
             node --test enterprise/workflow-publishing/swift-wire-integration.test.mjs
 

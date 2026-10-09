@@ -1,0 +1,39 @@
+{
+  "requestID": "11111111-2222-3333-4444-555555555555",
+  "expectedRevision": 0,
+  "layout": {
+    "schemaVersion": 1,
+    "templateID": "construction-dispatch",
+    "templateVersion": 1,
+    "tenantID": "staging-tenant",
+    "industryID": "construction",
+    "blocks": [
+      {
+        "id": "assign",
+        "kind": "assignment",
+        "title": "Assign crew",
+        "order": 0,
+        "required": true,
+        "visibleToRoles": [
+          "dispatcher"
+        ],
+        "config": {
+          "allowSelfAssign": "false"
+        }
+      },
+      {
+        "id": "proof",
+        "kind": "photoProof",
+        "title": "Photo proof",
+        "order": 1,
+        "required": true,
+        "visibleToRoles": [
+          "crew"
+        ],
+        "config": {
+          "minPhotos": "2"
+        }
+      }
+    ]
+  }
+}
