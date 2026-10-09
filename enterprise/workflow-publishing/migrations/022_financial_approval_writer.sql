@@ -6,6 +6,9 @@ DO $$ BEGIN
 END $$;
 GRANT USAGE ON SCHEMA halo_execution TO halo_financial_approval_writer;
 GRANT SELECT ON halo_execution.consumer_deliveries TO halo_financial_approval_writer;
+-- PostgreSQL row locks require UPDATE privilege; RLS intentionally grants no UPDATE policy.
+-- Limit the SQL privilege to one column, so ordinary UPDATE still affects zero rows.
+GRANT UPDATE (reconciliation_revision) ON halo_execution.consumer_deliveries TO halo_financial_approval_writer;
 GRANT SELECT,INSERT ON halo_execution.financial_retry_approvals TO halo_financial_approval_writer;
 CREATE POLICY financial_approval_delivery_read ON halo_execution.consumer_deliveries
  TO halo_financial_approval_writer
