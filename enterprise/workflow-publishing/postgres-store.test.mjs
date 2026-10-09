@@ -81,6 +81,8 @@ test("COMMIT acknowledgement loss is uncertain and destroys pooled connection wi
   query:async sql=>{
    queries.push(sql);
    if(sql==="COMMIT")throw Object.assign(new Error("connection lost"),{code:"ECONNRESET"});
+   if(sql.includes("SELECT industry_id,revision"))
+    return {rows:[{industry_id:"construction",revision:0}],rowCount:1};
    return {rows:[],rowCount:0};
   },
   release:discard=>releases.push(discard)
@@ -99,7 +101,12 @@ test("COMMIT acknowledgement loss is uncertain and destroys pooled connection wi
 test("pre-commit callback failure rolls back, propagates original error and returns healthy connection",async()=>{
  const queries=[],releases=[],failure=new Error("audit failure");
  const db=new PostgresWorkflowStore({connect:async()=>({
-  query:async sql=>{queries.push(sql);return {rows:[],rowCount:0};},
+  query:async sql=>{
+   queries.push(sql);
+   if(sql.includes("SELECT industry_id,revision"))
+    return {rows:[{industry_id:"construction",revision:0}],rowCount:1};
+   return {rows:[],rowCount:0};
+  },
   release:discard=>releases.push(discard)
  })});
  await assert.rejects(()=>db.transaction("t1","sample",async()=>{throw failure;},
@@ -113,6 +120,8 @@ test("failed ROLLBACK destroys connection while preserving original failure",asy
   query:async sql=>{
    queries.push(sql);
    if(sql==="ROLLBACK")throw new Error("rollback transport failed");
+   if(sql.includes("SELECT industry_id,revision"))
+    return {rows:[{industry_id:"construction",revision:0}],rowCount:1};
    return {rows:[],rowCount:0};
   },
   release:discard=>releases.push(discard)
@@ -128,6 +137,8 @@ test("BEGIN failure does not attempt ROLLBACK and discards connection if connect
   query:async sql=>{
    queries.push(sql);
    if(sql.startsWith("BEGIN"))throw new Error("begin rejected");
+   if(sql.includes("SELECT industry_id,revision"))
+    return {rows:[{industry_id:"construction",revision:0}],rowCount:1};
    return {rows:[],rowCount:0};
   },
   release:discard=>releases.push(discard)
