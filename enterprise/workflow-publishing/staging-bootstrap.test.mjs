@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import net from "node:net";
 import {createStagingWorkflowBootstrap} from "./staging-bootstrap.mjs";
 
 const valid = () => ({
@@ -11,13 +12,15 @@ const valid = () => ({
  HALO_WORKFLOW_AUTH_ISSUER:"https://identity.example.test/issuer",
  HALO_WORKFLOW_AUTH_AUDIENCE:"halo-staging-workflow",
  HALO_WORKFLOW_DATABASE_URL:"postgresql://user:secret@db.example.test/halo_staging_workflow?sslmode=verify-full",
- HALO_WORKFLOW_PORT:"0"
+ HALO_WORKFLOW_PORT:"0",
+ HALO_WORKFLOW_EPHEMERAL_TEST_ONLY:"true"
 });
 const deps=({healthy=true}={})=>{
+ const health={healthy};
  const calls={identity:0,workflow:0,jwks:0,redis:0};
  const identityPool={query:async()=>{calls.identity++;return {rows:[]};}};
  const workflowPool={
-  query:async()=>{calls.workflow++;if(!healthy)throw Error("db unavailable");
+  query:async()=>{calls.workflow++;if(!health.healthy)throw Error("db unavailable");
    return {rows:[{ready:1}]};},
   connect:async()=>{throw Error("No workflow SQL expected");}
  };
@@ -26,7 +29,7 @@ const deps=({healthy=true}={})=>{
   eval:async()=>1
  };
  const fetchJWKS=async()=>{calls.jwks++;throw Error("No JWKS expected for unsigned requests");};
- return {identityPool,workflowPool,redis,fetchJWKS,calls};
+ return {identityPool,workflowPool,redis,fetchJWKS,calls,health};
 };
 test("invalid deployment configuration denies before touching dependencies",()=>{
  const d=deps();
@@ -79,4 +82,77 @@ test("staging binds only loopback, denies unsigned publishing, and closes cleanl
   assert.equal(d.calls.jwks,0);
   await assert.rejects(app.start(),{message:"HALO staging bootstrap denied"});
  }finally{await app.stop();}
+});
+
+test("ephemeral listener port requires explicit test-only flag",()=>{
+ const d=deps();
+ assert.throws(()=>createStagingWorkflowBootstrap({
+  config:{...valid(),HALO_WORKFLOW_EPHEMERAL_TEST_ONLY:undefined},...d
+ }),{message:"HALO staging bootstrap denied"});
+});
+test("losing PostgreSQL readiness after startup blocks mutations before auth or SQL",async()=>{
+ const d=deps();
+ const app=createStagingWorkflowBootstrap({config:valid(),...d});
+ const {port}=await app.start();
+ try {
+  d.health.healthy=false;
+  const base="http://127.0.0.1:"+port;
+  const ready=await fetch(base+"/health/ready");
+  assert.equal(ready.status,503);
+  const publish=await fetch(base+"/v1/workflow-templates/demo/publish",{
+   method:"POST",headers:{"content-type":"application/json","idempotency-key":"demo"},
+   body:"{}"
+  });
+  assert.equal(publish.status,503);
+  assert.deepEqual(await publish.json(),{error:"STAGING_NOT_READY"});
+  assert.equal(d.calls.identity,0);
+  assert.equal(d.calls.jwks,0);
+ } finally {await app.stop();}
+});
+test("lost Redis readiness blocks publishing even if database remains healthy",async()=>{
+ const d=deps();
+ const app=createStagingWorkflowBootstrap({config:valid(),...d});
+ const {port}=await app.start();
+ try {
+  d.redis.ping=async()=>{throw Error("redis offline");};
+  const r=await fetch("http://127.0.0.1:"+port+"/v1/workflow-templates/demo/publish",{
+   method:"POST",headers:{"content-type":"application/json"},body:"{}"
+  });
+  assert.equal(r.status,503);
+  assert.deepEqual(await r.json(),{error:"STAGING_NOT_READY"});
+  assert.equal(d.calls.identity,0);
+ } finally {await app.stop();}
+});
+test("concurrent start and stop during startup are denied without opening extra listeners",async()=>{
+ const d=deps();
+ let release;
+ const pending=new Promise(resolve=>{release=resolve;});
+ d.workflowPool.query=async()=>{await pending;return {rows:[{ready:1}]};};
+ const app=createStagingWorkflowBootstrap({config:valid(),...d});
+ const first=app.start();
+ try {
+  await assert.rejects(app.start(),{message:"HALO staging bootstrap denied"});
+  await assert.rejects(app.stop(),{message:"HALO staging bootstrap denied"});
+ } finally {release();}
+ const address=await first;
+ assert.ok(address.port>0);
+ await app.stop();
+ await app.stop(); // idempotent shutdown
+});
+test("occupied staging port fails cleanly and can be retried after release",async()=>{
+ const listener=net.createServer();
+ await new Promise(resolve=>listener.listen(0,"127.0.0.1",resolve));
+ const port=listener.address().port;
+ const app=createStagingWorkflowBootstrap({
+  config:{...valid(),HALO_WORKFLOW_PORT:String(port)},...deps()
+ });
+ try {
+  await assert.rejects(app.start(),error=>error?.code==="EADDRINUSE");
+  await app.stop();
+ } finally {
+  await new Promise(resolve=>listener.close(resolve));
+ }
+ const address=await app.start();
+ assert.equal(address.port,port);
+ await app.stop();
 });

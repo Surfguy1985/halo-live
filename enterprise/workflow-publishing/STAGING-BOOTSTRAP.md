@@ -13,7 +13,7 @@ PostgreSQL or Redis readiness fails; `start()` binds only to
 `127.0.0.1`. The server object is not exposed to callers.
 
 `HALO_WORKFLOW_PORT` is required (0 is reserved for ephemeral test
-listeners; use an explicit fixed port in staging). The network edge must
+listeners; use an explicit fixed port in staging). Port 0 is permitted only\nwith `HALO_WORKFLOW_EPHEMERAL_TEST_ONLY=true`. The network edge must
 terminate TLS, authenticate and protect the proxy-to-loopback path, and
 restrict access to health endpoints. Runtime identity and executor DB
 roles, RLS migrations, issuer/JWKS trust, Redis ACLs, secret rotation,
@@ -21,3 +21,14 @@ outbound isolation and backup/recovery remain separate release gates.
 
 No production HALO, Base44 endpoint, iOS runtime routing or deployment
 configuration is modified by this module.
+
+## Runtime fail-closed behavior
+
+The staging gateway checks PostgreSQL and Redis readiness again before every
+new publishing request. If either dependency becomes unavailable, it returns
+HTTP 503 `STAGING_NOT_READY` without calling authentication, membership or
+publishing SQL. `/health/ready` also returns 503; the listener remains up so
+health probes can observe recovery. The service does not silently fall back to
+Base44 or queue/retry writes. This is not a substitute for infrastructure
+monitoring or an external process supervisor. Startup and shutdown reject
+concurrent lifecycle transitions, and a failed port bind can be retried.

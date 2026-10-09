@@ -14,7 +14,8 @@ export function createStagingWorkflowBootstrap({
   const admission = assertStagingWorkflowConfiguration(config);
   const port = Number(config.HALO_WORKFLOW_PORT);
   if (!/^(0|[1-9][0-9]{0,4})$/.test(config.HALO_WORKFLOW_PORT ?? "") ||
-      !Number.isSafeInteger(port) || port > 65535) deny();
+      !Number.isSafeInteger(port) || port > 65535 ||
+      (port === 0 && config.HALO_WORKFLOW_EPHEMERAL_TEST_ONLY !== "true")) deny();
   if(typeof fetchJWKS !== "function" ||
      !identityPool || typeof identityPool.query !== "function" ||
      !workflowPool || typeof workflowPool.query !== "function" ||
@@ -24,39 +25,59 @@ export function createStagingWorkflowBootstrap({
      logger !== undefined && typeof logger !== "function") deny();
 
   const readiness = createWorkflowReadiness({postgres:workflowPool,redis});
+  let state = "idle";
   const gateway = createEnterpriseWorkflowPipeline({
     issuer:config.HALO_WORKFLOW_AUTH_ISSUER,
     audience:config.HALO_WORKFLOW_AUTH_AUDIENCE,
     fetchJWKS,identityPool,workflowPool,enabled:true
   });
+  // A service can become unhealthy after startup. Never allow a new
+  // publishing mutation when PostgreSQL or Redis readiness is lost.
+  const guardedGateway = async request => {
+    if(state !== "running" || await readiness() !== true) {
+      return {status:503,body:JSON.stringify({error:"STAGING_NOT_READY"})};
+    }
+    return gateway(request);
+  };
   const server = createWorkflowHTTPServer({
-    gateway,enabled:true,readinessCheck:readiness,
+    gateway:guardedGateway,enabled:true,
+    readinessCheck:async()=>state === "running" && await readiness(),
     rateLimitRedis:redis,logger:logger ?? (()=>{})
   });
-  let started = false;
-  let starting = false;
   return Object.freeze({
     admission,
     async start() {
-      if(started || starting) deny();
-      starting = true;
+      if(state !== "idle") deny();
+      state = "starting";
       try {
         if(await readiness() !== true) deny();
         await new Promise((resolve,reject)=>{
-          const onError=error=>{server.off("listening",onListen);reject(error);};
-          const onListen=()=>{server.off("error",onError);resolve();};
+          const cleanup=()=>{server.off("error",onError);server.off("listening",onListen);};
+          const onError=error=>{cleanup();reject(error);};
+          const onListen=()=>{cleanup();resolve();};
           server.once("error",onError);
           server.once("listening",onListen);
-          server.listen(port,admission.bindHost);
+          try {server.listen(port,admission.bindHost);}
+          catch(error){cleanup();reject(error);}
         });
-        started = true;
+        state = "running";
         return Object.freeze({host:admission.bindHost,port:server.address().port});
-      } finally {starting=false;}
+      } catch(error) {
+        state = "idle";
+        throw error;
+      }
     },
     async stop() {
-      if(!started) return;
-      await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
-      started=false;
+      if(state === "idle") return;
+      if(state !== "running") deny();
+      state = "stopping";
+      try {
+        await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+        state = "idle";
+      } catch(error) {
+        state = server.listening ? "running" : "idle";
+        throw error;
+      }
     },
     metrics() { return server.haloMetrics(); }
   });
