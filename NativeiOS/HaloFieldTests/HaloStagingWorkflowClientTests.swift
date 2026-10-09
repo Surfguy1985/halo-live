@@ -97,6 +97,73 @@ final class HaloStagingWorkflowClientTests: XCTestCase {
         }
     }
 
+    func testForbiddenIsNotRetriedOrDowngraded() async throws {
+        var calls = 0
+        let client = try makeClient(status: 403, payload: #"{"error":"FORBIDDEN"}"#) { _ in
+            calls += 1
+        }
+        do {
+            _ = try await client.publish(proposal: proposal, bearerToken: "staging-test-token")
+            XCTFail("Publish should reject revoked membership")
+        } catch let error as HaloStagingWorkflowClient.Failure {
+            XCTAssertEqual(error, .forbidden)
+        }
+        XCTAssertEqual(calls, 1, "Authorization failures must never auto-retry")
+    }
+
+    func testServerValidationErrorIsPreserved() async throws {
+        let client = try makeClient(status: 422, payload: #"{"error":"INVALID_REQUEST"}"#)
+        do {
+            _ = try await client.publish(proposal: proposal, bearerToken: "staging-test-token")
+            XCTFail("Server validation is authoritative")
+        } catch let error as HaloStagingWorkflowClient.Failure {
+            XCTAssertEqual(error, .invalidSchema)
+        }
+    }
+
+    func testRateLimitIsNotAutomaticallyRetried() async throws {
+        var calls = 0
+        let client = try makeClient(status: 429, payload: #"{"error":"RATE_LIMITED"}"#) { _ in
+            calls += 1
+        }
+        do {
+            _ = try await client.publish(proposal: proposal, bearerToken: "staging-test-token")
+            XCTFail("Must not silently replay a rate-limited mutation")
+        } catch let error as HaloStagingWorkflowClient.Failure {
+            XCTAssertEqual(error, .serviceUnavailable)
+        }
+        XCTAssertEqual(calls, 1)
+    }
+
+    func testHTTPRedirectCannotBeTreatedAsSuccessfulPublish() async throws {
+        let client = try makeClient(status: 302, payload: "") { request in
+            XCTAssertEqual(request.url?.host, "staging.example.test")
+        }
+        do {
+            _ = try await client.publish(proposal: proposal, bearerToken: "staging-test-token")
+            XCTFail("Redirect is not a publishing receipt")
+        } catch let error as HaloStagingWorkflowClient.Failure {
+            XCTAssertEqual(error, .unexpectedStatus(302))
+        }
+    }
+
+    func testInvalidCredentialsFailBeforeAnyNetworkRequest() async throws {
+        var calls = 0
+        let client = try makeClient(status: 200,
+            payload: #"{"templateID":"fleet-dispatch","revision":8,"templateVersion":1}"#) { _ in
+            calls += 1
+        }
+        for invalid in ["", "has spaces", "contains\\nnewline"] {
+            do {
+                _ = try await client.publish(proposal: proposal, bearerToken: invalid)
+                XCTFail("Invalid bearer token must be rejected")
+            } catch let error as HaloStagingWorkflowClient.Failure {
+                XCTAssertEqual(error, .invalidCredentials)
+            }
+        }
+        XCTAssertEqual(calls, 0)
+    }
+
     private func makeClient(
         status: Int, payload: String,
         inspect: @escaping (URLRequest) throws -> Void = { _ in }
