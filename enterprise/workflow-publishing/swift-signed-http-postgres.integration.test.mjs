@@ -39,7 +39,18 @@ test("Swift fixture crosses signed HTTP auth and durable tenant-scoped PostgreSQ
    fetchJWKS:async()=>({keys:[{...pair.publicKey.export({format:"jwk"}),kid:"swift-fixture-key",kty:"RSA",use:"sig",alg:"RS256"}]}),
    identityPool:pool,workflowPool:pool,enabled:true
   });
-  server=createWorkflowHTTPServer({gateway,enabled:true});
+  // Simulate a committed publish whose response is lost between the gateway
+  // and HTTP transport. The client must reconcile using the *same* request ID.
+  let loseFirstCommittedReceipt=true;
+  const unreliableGateway=async request=>{
+   const result=await gateway(request);
+   if(loseFirstCommittedReceipt && result.status===200){
+    loseFirstCommittedReceipt=false;
+    throw new Error("SIMULATED_LOST_RECEIPT_AFTER_COMMIT");
+   }
+   return result;
+  };
+  server=createWorkflowHTTPServer({gateway:unreliableGateway,enabled:true});
   await new Promise(resolve=>server.listen(0,"127.0.0.1",resolve));
   const endpoint="http://127.0.0.1:"+server.address().port+
    "/v1/workflow-templates/"+fixture.layout.templateID+"/publish";
@@ -47,9 +58,18 @@ test("Swift fixture crosses signed HTTP auth and durable tenant-scoped PostgreSQ
    method:"POST",headers:{"authorization":"Bearer "+token,
     "content-type":"application/json","idempotency-key":key},body:JSON.stringify(body)
   });
-  const first=await send();
-  const firstBody=await first.text();
-  assert.equal(first.status,200,firstBody);
+  const lost=await send();
+  assert.equal(lost.status,500,"simulated lost receipt must not look successful");
+  assert.deepEqual(await lost.json(),{error:"INTERNAL"},
+   "internal transport failure must not leak details");
+  const committedBeforeRetry=await pool.query(`SELECT count(*)::int AS n
+   FROM halo_workflow.template_revisions WHERE tenant_id=$1 AND template_id=$2`,
+   [fixture.layout.tenantID,fixture.layout.templateID]);
+  assert.equal(committedBeforeRetry.rows[0].n,1,
+   "first publish committed even though client did not receive a receipt");
+  const reconciled=await send();
+  const firstBody=await reconciled.text();
+  assert.equal(reconciled.status,200,firstBody);
   const receipt=JSON.parse(firstBody);
   assert.deepEqual(receipt,{templateID:fixture.layout.templateID,revision:1,templateVersion:fixture.layout.templateVersion});
   const saved=await pool.query(`SELECT layout,revision FROM halo_workflow.template_revisions
@@ -61,6 +81,22 @@ test("Swift fixture crosses signed HTTP auth and durable tenant-scoped PostgreSQ
   const replay=await send();
   assert.equal(replay.status,200);
   assert.deepEqual(await replay.json(),receipt);
+  const afterReconcile=await pool.query(`SELECT
+   (SELECT count(*)::int FROM halo_workflow.template_revisions
+     WHERE tenant_id=$1 AND template_id=$2) AS revisions,
+   (SELECT count(*)::int FROM halo_workflow.publish_audit
+     WHERE tenant_id=$1 AND template_id=$2) AS audits,
+   (SELECT count(*)::int FROM halo_workflow.publish_idempotency
+     WHERE tenant_id=$1 AND template_id=$2) AS idempotency`,
+   [fixture.layout.tenantID,fixture.layout.templateID]);
+  assert.deepEqual(afterReconcile.rows[0],
+   {revisions:1,audits:1,idempotency:1},
+   "lost receipt plus exact replay must create one durable revision, audit and key");
+  // A client that generates a new request ID instead of reconciling the
+  // original request must receive a conflict, never a second revision.
+  const incorrectRetry=await send({...fixture,requestID:"incorrect-retry-new-key"});
+  assert.equal(incorrectRetry.status,409);
+  assert.deepEqual(await incorrectRetry.json(),{error:"REVISION_CONFLICT"});
   const altered=await send({...fixture,expectedRevision:1});
   assert.equal(altered.status,409,"same idempotency key cannot be reused for a different revision");
   assert.deepEqual(await altered.json(),{error:"IDEMPOTENCY_CONFLICT"});
