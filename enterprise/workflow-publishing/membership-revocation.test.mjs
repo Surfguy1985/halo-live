@@ -58,5 +58,5 @@ test("missing publishing permission and invalid bearer fail before storage",asyn
  const invalid=request("invalid-token");
  invalid.headers.authorization="Bearer invalid";
  assert.equal((await h.gateway(invalid)).status,401);
- assert.deepEqual(h.stats(),{calls:1,commits:0});
+ assert.deepEqual(h.stats(),{calls:0,commits:0});
 });
