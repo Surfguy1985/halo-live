@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "node run-domain-tests.mjs",
-    "test:postgres": "node --test postgres.integration.test.mjs && node --test http-postgres.integration.test.mjs && node --test postgres-execution.integration.test.mjs && node --test postgres-outbox.integration.test.mjs && node --test postgres-consumer.integration.test.mjs && node --test postgres-integration-registry.integration.test.mjs && node --test postgres-permit-consumption.integration.test.mjs && node --test postgres-delivery-outcome.integration.test.mjs && node --test postgres-reconciliation.integration.test.mjs && node --test postgres-financial-approval.integration.test.mjs && node --test delivery-lifecycle.integration.test.mjs && node --test delivery-outcome-matrix.integration.test.mjs"
+    "test:postgres": "node --test full-migration-smoke.integration.test.mjs && node --test postgres.integration.test.mjs && node --test http-postgres.integration.test.mjs && node --test postgres-execution.integration.test.mjs && node --test postgres-outbox.integration.test.mjs && node --test postgres-consumer.integration.test.mjs && node --test postgres-integration-registry.integration.test.mjs && node --test postgres-permit-consumption.integration.test.mjs && node --test postgres-delivery-outcome.integration.test.mjs && node --test postgres-reconciliation.integration.test.mjs && node --test postgres-financial-approval.integration.test.mjs && node --test delivery-lifecycle.integration.test.mjs && node --test delivery-outcome-matrix.integration.test.mjs"
   },
   "devDependencies": {
     "pg": "^8.13.1"
