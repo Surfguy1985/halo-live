@@ -1,0 +1,5 @@
+# PostgreSQL permit consumption — draft implementation
+
+Dedicated internal role, row-level security grants, and transactional single-use permit consumption. Registry row is locked before permit consumption; consumption requires current enabled registry revision and an unexpired, unconsumed, non-invalidated matching permit. Concurrent consumers race on the same permit and only one should win.
+
+Security release blockers: permit issuance and secret credential boundary are not implemented; revocation/update uses another database role and must share locking semantics; dispatch-time action/event subscription checks must be integrated; authenticate and validate all caller arguments; UUID permit is not proof of identity; use a trusted server clock instead of client supplied now; integration should run in production restricted pool, never public SQL. Consumption authorizes a future send but does not guarantee prevention of an already-in-flight external request. There is no live transport, Enforcer, or Base44 coupling.
