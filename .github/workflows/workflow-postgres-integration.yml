@@ -1,0 +1,39 @@
+name: Workflow PostgreSQL Integration
+on:
+  pull_request:
+    paths:
+      - 'enterprise/workflow-publishing/**'
+      - '.github/workflows/workflow-postgres-integration.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres-contract:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: test-only
+          POSTGRES_USER: postgres
+          POSTGRES_DB: halo_test_workflow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d halo_test_workflow"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      HALO_WORKFLOW_TEST_DATABASE_URL: postgresql://postgres:test-only@localhost:5432/halo_test_workflow
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated dependencies
+        run: npm install --prefix enterprise/workflow-publishing --no-audit --no-fund
+      - name: Domain and adapter protocol tests
+        run: npm test --prefix enterprise/workflow-publishing
+      - name: Real PostgreSQL integration tests
+        run: npm run test:postgres --prefix enterprise/workflow-publishing

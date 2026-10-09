@@ -1,0 +1,104 @@
+// PostgreSQL adapter for WorkflowTemplatePublisher. NOT mounted on a live API.
+// Inject a pg-compatible Pool. Database credentials must be backend-only.
+// Runtime role/policies are a deployment prerequisite (migration is fail-closed).
+export class PostgresWorkflowStore {
+  constructor(pool) {
+    if (!pool || typeof pool.connect !== "function") throw new TypeError("pg-compatible pool required");
+    this.pool = pool;
+  }
+
+  async transaction(tenantID, templateID, callback, industryID, actorID) {
+    if (![tenantID, templateID, industryID].every(x => typeof x === "string" && x.trim()))
+      throw new TypeError("Trusted tenant/template/industry required");
+    const client = await this.pool.connect();
+    let active = false;
+    try {
+      await client.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
+      active = true;
+      // Restrict DML to the least-privileged executor even if the caller
+      // accidentally supplies a more privileged connection. Deployment must
+      // use a dedicated runtime login and deny arbitrary SQL to API users.
+      await client.query("SET LOCAL ROLE halo_workflow_executor");
+      // Transaction-local tenant scope for restrictive RLS policies.
+      // tenantID MUST come from a verified server session.
+      await client.query("SELECT set_config('halo.tenant_id', $1, true)", [tenantID]);
+      // Durable identity and row lock serialize first publishes, too.
+      await client.query(
+        `INSERT INTO halo_workflow.template_heads(tenant_id,template_id,industry_id)
+         VALUES ($1,$2,$3) ON CONFLICT (tenant_id,template_id) DO NOTHING`,
+        [tenantID, templateID, industryID]
+      );
+      const headResult = await client.query(
+        `SELECT industry_id,revision FROM halo_workflow.template_heads
+         WHERE tenant_id=$1 AND template_id=$2 FOR UPDATE`,
+        [tenantID, templateID]
+      );
+      const head = headResult.rows[0];
+      if (!head || head.industry_id !== industryID) {
+        throw new Error("Workflow identity missing or industry mismatch");
+      }
+      const tx = {
+        getIdempotency: async key => {
+          const r = await client.query(
+            `SELECT request_sha256,response FROM halo_workflow.publish_idempotency
+             WHERE tenant_id=$1 AND template_id=$2 AND idempotency_key=$3`,
+            [tenantID, templateID, key]
+          );
+          const row = r.rows[0];
+          return row ? {fingerprint: row.request_sha256.trim(), response: row.response} : null;
+        },
+        getTemplate: async () => ({revision: Number(head.revision), industryID:head.industry_id}),
+        saveTemplate: async layout => {
+          const nextRevision = layout.revision;
+          if (!Number.isSafeInteger(nextRevision) || nextRevision !== Number(head.revision) + 1 ||
+              layout.tenantID !== tenantID || layout.templateID !== templateID ||
+              layout.industryID !== industryID) throw new Error("Invalid revision or scope");
+          // Import from domain module to ensure exactly matching canonical hashing.
+          const { layoutHash } = await import("./publisher.mjs");
+          const r = await client.query(
+            `UPDATE halo_workflow.template_heads SET revision=$3,updated_at=now()
+             WHERE tenant_id=$1 AND template_id=$2 AND revision=$4`,
+            [tenantID,templateID,nextRevision,head.revision]
+          );
+          if (r.rowCount !== 1) throw new Error("Revision fence failed");
+          await client.query(
+            `INSERT INTO halo_workflow.template_revisions
+             (tenant_id,template_id,revision,template_version,layout,layout_sha256,published_by)
+             VALUES($1,$2,$3,$4,$5::jsonb,$6,$7)`,
+            [tenantID,templateID,nextRevision,layout.templateVersion,
+             JSON.stringify({...layout,revision:undefined}),layoutHash({...layout,revision:undefined}),
+             actorID]
+          );
+        },
+        appendAudit: async event => {
+          await client.query(
+            `INSERT INTO halo_workflow.publish_audit
+             (tenant_id,template_id,revision,actor_id,event_type,content_sha256,idempotency_key)
+             VALUES($1,$2,$3,$4,$5,$6,$7)`,
+            [tenantID,templateID,event.revision,event.actorID,event.event,
+             event.contentHash,event.idempotencyKey]
+          );
+        },
+        saveIdempotency: async (key,value) => {
+          await client.query(
+            `INSERT INTO halo_workflow.publish_idempotency
+             (tenant_id,template_id,idempotency_key,request_sha256,response)
+             VALUES($1,$2,$3,$4,$5::jsonb)`,
+            [tenantID,templateID,key,value.fingerprint,JSON.stringify(value.response)]
+          );
+        }
+      };
+      const result = await callback(tx);
+      await client.query("COMMIT");
+      active = false;
+      return result;
+    } catch (error) {
+      if (active) {
+        try { await client.query("ROLLBACK"); } catch { /* preserve original error */ }
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+}
