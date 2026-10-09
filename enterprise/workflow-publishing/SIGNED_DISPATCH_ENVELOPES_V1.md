@@ -1,0 +1,5 @@
+# Signed integration delivery envelopes (draft)
+
+Pure HMAC-SHA256 outbound envelope constructor, not a network sender. Requires a trusted secret with at least 32 bytes, exact HTTPS hostname allowlisting, explicit event metadata, nonce, timestamp and key ID. Adds tests for signature binding and common destination URL bypass patterns.
+
+**Strict pre-deployment gates:** credentials must be sourced from a managed secret store and scoped per tenant/consumer; the receiving consumer must authenticate the key ID, verify MAC using constant-time comparison, impose a short timestamp window and atomically deduplicate (tenant, consumer, eventID/nonce). A hardened egress proxy must resolve/pin allowed public addresses at connection time, reject private/loopback/link-local networks, disallow redirects, enforce TLS verification and enforce bounded size/time/rate limits. Never trust URLs/host allowlists from request bodies; a hostname allowlist by itself is NOT SSRF protection. Send must occur only after the atomic DB authorization/permit gate. No HTTP calls, third-party integrations, credentials or production changes in this PR.
