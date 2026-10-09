@@ -96,6 +96,43 @@ test("Postgres: concurrent publish, durability, tenant isolation, rollback and r
         assert.equal(r.rows[0].n,0,table);
       }
     });
+    await t.test("failed audit rolls back fully and same request safely succeeds after repair",async()=>{
+      const tenant="tenant-rollback";
+      await pool.query("DROP TRIGGER block_test_audit ON halo_workflow.publish_audit");
+      await pool.query("DROP FUNCTION halo_workflow.block_test_audit()");
+      const first=await publisher.publish(request(tenant,"rollback-1"));
+      assert.equal(first.revision,1);
+      assert.deepEqual(await publisher.publish(request(tenant,"rollback-1")),first);
+      for(const table of ["template_heads","template_revisions","publish_idempotency","publish_audit"]){
+        const r=await pool.query(`SELECT count(*)::int AS n FROM halo_workflow.${table} WHERE tenant_id=$1`,[tenant]);
+        assert.equal(r.rows[0].n,1,`${table}: repaired retry must write once`);
+      }
+    });
+    await t.test("receipt persistence failure rolls back all writes before exact retry",async()=>{
+      const tenant="tenant-receipt-failure";
+      await pool.query(`CREATE OR REPLACE FUNCTION halo_workflow.block_test_receipt() RETURNS trigger
+        LANGUAGE plpgsql AS $ BEGIN IF NEW.tenant_id='tenant-receipt-failure' THEN
+          RAISE EXCEPTION 'forced receipt failure'; END IF; RETURN NEW; END $`);
+      await pool.query(`CREATE TRIGGER block_test_receipt BEFORE INSERT ON halo_workflow.publish_idempotency
+        FOR EACH ROW EXECUTE FUNCTION halo_workflow.block_test_receipt()`);
+      try{
+        await assert.rejects(()=>publisher.publish(request(tenant,"receipt-1")),/forced receipt failure/);
+        for(const table of ["template_heads","template_revisions","publish_idempotency","publish_audit"]){
+          const r=await pool.query(`SELECT count(*)::int AS n FROM halo_workflow.${table} WHERE tenant_id=$1`,[tenant]);
+          assert.equal(r.rows[0].n,0,`${table}: failed transaction must roll back`);
+        }
+      }finally{
+        await pool.query("DROP TRIGGER block_test_receipt ON halo_workflow.publish_idempotency");
+        await pool.query("DROP FUNCTION halo_workflow.block_test_receipt()");
+      }
+      const result=await publisher.publish(request(tenant,"receipt-1"));
+      assert.equal(result.revision,1);
+      assert.deepEqual(await publisher.publish(request(tenant,"receipt-1")),result);
+      for(const table of ["template_heads","template_revisions","publish_idempotency","publish_audit"]){
+        const r=await pool.query(`SELECT count(*)::int AS n FROM halo_workflow.${table} WHERE tenant_id=$1`,[tenant]);
+        assert.equal(r.rows[0].n,1,`${table}: repaired request must write once`);
+      }
+    });
     await t.test("revocation and membership isolation survive database reads",async()=>{
       const {PostgresMembershipLoader}=await import("./membership-store.mjs");
       const loader=new PostgresMembershipLoader(pool); // Integration DBA role only.
