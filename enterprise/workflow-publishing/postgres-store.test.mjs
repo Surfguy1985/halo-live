@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { PostgresWorkflowStore } from "./postgres-store.mjs";
+import { PostgresWorkflowStore, WorkflowCommitUncertainError } from "./postgres-store.mjs";
 import { WorkflowTemplatePublisher } from "./publisher.mjs";
 
 // SQL-protocol fake: validates query ordering and transaction boundaries.
@@ -73,4 +73,67 @@ test("PostgreSQL adapter rejects missing trusted scope before acquiring connecti
   const store=new PostgresWorkflowStore(db.pool);
   await assert.rejects(()=>store.transaction("t1","sample",async()=>{},undefined,"a1"),TypeError);
   assert.equal(db.released,0);
+});
+
+test("COMMIT acknowledgement loss is uncertain and destroys pooled connection without retry",async()=>{
+ const queries=[],releases=[];
+ const pool={connect:async()=>({
+  query:async sql=>{
+   queries.push(sql);
+   if(sql==="COMMIT")throw Object.assign(new Error("connection lost"),{code:"ECONNRESET"});
+   return {rows:[],rowCount:0};
+  },
+  release:discard=>releases.push(discard)
+ })};
+ const db=new PostgresWorkflowStore(pool);
+ await assert.rejects(()=>db.transaction("t1","sample",async()=>({revision:1}),
+  "construction","a1"),error=>
+   error instanceof WorkflowCommitUncertainError &&
+   error.code==="COMMIT_OUTCOME_UNKNOWN" &&
+   !error.message.includes("ECONNRESET"));
+ assert.equal(queries.filter(x=>x==="COMMIT").length,1);
+ assert.equal(queries.filter(x=>x==="ROLLBACK").length,0,
+  "ROLLBACK after uncertain COMMIT cannot prove the write was undone");
+ assert.deepEqual(releases,[true],"do not return ambiguous session to pool");
+});
+test("pre-commit callback failure rolls back, propagates original error and returns healthy connection",async()=>{
+ const queries=[],releases=[],failure=new Error("audit failure");
+ const db=new PostgresWorkflowStore({connect:async()=>({
+  query:async sql=>{queries.push(sql);return {rows:[],rowCount:0};},
+  release:discard=>releases.push(discard)
+ })});
+ await assert.rejects(()=>db.transaction("t1","sample",async()=>{throw failure;},
+  "construction","a1"),error=>error===failure);
+ assert.equal(queries.at(-1),"ROLLBACK");
+ assert.deepEqual(releases,[false]);
+});
+test("failed ROLLBACK destroys connection while preserving original failure",async()=>{
+ const queries=[],releases=[],failure=new Error("audit failure");
+ const db=new PostgresWorkflowStore({connect:async()=>({
+  query:async sql=>{
+   queries.push(sql);
+   if(sql==="ROLLBACK")throw new Error("rollback transport failed");
+   return {rows:[],rowCount:0};
+  },
+  release:discard=>releases.push(discard)
+ })});
+ await assert.rejects(()=>db.transaction("t1","sample",async()=>{throw failure;},
+  "construction","a1"),error=>error===failure);
+ assert.equal(queries.at(-1),"ROLLBACK");
+ assert.deepEqual(releases,[true]);
+});
+test("BEGIN failure does not attempt ROLLBACK and discards connection if connection is broken",async()=>{
+ const queries=[],releases=[];
+ const db=new PostgresWorkflowStore({connect:async()=>({
+  query:async sql=>{
+   queries.push(sql);
+   if(sql.startsWith("BEGIN"))throw new Error("begin rejected");
+   return {rows:[],rowCount:0};
+  },
+  release:discard=>releases.push(discard)
+ })});
+ await assert.rejects(()=>db.transaction("t1","sample",async()=>{},
+  "construction","a1"),/begin rejected/);
+ assert.equal(queries.length,1);
+ assert.deepEqual(releases,[false]);
 });

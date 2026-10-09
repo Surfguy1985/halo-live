@@ -1,6 +1,16 @@
 // PostgreSQL adapter for WorkflowTemplatePublisher. NOT mounted on a live API.
 // Inject a pg-compatible Pool. Database credentials must be backend-only.
 // Runtime role/policies are a deployment prerequisite (migration is fail-closed).
+// COMMIT can be durable even if its acknowledgement is lost. Never auto-retry
+// an uncertain commit; clients must reconcile with the same idempotency key.
+export class WorkflowCommitUncertainError extends Error {
+  constructor() {
+    super("Workflow commit outcome uncertain; reconcile using the original idempotency key");
+    this.name = "WorkflowCommitUncertainError";
+    this.code = "COMMIT_OUTCOME_UNKNOWN";
+  }
+}
+
 export class PostgresWorkflowStore {
   constructor(pool) {
     if (!pool || typeof pool.connect !== "function") throw new TypeError("pg-compatible pool required");
@@ -12,6 +22,8 @@ export class PostgresWorkflowStore {
       throw new TypeError("Trusted tenant/template/industry required");
     const client = await this.pool.connect();
     let active = false;
+    let committing = false;
+    let discardConnection = false;
     try {
       await client.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
       active = true;
@@ -89,16 +101,25 @@ export class PostgresWorkflowStore {
         }
       };
       const result = await callback(tx);
+      committing = true;
       await client.query("COMMIT");
+      committing = false;
       active = false;
       return result;
     } catch (error) {
+      // A transport failure while COMMIT is in flight is ambiguous: the
+      // server may have committed. Never retry this transaction automatically.
+      if (committing) {
+        discardConnection = true;
+        throw new WorkflowCommitUncertainError();
+      }
       if (active) {
-        try { await client.query("ROLLBACK"); } catch { /* preserve original error */ }
+        try { await client.query("ROLLBACK"); }
+        catch { discardConnection = true; /* preserve original error */ }
       }
       throw error;
     } finally {
-      client.release();
+      client.release(discardConnection);
     }
   }
 }
