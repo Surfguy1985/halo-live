@@ -7,18 +7,21 @@ import {createTrustedSessionResolver,createAuthenticatedWorkflowGateway} from ".
 import {PostgresWorkflowStore} from "./postgres-store.mjs";
 import {WorkflowTemplatePublisher} from "./publisher.mjs";
 import {createWorkflowPublishHandler} from "./api-handler.mjs";
+import {createStageTracer} from "./stage-tracer.mjs";
 
 export function createEnterpriseWorkflowPipeline({
- issuer,audience,fetchJWKS,identityPool,workflowPool,enabled=false,clock
+ issuer,audience,fetchJWKS,identityPool,workflowPool,enabled=false,clock,emitTrace=()=>{}
 }={}) {
  if(typeof enabled!=="boolean") throw TypeError("enabled must be boolean");
+ const trace=createStageTracer({emit:emitTrace});
  const verifier=new RotatingJWTVerifier({issuer,audience,fetchJWKS,clock});
  const memberships=new PostgresMembershipLoader(identityPool);
  const resolveSession=createTrustedSessionResolver({
-  verifyBearer:token=>verifier.verify(token),
-  loadMembership:subject=>memberships.load(subject)
+  verifyBearer:token=>trace("auth.verify",null,()=>verifier.verify(token)),
+  loadMembership:subject=>trace("membership.load",null,()=>memberships.load(subject))
  });
- const publisher=new WorkflowTemplatePublisher(new PostgresWorkflowStore(workflowPool));
+ const basePublisher=new WorkflowTemplatePublisher(new PostgresWorkflowStore(workflowPool));
+ const publisher={publish:input=>trace("workflow.publish",null,()=>basePublisher.publish(input))};
  const publishHandler=createWorkflowPublishHandler({publisher,enabled});
  return createAuthenticatedWorkflowGateway({resolveSession,publishHandler});
 }
