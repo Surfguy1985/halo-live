@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import http from "node:http";
 import {createWorkflowHTTPServer} from "./http-server.mjs";
 async function withServer(options,run){
  const server=createWorkflowHTTPServer(options);
@@ -80,4 +81,37 @@ test("Redis limiter failure returns 503 without invoking workflow",()=>withServe
 },async url=>{
  const r=await fetch(url+"/v1/workflow-templates/a/publish",{method:"POST",body:"{}"});
  assert.equal(r.status,503);
+}));
+
+function rawPost(url, headers) {
+ return new Promise((resolve,reject)=>{
+  const req=http.request(url,{method:"POST",headers},res=>{
+   const chunks=[];res.on("data",chunk=>chunks.push(chunk));
+   res.on("end",()=>resolve({status:res.statusCode,body:JSON.parse(Buffer.concat(chunks).toString())}));
+  });
+  req.on("error",reject);
+  req.end("{}");
+ });
+}
+test("duplicate idempotency keys are rejected before gateway processing",()=>withServer({
+ enabled:true,gateway:async()=>{throw Error("gateway must not run");}
+},async url=>{
+ const response=await rawPost(url+"/v1/workflow-templates/a/publish",[
+  "Content-Type","application/json",
+  "Idempotency-Key","first",
+  "idempotency-key","second"
+ ]);
+ assert.equal(response.status,400);
+ assert.deepEqual(response.body,{error:"DUPLICATE_HEADER"});
+}));
+test("duplicate Authorization headers are rejected before gateway processing",()=>withServer({
+ enabled:true,gateway:async()=>{throw Error("gateway must not run");}
+},async url=>{
+ const response=await rawPost(url+"/v1/workflow-templates/a/publish",[
+  "Content-Type","application/json",
+  "Authorization","Bearer first",
+  "authorization","Bearer second"
+ ]);
+ assert.equal(response.status,400);
+ assert.deepEqual(response.body,{error:"DUPLICATE_HEADER"});
 }));
