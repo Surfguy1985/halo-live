@@ -48,8 +48,9 @@ test("Swift fixture crosses signed HTTP auth and durable tenant-scoped PostgreSQ
     "content-type":"application/json","idempotency-key":key},body:JSON.stringify(body)
   });
   const first=await send();
-  assert.equal(first.status,200,await first.text().catch(()=>"[unavailable]"));
-  const receipt=await first.json();
+  const firstBody=await first.text();
+  assert.equal(first.status,200,firstBody);
+  const receipt=JSON.parse(firstBody);
   assert.deepEqual(receipt,{templateID:fixture.layout.templateID,revision:1,templateVersion:fixture.layout.templateVersion});
   const saved=await pool.query(`SELECT layout,revision FROM halo_workflow.template_revisions
    WHERE tenant_id=$1 AND template_id=$2`,[fixture.layout.tenantID,fixture.layout.templateID]);
