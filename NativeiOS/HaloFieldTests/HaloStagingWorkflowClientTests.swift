@@ -164,6 +164,17 @@ final class HaloStagingWorkflowClientTests: XCTestCase {
         XCTAssertEqual(calls, 0)
     }
 
+    func testReceiptMustAdvanceRevision() async throws {
+        let client = try makeClient(status: 200,
+            payload: #"{"templateID":"fleet-dispatch","revision":7,"templateVersion":1}"#)
+        do {
+            _ = try await client.publish(proposal: proposal, bearerToken: "staging-test-token")
+            XCTFail("Stale receipt must not count as successful publishing")
+        } catch let error as HaloStagingWorkflowClient.Failure {
+            XCTAssertEqual(error, .invalidResponse)
+        }
+    }
+
     private func makeClient(
         status: Int, payload: String,
         inspect: @escaping (URLRequest) throws -> Void = { _ in }
