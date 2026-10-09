@@ -102,7 +102,8 @@ test("duplicate idempotency keys are rejected before gateway processing",()=>wit
   "idempotency-key","second"
  ]);
  assert.equal(response.status,400);
- // Node may reject malformed repeated headers in its HTTP parser before our handler.\n if(response.body!==null)assert.deepEqual(response.body,{error:"DUPLICATE_HEADER"});
+ // Node may reject malformed repeated headers in its HTTP parser before our handler.
+ if(response.body!==null)assert.deepEqual(response.body,{error:"DUPLICATE_HEADER"});
 }));
 test("duplicate Authorization headers are rejected before gateway processing",()=>withServer({
  enabled:true,gateway:async()=>{throw Error("gateway must not run");}
