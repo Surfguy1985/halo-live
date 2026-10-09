@@ -28,11 +28,11 @@ export class PostgresOutboxLeaseStore {
       FOR UPDATE SKIP LOCKED LIMIT 1
     )
     UPDATE halo_execution.transition_outbox e
-      SET lease_owner=$2,lease_until=clock_timestamp()+($3 * interval '1 millisecond'),
-          lease_token=$4, attempts=e.attempts+1
+      SET lease_owner=$1,lease_until=clock_timestamp()+($2 * interval '1 millisecond'),
+          lease_token=$3, attempts=e.attempts+1
     FROM candidate WHERE e.event_id=candidate.event_id
     RETURNING e.event_id,e.tenant_id,e.work_item_id,e.revision,e.action,e.attempts,e.lease_token`,
-    [now,workerID,leaseMs,token]);
+    [workerID,leaseMs,token]);
    const row=result.rows[0];if(!row)return null;
    return {eventID:row.event_id.trim(),tenantID:row.tenant_id,workItemID:row.work_item_id,
     revision:Number(row.revision),action:row.action,attempts:row.attempts,leaseToken:row.lease_token};

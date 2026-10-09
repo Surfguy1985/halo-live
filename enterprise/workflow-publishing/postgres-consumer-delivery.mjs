@@ -23,11 +23,11 @@ export class PostgresConsumerDeliveryStore {
     ORDER BY available_at,created_at,tenant_id,event_id FOR UPDATE SKIP LOCKED LIMIT 1
    )
    UPDATE halo_execution.consumer_deliveries d
-    SET lease_owner=$3,lease_token=$4,lease_until=clock_timestamp()+($5 * interval '1 millisecond'),attempts=d.attempts+1
+    SET lease_owner=$2,lease_token=$3,lease_until=clock_timestamp()+($4 * interval '1 millisecond'),attempts=d.attempts+1
    FROM candidate
    WHERE d.tenant_id=candidate.tenant_id AND d.event_id=candidate.event_id AND d.consumer_id=candidate.consumer_id
    RETURNING d.tenant_id,d.event_id,d.consumer_id,d.attempts,d.lease_token`,
-   [consumerID,now,workerID,token,leaseMs]);
+   [consumerID,workerID,token,leaseMs]);
    if(!r.rows[0])return null;
    const row=r.rows[0];
    return {tenantID:row.tenant_id,eventID:row.event_id.trim(),consumerID:row.consumer_id,
