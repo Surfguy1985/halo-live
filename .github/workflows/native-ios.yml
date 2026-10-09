@@ -60,6 +60,16 @@ jobs:
           )
           echo "id=$DEVICE_ID" >> "$GITHUB_OUTPUT"
 
+      - name: Cross-language Swift JSON to Node publisher contract
+        run: |
+          swiftc -o "$RUNNER_TEMP/halo-workflow-wire" \\
+            NativeiOS/HaloField/Domain/HaloWorkflowBlocks.swift \\
+            NativeiOS/HaloField/Domain/HaloTemplatePublishing.swift \\
+            NativeiOS/TestsSupport/WorkflowWireFixture.swift
+          "$RUNNER_TEMP/halo-workflow-wire" > "$RUNNER_TEMP/halo-workflow-proposal.json"
+          HALO_SWIFT_WIRE_FIXTURE="$RUNNER_TEMP/halo-workflow-proposal.json" \\
+            node --test enterprise/workflow-publishing/swift-wire-integration.test.mjs
+
       - name: Build and test
         working-directory: NativeiOS
         run: |
