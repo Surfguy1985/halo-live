@@ -7,9 +7,14 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+# Superseded commits on the same PR should not monopolize runner capacity.
+concurrency:
+  group: workflow-postgres-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   postgres-contract:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:16
@@ -34,6 +39,6 @@ jobs:
       - name: Install isolated dependencies
         run: npm install --prefix enterprise/workflow-publishing --no-audit --no-fund
       - name: Domain and adapter protocol tests
-        run: npm test --prefix enterprise/workflow-publishing
+        run: timeout --signal=TERM --kill-after=20s 8m npm test --prefix enterprise/workflow-publishing
       - name: Real PostgreSQL integration tests
-        run: npm run test:postgres --prefix enterprise/workflow-publishing
+        run: timeout --signal=TERM --kill-after=20s 12m npm run test:postgres --prefix enterprise/workflow-publishing
