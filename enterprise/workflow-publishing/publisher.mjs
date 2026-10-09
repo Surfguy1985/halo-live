@@ -1,34 +1,19 @@
 // Reference publishing domain service. Not mounted on a live API.
 // Store.transaction MUST provide a serializable/durable transaction in production.
 import { createHash } from "node:crypto";
+import {validateLayoutV1} from "./layout-contract.mjs";
 
 export class PublishError extends Error {
   constructor(code, message) { super(message); this.name = "PublishError"; this.code = code; }
 }
 
-const kinds = new Set(["assignment","location","checklist","photoProof","pricing","approval","messaging","closeout"]);
 const text = x => typeof x === "string" && x.trim().length > 0;
 const keys = obj => obj && typeof obj === "object" && !Array.isArray(obj);
 const canonical = value => Array.isArray(value) ? value.map(canonical) :
   keys(value) ? Object.fromEntries(Object.keys(value).sort().map(k => [k, canonical(value[k])])) : value;
 export const layoutHash = value => createHash("sha256").update(JSON.stringify(canonical(value))).digest("hex");
 
-export function validateLayout(layout) {
-  if (!keys(layout) || layout.schemaVersion !== 1 || !text(layout.templateID) ||
-      !Number.isSafeInteger(layout.templateVersion) || layout.templateVersion < 1 ||
-      !text(layout.tenantID) || !text(layout.industryID) ||
-      !Array.isArray(layout.blocks) || layout.blocks.length > 100) return false;
-  const ids = new Set(), orders = new Set();
-  return layout.blocks.every(b => {
-    if (!keys(b) || !text(b.id) || !text(b.title) || !kinds.has(b.kind) ||
-        !Number.isSafeInteger(b.order) || b.order < 0 ||
-        typeof b.required !== "boolean" || !Array.isArray(b.visibleToRoles) ||
-        b.visibleToRoles.length === 0 || !b.visibleToRoles.every(text) ||
-        !keys(b.config) || !Object.entries(b.config).every(([k,v]) => text(k) && typeof v === "string") ||
-        ids.has(b.id) || orders.has(b.order)) return false;
-    ids.add(b.id); orders.add(b.order); return true;
-  });
-}
+export const validateLayout = validateLayoutV1;
 
 export class WorkflowTemplatePublisher {
   constructor(store) { this.store = store; }
