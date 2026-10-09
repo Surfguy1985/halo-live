@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - ios-swift-native-v1
+      - release/halo-workflow-rc1-candidate
     paths:
       - "NativeiOS/**"
       - ".github/workflows/native-ios.yml"
