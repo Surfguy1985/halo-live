@@ -70,6 +70,28 @@ enum HaloWorkflowBlocks {
             .sorted { $0.order < $1.order }
     }
 
+    /// Role-scoped reorder: hidden blocks retain their original slots.
+    /// The client cannot edit blocks its current role cannot see.
+    static func reorderedVisible(
+        _ layout: Layout,
+        roles: Set<String>,
+        orderedVisibleIDs: [String]
+    ) -> Result<Layout, ValidationError> {
+        guard case .success = validate(layout) else { return validate(layout) }
+        let visible = visibleBlocks(in: layout, roles: roles).map(\.id)
+        guard orderedVisibleIDs.count == visible.count,
+              Set(orderedVisibleIDs).count == visible.count,
+              Set(orderedVisibleIDs) == Set(visible) else {
+            return .failure(.invalidBlock)
+        }
+        let visibleIDs = Set(visible)
+        var iterator = orderedVisibleIDs.makeIterator()
+        let fullOrder = layout.blocks.sorted { $0.order < $1.order }.map { block in
+            visibleIDs.contains(block.id) ? (iterator.next() ?? block.id) : block.id
+        }
+        return reordered(layout, orderedIDs: fullOrder)
+    }
+
     /// Reorder is a local editor draft. Publishing requires backend validation.
     static func reordered(_ layout: Layout, orderedIDs: [String]) -> Result<Layout, ValidationError> {
         guard case .success = validate(layout) else { return validate(layout) }
