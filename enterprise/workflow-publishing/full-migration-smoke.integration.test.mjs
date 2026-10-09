@@ -26,6 +26,29 @@ test("ordered migrations 001–022: complete schema with FORCE RLS", {skip:!url}
   const result=await pool.query(
    "SELECT n.nspname,c.relname,c.relrowsecurity,c.relforcerowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('halo_workflow','halo_execution') AND c.relkind='r'");
   assert.ok(result.rowCount>=10,"Missing expected application tables");
+  const roles=await pool.query(`SELECT rolname,rolcanlogin,rolbypassrls,rolsuper,rolcreaterole
+   FROM pg_roles WHERE rolname=ANY($1::text[])`,[[
+    "halo_workflow_executor","halo_outbox_worker","halo_consumer_dispatcher",
+    "halo_registry_manager","halo_permit_gateway","halo_delivery_outcome_writer",
+    "halo_reconciliation_writer","halo_financial_approval_writer"
+   ]]);
+  assert.equal(roles.rowCount,8,"All restricted worker roles must exist");
+  for(const role of roles.rows){
+   assert.equal(role.rolcanlogin,false,role.rolname+" must not have LOGIN");
+   assert.equal(role.rolbypassrls,false,role.rolname+" must not bypass tenant RLS");
+   assert.equal(role.rolsuper,false,role.rolname+" must not be superuser");
+   assert.equal(role.rolcreaterole,false,role.rolname+" must not create roles");
+  }
+  // Financial approvals must be inaccessible without a trusted tenant context.
+  const worker=await pool.connect();
+  try{
+   await worker.query("BEGIN");
+   await worker.query("SET LOCAL ROLE halo_financial_approval_writer");
+   const invisible=await worker.query(
+    "SELECT count(*)::integer AS n FROM halo_execution.financial_retry_approvals");
+   assert.equal(invisible.rows[0].n,0);
+   await worker.query("ROLLBACK");
+  }finally{worker.release();}
   for(const row of result.rows){
    assert.equal(row.relrowsecurity,true,row.nspname+"."+row.relname+" must enable RLS");
    assert.equal(row.relforcerowsecurity,true,row.nspname+"."+row.relname+" must force RLS");
