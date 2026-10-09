@@ -36,6 +36,7 @@ export function createWorkflowPublishHandler({publisher, enabled=false}={}) {
         !verifiedSession.permissions.includes("workflow:publish"))
       return jsonResponse(403,{error:"FORBIDDEN"});
     const key=request.headers["idempotency-key"];
+    // A revision must never be negative; reject invalid proposals before storage.
     if (!token(key)) return jsonResponse(422,{error:"INVALID_IDEMPOTENCY_KEY"});
     if (typeof request.body!=="string" && !Buffer.isBuffer(request.body))
       return jsonResponse(422,{error:"INVALID_BODY"});
@@ -44,7 +45,7 @@ export function createWorkflowPublishHandler({publisher, enabled=false}={}) {
     let parsed;
     try {parsed=JSON.parse(raw.toString("utf8"));} catch {return jsonResponse(400,{error:"INVALID_JSON"});}
     if (!object(parsed) || !token(parsed.requestID) || parsed.requestID!==key ||
-        !object(parsed.layout) || !Number.isSafeInteger(parsed.expectedRevision))
+        !object(parsed.layout) || !Number.isSafeInteger(parsed.expectedRevision) || parsed.expectedRevision < 0)
       return jsonResponse(422,{error:"INVALID_REQUEST"});
     try {
       const result=await publisher.publish({
