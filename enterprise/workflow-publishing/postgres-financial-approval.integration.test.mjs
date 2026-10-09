@@ -22,6 +22,10 @@ test("PostgreSQL dual approval: one stored proposal, no queue release",{skip:!db
   const approver={authenticated:true,tenantID:"tenant-a",actorID:"approver-b",permissions:["financial_retry:approve"]};
   const service=new PostgresFinancialApprovalStore(pool);
   const args={delivery,receipt,requester,approver,expectedRevision:0};
+  // A delivery with an active or immediately retryable queue state must not be approved.
+  await pool.query("UPDATE halo_execution.consumer_deliveries SET available_at=clock_timestamp() WHERE tenant_id='tenant-a' AND event_id=$1",[eventID]);
+  await assert.rejects(()=>service.propose(args),/RECONCILIATION_STATE_CONFLICT/);
+  await pool.query("UPDATE halo_execution.consumer_deliveries SET available_at='infinity' WHERE tenant_id='tenant-a' AND event_id=$1",[eventID]);
   const outcomes=await Promise.allSettled([service.propose(args),service.propose(args)]);
   assert.equal(outcomes.filter(x=>x.status==="fulfilled").length,1);
   const count=await pool.query("SELECT count(*)::int AS n FROM halo_execution.financial_retry_approvals");
