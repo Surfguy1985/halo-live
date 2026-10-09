@@ -38,10 +38,10 @@ export class PostgresOutboxLeaseStore {
     revision:Number(row.revision),action:row.action,attempts:row.attempts,leaseToken:row.lease_token};
   });
  }
- async finalize({workerID,eventID,leaseToken,now,sql,args=[]}){
+ async finalize({workerID,eventID,leaseToken,sql,args=[]}){
   if(!valid(workerID)||!valid(eventID)||!valid(leaseToken) )throw TypeError("invalid lease");
   return this.withRole(async c=>{
-   const r=await c.query(sql,[eventID,workerID,leaseToken,now,...args]);
+   const r=await c.query(sql,[eventID,workerID,leaseToken,...args]);
    return r.rowCount===1;
   });
  }
@@ -54,8 +54,8 @@ export class PostgresOutboxLeaseStore {
  async retry(x){
   if(!Number.isSafeInteger(x?.availableAt)||x.availableAt<0||!valid(x?.errorCode))throw TypeError("invalid retry schedule");
   return this.finalize({...x,args:[x.availableAt,x.errorCode],sql:`
-  UPDATE halo_execution.transition_outbox SET available_at=GREATEST(to_timestamp($5/1000.0),clock_timestamp()),
-    last_error_code=$6,lease_owner=NULL,lease_until=NULL,lease_token=NULL
+  UPDATE halo_execution.transition_outbox SET available_at=GREATEST(to_timestamp($4/1000.0),clock_timestamp()),
+    last_error_code=$5,lease_owner=NULL,lease_until=NULL,lease_token=NULL
   WHERE event_id=$1 AND lease_owner=$2 AND lease_token=$3
     AND lease_until>clock_timestamp()
     AND published_at IS NULL AND dead_letter_at IS NULL`});}
@@ -63,7 +63,7 @@ export class PostgresOutboxLeaseStore {
   if(!valid(x?.errorCode))throw TypeError("invalid dead-letter reason");
   return this.finalize({...x,args:[x.errorCode],sql:`
   UPDATE halo_execution.transition_outbox SET dead_letter_at=clock_timestamp(),
-    last_error_code=$5,lease_owner=NULL,lease_until=NULL,lease_token=NULL
+    last_error_code=$4,lease_owner=NULL,lease_until=NULL,lease_token=NULL
   WHERE event_id=$1 AND lease_owner=$2 AND lease_token=$3
     AND lease_until>clock_timestamp()
     AND published_at IS NULL AND dead_letter_at IS NULL`});}
