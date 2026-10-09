@@ -24,6 +24,12 @@ final class HaloTemplatePublishingTests: XCTestCase {
         XCTAssertEqual(result, .failure(.invalidRevision))
     }
 
+    func testRejectsRevisionBeyondJavaScriptSafeInteger() {
+        let result = HaloTemplatePublishing.prepare(
+            layout: validLayout, expectedRevision: Int.max, actorID: "admin-1", requestID: UUID())
+        XCTAssertEqual(result, .failure(.invalidRevision))
+    }
+
     func testRejectsAnonymousActor() {
         let result = HaloTemplatePublishing.prepare(
             layout: validLayout, expectedRevision: 0, actorID: "  ", requestID: UUID())

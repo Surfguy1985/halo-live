@@ -12,7 +12,7 @@ final class HaloStagingWorkflowClientTests: XCTestCase {
             blocks: [.init(id: "assign", kind: .assignment, title: "Dispatch",
                            order: 0, required: true, visibleToRoles: ["dispatcher"], config: [:])]
         )
-        return .init(requestID: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
+        return .init(requestID: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!,
                      expectedRevision: 7, layout: layout)
     }
 
@@ -50,11 +50,44 @@ final class HaloStagingWorkflowClientTests: XCTestCase {
             } else {
                 throw XCTBodyReadError.missingBody
             }
+            let raw = try XCTUnwrap(JSONSerialization.jsonObject(with: payload) as? [String: Any])
+            XCTAssertEqual(raw["requestID"] as? String,
+                           request.value(forHTTPHeaderField: "Idempotency-Key"))
             let body = try JSONDecoder().decode(HaloTemplatePublishing.Proposal.self, from: payload)
             XCTAssertEqual(body, expected)
         }
         let receipt = try await client.publish(proposal: expected, bearerToken: "staging-test-token")
         XCTAssertEqual(receipt.revision, 8)
+    }
+
+    func testRejectsSuccessReceiptWithUnexpectedRevision() async throws {
+        for revision in [7, 9, 999] {
+            let client = try makeClient(status: 200,
+                payload: "{\"templateID\":\"fleet-dispatch\",\"revision\":\(revision),\"templateVersion\":1}")
+            do {
+                _ = try await client.publish(proposal: proposal, bearerToken: "staging-test-token")
+                XCTFail("Must not accept receipt revision \(revision) for expected revision 7")
+            } catch let error as HaloStagingWorkflowClient.Failure {
+                XCTAssertEqual(error, .invalidResponse)
+            }
+        }
+    }
+
+    func testRejectsUnsafeRevisionBeforeNetworkRequest() async throws {
+        var calls = 0
+        let client = try makeClient(status: 200,
+            payload: #"{"templateID":"fleet-dispatch","revision":8,"templateVersion":1}"#) { _ in
+            calls += 1
+        }
+        let invalid = HaloTemplatePublishing.Proposal(
+            requestID: UUID(), expectedRevision: Int.max, layout: proposal.layout)
+        do {
+            _ = try await client.publish(proposal: invalid, bearerToken: "staging-test-token")
+            XCTFail("Unsafe revision must be rejected before transport")
+        } catch let error as HaloStagingWorkflowClient.Failure {
+            XCTAssertEqual(error, .invalidSchema)
+        }
+        XCTAssertEqual(calls, 0)
     }
 
     func testRejectsRevisionConflictWithoutAutomaticRetry() async throws {

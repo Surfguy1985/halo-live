@@ -54,6 +54,7 @@ struct HaloStagingWorkflowClient {
             throw Failure.invalidTemplateID
         }
         guard proposal.expectedRevision >= 0,
+              proposal.expectedRevision <= 9_007_199_254_740_991,
               case .success = HaloWorkflowBlocks.validate(proposal.layout) else {
             throw Failure.invalidSchema
         }
@@ -76,7 +77,7 @@ struct HaloStagingWorkflowClient {
         case 200:
             guard let receipt = try? JSONDecoder().decode(Receipt.self, from: data),
                   receipt.templateID == templateID,
-                  receipt.revision > proposal.expectedRevision,
+                  receipt.revision == proposal.expectedRevision + 1,
                   receipt.templateVersion == proposal.layout.templateVersion else {
                 throw Failure.invalidResponse
             }

@@ -23,7 +23,10 @@ enum HaloTemplatePublishing {
         guard case .success = HaloWorkflowBlocks.validate(layout) else {
             return .failure(.invalidLayout)
         }
-        guard expectedRevision >= 0 else { return .failure(.invalidRevision) }
+        // JSON numbers in the Node publishing service must be JavaScript-safe integers.
+        guard expectedRevision >= 0, expectedRevision <= 9_007_199_254_740_991 else {
+            return .failure(.invalidRevision)
+        }
         guard !actorID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return .failure(.invalidActor)
         }
