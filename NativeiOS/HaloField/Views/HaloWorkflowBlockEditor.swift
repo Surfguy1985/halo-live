@@ -132,14 +132,9 @@ struct HaloWorkflowBlockEditor: View {
     private func move(from source: IndexSet, to destination: Int) {
         var visible = ordered.map(\.id)
         visible.move(fromOffsets: source, toOffset: destination)
-        // Preserve hidden blocks and their relative slots; role-filtered clients
-        // cannot remove, replace, or rewrite blocks outside their visibility.
-        let visibleIDs = Set(visible)
-        var iterator = visible.makeIterator()
-        let fullOrder = draft.blocks.sorted(by: { $0.order < $1.order }).map { block in
-            visibleIDs.contains(block.id) ? (iterator.next() ?? block.id) : block.id
-        }
-        if case let .success(next) = HaloWorkflowBlocks.reordered(draft, orderedIDs: fullOrder) {
+        if case let .success(next) = HaloWorkflowBlocks.reorderedVisible(
+            draft, roles: roles, orderedVisibleIDs: visible
+        ) {
             withAnimation(HaloMotion.animation(reduceMotion: reduceMotion)) { draft = next }
         }
     }
