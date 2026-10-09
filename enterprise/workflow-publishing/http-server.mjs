@@ -28,7 +28,7 @@ export function createWorkflowHTTPServer({gateway,enabled=false,requestTimeoutMs
   }
   if(!enabled){response(res,404,{error:"NOT_FOUND"});return;}
   const path=req.url?.split("?")[0]??"";
-  if(!/^\/v1\/workflow-templates\/[a-zA-Z0-9_-]{1,128}\/publish$/.test(path)){
+  if(!/^\/v1\/workflow-templates\/[a-zA-Z0-9_-]{1,128}\/(?:publish|reconcile)$/.test(path)){
    response(res,404,{error:"NOT_FOUND"});return;
   }
   if(req.method!=="POST"){response(res,405,{error:"METHOD_NOT_ALLOWED"});return;}
