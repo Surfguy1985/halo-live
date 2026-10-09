@@ -67,4 +67,32 @@ final class HaloWorkflowBlocksTests: XCTestCase {
         let decoded = try JSONDecoder().decode(HaloWorkflowBlocks.Layout.self, from: data)
         XCTAssertEqual(decoded, layout)
     }
+    func testRoleScopedReorderPreservesHiddenBlockPositionAndProperties() {
+        let updated = HaloWorkflowBlocks.reorderedVisible(
+            layout, roles: ["crew"], orderedVisibleIDs: ["photos", "assignment"]
+        )
+        guard case let .success(next) = updated else {
+            return XCTFail("Expected permitted local reorder")
+        }
+        XCTAssertEqual(next.blocks.sorted { $0.order < $1.order }.map(\.id),
+                       ["photos", "assignment", "approval"])
+        XCTAssertEqual(next.blocks.first(where: { $0.id == "approval" }),
+                       layout.blocks.first(where: { $0.id == "approval" }))
+    }
+
+    func testRoleScopedReorderRejectsHiddenBlockInjectionAndMissingBlocks() {
+        XCTAssertEqual(
+            HaloWorkflowBlocks.reorderedVisible(
+                layout, roles: ["crew"], orderedVisibleIDs: ["approval", "assignment"]
+            ),
+            .failure(.invalidBlock)
+        )
+        XCTAssertEqual(
+            HaloWorkflowBlocks.reorderedVisible(
+                layout, roles: ["crew"], orderedVisibleIDs: ["assignment"]
+            ),
+            .failure(.invalidBlock)
+        )
+    }
+
 }
