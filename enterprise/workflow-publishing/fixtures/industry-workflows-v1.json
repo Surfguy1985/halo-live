@@ -1,0 +1,290 @@
+[
+  {
+    "schemaVersion": 1,
+    "tenantID": "property-demo",
+    "industryID": "property_management",
+    "templateID": "make-ready-turn",
+    "templateVersion": 1,
+    "blocks": [
+      {
+        "id": "assign",
+        "kind": "assignment",
+        "title": "Assign make-ready crew",
+        "order": 0,
+        "required": true,
+        "visibleToRoles": [
+          "property_manager",
+          "vendor"
+        ],
+        "config": {
+          "allowSelfAssign": "false"
+        }
+      },
+      {
+        "id": "check",
+        "kind": "checklist",
+        "title": "Walk unit checklist",
+        "order": 1,
+        "required": true,
+        "visibleToRoles": [
+          "vendor",
+          "property_manager"
+        ],
+        "config": {
+          "minChecks": "5"
+        }
+      },
+      {
+        "id": "photos",
+        "kind": "photoProof",
+        "title": "Verify before and after",
+        "order": 2,
+        "required": true,
+        "visibleToRoles": [
+          "vendor"
+        ],
+        "config": {
+          "minPhotos": "2"
+        }
+      },
+      {
+        "id": "approve",
+        "kind": "approval",
+        "title": "Manager approval",
+        "order": 3,
+        "required": true,
+        "visibleToRoles": [
+          "property_manager"
+        ],
+        "config": {
+          "minApprovers": "1"
+        }
+      },
+      {
+        "id": "close",
+        "kind": "closeout",
+        "title": "Close verified turn",
+        "order": 4,
+        "required": true,
+        "visibleToRoles": [
+          "property_manager"
+        ],
+        "config": {
+          "requireVerifiedEvidence": "true"
+        }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 1,
+    "tenantID": "construction-demo",
+    "industryID": "construction",
+    "templateID": "construction-work-order",
+    "templateVersion": 1,
+    "blocks": [
+      {
+        "id": "assign",
+        "kind": "assignment",
+        "title": "Assign subcontractor",
+        "order": 0,
+        "required": true,
+        "visibleToRoles": [
+          "general_contractor"
+        ],
+        "config": {
+          "allowSelfAssign": "false"
+        }
+      },
+      {
+        "id": "site",
+        "kind": "location",
+        "title": "Confirm jobsite",
+        "order": 1,
+        "required": true,
+        "visibleToRoles": [
+          "subcontractor"
+        ],
+        "config": {
+          "radiusMeters": "500"
+        }
+      },
+      {
+        "id": "estimate",
+        "kind": "pricing",
+        "title": "Approved change order",
+        "order": 2,
+        "required": true,
+        "visibleToRoles": [
+          "general_contractor"
+        ],
+        "config": {
+          "currencyCode": "USD",
+          "requireApprovedQuote": "true"
+        }
+      },
+      {
+        "id": "evidence",
+        "kind": "photoProof",
+        "title": "Capture inspection evidence",
+        "order": 3,
+        "required": true,
+        "visibleToRoles": [
+          "subcontractor"
+        ],
+        "config": {
+          "minPhotos": "3"
+        }
+      },
+      {
+        "id": "signoff",
+        "kind": "approval",
+        "title": "Approve completed work",
+        "order": 4,
+        "required": true,
+        "visibleToRoles": [
+          "general_contractor"
+        ],
+        "config": {
+          "minApprovers": "1"
+        }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 1,
+    "tenantID": "fleet-demo",
+    "industryID": "transport",
+    "templateID": "fleet-dispatch",
+    "templateVersion": 1,
+    "blocks": [
+      {
+        "id": "assign",
+        "kind": "assignment",
+        "title": "Dispatch driver",
+        "order": 0,
+        "required": true,
+        "visibleToRoles": [
+          "dispatcher"
+        ],
+        "config": {
+          "allowSelfAssign": "false"
+        }
+      },
+      {
+        "id": "pickup",
+        "kind": "location",
+        "title": "Verify pickup location",
+        "order": 1,
+        "required": true,
+        "visibleToRoles": [
+          "driver"
+        ],
+        "config": {
+          "radiusMeters": "250"
+        }
+      },
+      {
+        "id": "channel",
+        "kind": "messaging",
+        "title": "Dispatch updates",
+        "order": 2,
+        "required": true,
+        "visibleToRoles": [
+          "driver",
+          "dispatcher"
+        ],
+        "config": {
+          "channel": "dispatch_updates"
+        }
+      },
+      {
+        "id": "dropoff",
+        "kind": "closeout",
+        "title": "Complete trip",
+        "order": 3,
+        "required": true,
+        "visibleToRoles": [
+          "driver"
+        ],
+        "config": {
+          "requireVerifiedEvidence": "true"
+        }
+      }
+    ]
+  },
+  {
+    "schemaVersion": 1,
+    "tenantID": "gig-demo",
+    "industryID": "gig_marketplace",
+    "templateID": "contractor-gig",
+    "templateVersion": 1,
+    "blocks": [
+      {
+        "id": "accept",
+        "kind": "assignment",
+        "title": "Accept gig assignment",
+        "order": 0,
+        "required": true,
+        "visibleToRoles": [
+          "contractor"
+        ],
+        "config": {
+          "allowSelfAssign": "true"
+        }
+      },
+      {
+        "id": "check",
+        "kind": "checklist",
+        "title": "Complete task checklist",
+        "order": 1,
+        "required": true,
+        "visibleToRoles": [
+          "contractor"
+        ],
+        "config": {
+          "minChecks": "2"
+        }
+      },
+      {
+        "id": "proof",
+        "kind": "photoProof",
+        "title": "Submit work proof",
+        "order": 2,
+        "required": true,
+        "visibleToRoles": [
+          "contractor"
+        ],
+        "config": {
+          "minPhotos": "1"
+        }
+      },
+      {
+        "id": "pricing",
+        "kind": "pricing",
+        "title": "Confirm approved payout",
+        "order": 3,
+        "required": true,
+        "visibleToRoles": [
+          "operator"
+        ],
+        "config": {
+          "currencyCode": "USD",
+          "requireApprovedQuote": "true"
+        }
+      },
+      {
+        "id": "close",
+        "kind": "closeout",
+        "title": "Close verified gig",
+        "order": 4,
+        "required": true,
+        "visibleToRoles": [
+          "operator"
+        ],
+        "config": {
+          "requireVerifiedEvidence": "true"
+        }
+      }
+    ]
+  }
+]
