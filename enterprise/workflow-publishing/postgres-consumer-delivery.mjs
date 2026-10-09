@@ -44,14 +44,14 @@ export class PostgresConsumerDeliveryStore {
     UPDATE halo_execution.consumer_deliveries
      SET status=CASE WHEN $6='complete' THEN 'delivered' WHEN $6='dead_letter' THEN 'dead_letter' ELSE status END,
       delivered_at=CASE WHEN $6='complete' THEN clock_timestamp() ELSE delivered_at END,
-      available_at=CASE WHEN $6='retry' THEN GREATEST(to_timestamp($8/1000.0),clock_timestamp()) ELSE available_at END,
-      last_error_code=CASE WHEN $6='complete' THEN NULL ELSE $9 END,
+      available_at=CASE WHEN $6='retry' THEN GREATEST(to_timestamp($7/1000.0),clock_timestamp()) ELSE available_at END,
+      last_error_code=CASE WHEN $6='complete' THEN NULL ELSE $8 END,
       lease_owner=NULL,lease_token=NULL,lease_until=NULL
     WHERE tenant_id=$1 AND event_id=$2 AND consumer_id=$3
      AND lease_owner=$4 AND lease_token=$5 AND lease_until>clock_timestamp()
      AND status='pending'
     RETURNING event_id`,
-    [tenantID,eventID,consumerID,workerID,leaseToken,operation,now,availableAt??now,errorCode??null]);
+    [tenantID,eventID,consumerID,workerID,leaseToken,operation,availableAt??0,errorCode??null]);
    return r.rowCount===1;
   });
  }
