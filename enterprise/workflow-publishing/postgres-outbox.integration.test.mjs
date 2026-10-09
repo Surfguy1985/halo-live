@@ -24,5 +24,13 @@ test("real PostgreSQL: competing workers, fencing and retries",{skip:!url},async
   assert.equal(await db.complete({workerID:owner,eventID,leaseToken:claimed.leaseToken,now:now+100}),true);
   assert.equal(await db.complete({workerID:owner,eventID,leaseToken:claimed.leaseToken,now:now+100}),false);
   assert.equal(await db.claim({workerID:"worker-c",now:now+200,leaseMs:30000}),null);
+  const futureID="b".repeat(64);
+  await pool.query("INSERT INTO halo_execution.transition_outbox(event_id,tenant_id,work_item_id,revision,action,available_at) VALUES($1,'tenant-a','job-b',1,'assign',clock_timestamp()+interval '10 minutes')",[futureID]);
+  assert.equal(await db.claim({workerID:"worker-c",now:now+3600000,leaseMs:30000}),null);
+  const expiredID="c".repeat(64);
+  await pool.query("INSERT INTO halo_execution.transition_outbox(event_id,tenant_id,work_item_id,revision,action) VALUES($1,'tenant-a','job-c',1,'assign')",[expiredID]);
+  const expired=await db.claim({workerID:"worker-c",now:now,leaseMs:30000});
+  await pool.query("UPDATE halo_execution.transition_outbox SET lease_until=clock_timestamp()-interval '1 second' WHERE event_id=$1",[expiredID]);
+  assert.equal(await db.complete({workerID:"worker-c",eventID:expiredID,leaseToken:expired.leaseToken,now:now-3600000}),false);
  }finally{await pool.end();}
 });
