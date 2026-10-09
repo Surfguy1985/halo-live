@@ -130,6 +130,23 @@ final class HaloStagingWorkflowClientTests: XCTestCase {
         XCTAssertEqual(calls, 1, "Do not automatically replay a potentially committed mutation")
     }
 
+    func testExplicitReconciliationReusesOriginalIdempotencyKeyAndRevision() async throws {
+        var calls = 0
+        let original = proposal
+        let client = try makeClient(status: 200,
+            payload: #"{"templateID":"fleet-dispatch","revision":8,"templateVersion":1}"#) { request in
+            calls += 1
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Idempotency-Key"),
+                           original.requestID.uuidString)
+            XCTAssertEqual(request.url?.path,
+                           "/v1/workflow-templates/fleet-dispatch/publish")
+        }
+        let receipt = try await client.reconcileUncertainPublish(
+            originalProposal: original, bearerToken: "staging-test-token")
+        XCTAssertEqual(receipt.revision, original.expectedRevision + 1)
+        XCTAssertEqual(calls, 1)
+    }
+
     func testRejectsIdempotencyConflict() async throws {
         let client = try makeClient(status: 409, payload: #"{"error":"IDEMPOTENCY_CONFLICT"}"#)
         do {

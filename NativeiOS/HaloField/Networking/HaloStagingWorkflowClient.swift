@@ -100,6 +100,17 @@ struct HaloStagingWorkflowClient {
         }
     }
 
+    /// Explicit reconciliation after COMMIT_OUTCOME_UNKNOWN or a lost HTTP receipt.
+    /// The caller MUST persist and supply the original proposal and requestID.
+    /// This performs one authenticated idempotent replay, not an automatic retry.
+    /// Never construct a new UUID or silently change the expected revision.
+    func reconcileUncertainPublish(
+        originalProposal: HaloTemplatePublishing.Proposal,
+        bearerToken: String
+    ) async throws -> Receipt {
+        try await publish(proposal: originalProposal, bearerToken: bearerToken)
+    }
+
     private struct ErrorPayload: Decodable {
         let error: String
     }
