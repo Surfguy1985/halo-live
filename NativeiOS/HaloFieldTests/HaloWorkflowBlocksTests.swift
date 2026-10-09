@@ -95,4 +95,46 @@ final class HaloWorkflowBlocksTests: XCTestCase {
         )
     }
 
+
+    func testServerContractAcceptsAllIndustryTypesAndBoundedConfig() {
+        for industry in ["construction", "property_management", "transport", "gig_marketplace"] {
+            let result = HaloWorkflowBlocks.Layout(
+                schemaVersion: 1, templateID: "dispatch", templateVersion: 1,
+                tenantID: "tenant-one", industryID: industry,
+                blocks: [.init(id: "assign", kind: .assignment, title: "Dispatch", order: 0,
+                               required: true, visibleToRoles: ["manager"], config: ["allowSelfAssign": "false"])])
+            XCTAssertEqual(HaloWorkflowBlocks.validate(result), .success(result))
+        }
+    }
+
+    func testServerContractRejectsMalformedPhotoCountsAndUnknownConfig() {
+        for bad in ["-1", "1.1", "01", "1e3", "21", "99999999999999999999999"] {
+            let invalid = HaloWorkflowBlocks.Layout(
+                schemaVersion: 1, templateID: "dispatch", templateVersion: 1,
+                tenantID: "tenant-one", industryID: "construction",
+                blocks: [.init(id: "photos", kind: .photoProof, title: "Evidence", order: 0,
+                               required: true, visibleToRoles: ["crew"], config: ["minPhotos": bad])])
+            XCTAssertEqual(HaloWorkflowBlocks.validate(invalid), .failure(.invalidBlock), bad)
+        }
+        let unknown = HaloWorkflowBlocks.Layout(
+            schemaVersion: 1, templateID: "dispatch", templateVersion: 1,
+            tenantID: "tenant-one", industryID: "construction",
+            blocks: [.init(id: "a", kind: .messaging, title: "Messages", order: 0,
+                           required: false, visibleToRoles: ["crew"], config: ["minPhotos": "1"])])
+        XCTAssertEqual(HaloWorkflowBlocks.validate(unknown), .failure(.invalidBlock))
+    }
+
+    func testServerContractRejectsDuplicateRolesAndInvalidIDs() {
+        let duplicateRoles = HaloWorkflowBlocks.Layout(
+            schemaVersion: 1, templateID: "dispatch", templateVersion: 1,
+            tenantID: "tenant-one", industryID: "construction",
+            blocks: [.init(id: "assign", kind: .assignment, title: "Assign", order: 0,
+                           required: true, visibleToRoles: ["crew", "crew"], config: [:])])
+        XCTAssertEqual(HaloWorkflowBlocks.validate(duplicateRoles), .failure(.invalidBlock))
+        let invalidTenant = HaloWorkflowBlocks.Layout(
+            schemaVersion: 1, templateID: "dispatch", templateVersion: 1,
+            tenantID: "tenant/one", industryID: "construction", blocks: [])
+        XCTAssertEqual(HaloWorkflowBlocks.validate(invalidTenant), .failure(.invalidIdentity))
+    }
+
 }
