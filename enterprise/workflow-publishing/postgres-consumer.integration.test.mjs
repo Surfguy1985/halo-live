@@ -29,6 +29,10 @@ test("Postgres consumer queue: independent consumers, fencing, retry",{skip:!url
   assert.equal(await store.complete({...info,leaseToken:"wrong"}),false);
   assert.equal(await store.retry({...info,availableAt:now+2000,errorCode:"TIMEOUT"}),true);
   assert.equal(await store.claim({consumerID:"enforcer",workerID:"worker-c",now:now+300,leaseMs:30000}),null);
+  // Fake future time cannot make an unavailable job claimable.
+  assert.equal(await store.claim({consumerID:"enforcer",workerID:"worker-c",now:now+3600000,leaseMs:30000}),null);
+  // Simulate elapsed retry interval on the disposable database, never caller time.
+  await pool.query("UPDATE halo_execution.consumer_deliveries SET available_at=clock_timestamp()-interval '1 second' WHERE tenant_id='tenant-a' AND consumer_id='enforcer'");
   const retry=await store.claim({consumerID:"enforcer",workerID:"worker-c",now:now+2001,leaseMs:30000});
   assert.ok(retry);
   assert.equal(await store.complete({...info,now:now+2100}),false);
