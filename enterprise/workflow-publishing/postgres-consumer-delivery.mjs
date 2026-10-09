@@ -37,7 +37,7 @@ export class PostgresConsumerDeliveryStore {
  async finalize({tenantID,eventID,consumerID,workerID,leaseToken,now,operation,availableAt,errorCode}){
   if(![tenantID,eventID,consumerID,workerID,leaseToken].every(valid)||
      !["complete","retry","dead_letter"].includes(operation))throw TypeError("Invalid lease");
-  if(operation==="retry" && (!Number.isFinite(availableAt)||availableAt<Date.now()-1000))throw TypeError("Invalid retry");
+  if(operation==="retry" && (!Number.isSafeInteger(availableAt)||availableAt<0))throw TypeError("Invalid retry");
   if(operation!=="complete"&&!valid(errorCode))throw TypeError("Invalid error code");
   return this.transaction(async c=>{
    const r=await c.query(`

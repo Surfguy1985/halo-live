@@ -27,6 +27,8 @@ test("Postgres consumer queue: independent consumers, fencing, retry",{skip:!url
   assert.equal(other.consumerID,"accounting");
   const info={tenantID:"tenant-a",eventID,consumerID:"enforcer",workerID:owner,leaseToken:entry.leaseToken,now:now+100};
   assert.equal(await store.complete({...info,leaseToken:"wrong"}),false);
+  await assert.rejects(()=>store.retry({...info,availableAt:Infinity,errorCode:"TIMEOUT"}),TypeError);
+  await assert.rejects(()=>store.retry({...info,availableAt:-1,errorCode:"TIMEOUT"}),TypeError);
   assert.equal(await store.retry({...info,availableAt:now+2000,errorCode:"TIMEOUT"}),true);
   assert.equal(await store.claim({consumerID:"enforcer",workerID:"worker-c",now:now+300,leaseMs:30000}),null);
   // Fake future time cannot make an unavailable job claimable.
