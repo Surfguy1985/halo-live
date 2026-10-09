@@ -31,8 +31,26 @@ final class HaloStagingWorkflowClientTests: XCTestCase {
             XCTAssertEqual(request.url?.path, "/v1/workflow-templates/fleet-dispatch/publish")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer staging-test-token")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Idempotency-Key"), expected.requestID.uuidString)
-            let body = try JSONDecoder().decode(HaloTemplatePublishing.Proposal.self,
-                                                from: try XCTUnwrap(request.httpBody))
+            // URLSession can surface uploaded JSON as httpBodyStream in URLProtocol.
+            let payload: Data
+            if let direct = request.httpBody {
+                payload = direct
+            } else if let stream = request.httpBodyStream {
+                stream.open()
+                defer { stream.close() }
+                var data = Data()
+                var buffer = [UInt8](repeating: 0, count: 4096)
+                while stream.hasBytesAvailable {
+                    let count = stream.read(&buffer, maxLength: buffer.count)
+                    if count < 0 { throw XCTBodyReadError.streamFailure }
+                    if count == 0 { break }
+                    data.append(contentsOf: buffer.prefix(count))
+                }
+                payload = data
+            } else {
+                throw XCTBodyReadError.missingBody
+            }
+            let body = try JSONDecoder().decode(HaloTemplatePublishing.Proposal.self, from: payload)
             XCTAssertEqual(body, expected)
         }
         let receipt = try await client.publish(proposal: expected, bearerToken: "staging-test-token")
@@ -111,4 +129,9 @@ private final class StagingWorkflowURLProtocol: URLProtocol {
         }
     }
     override func stopLoading() {}
+}
+
+private enum XCTBodyReadError: Error {
+    case missingBody
+    case streamFailure
 }
