@@ -18,3 +18,17 @@ test("all PostgreSQL integration fixtures avoid missing SELECT projection",async
   assert.doesNotMatch(body,malformedRoleQuery,name+" has missing projection");
  }
 });
+
+test("every migration referenced by a Postgres integration fixture exists",async()=>{
+ const dir=fileURLToPath(new URL(".",import.meta.url));
+ const migrationDir=join(dir,"migrations");
+ const migrations=new Set(await readdir(migrationDir));
+ const fixtures=(await readdir(dir)).filter(name=>name.endsWith(".integration.test.mjs"));
+ for(const fixture of fixtures){
+  const body=await readFile(join(dir,fixture),"utf8");
+  const references=[...body.matchAll(/["'](\\d{3}_[a-z0-9_]+\\.sql)["']/g)].map(match=>match[1]);
+  for(const migration of references){
+   assert.ok(migrations.has(migration),fixture+" references missing migration "+migration);
+  }
+ }
+});
