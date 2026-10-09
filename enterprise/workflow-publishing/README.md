@@ -37,3 +37,19 @@ Authenticated request with an idempotency header (e.g. `Idempotency-Key`) and bo
 2. Add backend request/response schema and integration tests including concurrent publishing and rollback.
 3. Reconcile Swift `Proposal` (UUID) with the HTTP header and JavaScript domain service.
 4. Add API route behind feature flag and connect native draft editor only after end-to-end security tests.
+
+## Server-owned layout contract v1 (isolated)
+
+The publisher now validates every eight-kind block layout via `layout-contract.mjs`, before entering its database transaction. The contract rejects extra JSON keys, non-slug resource/role IDs, duplicate block IDs or ordering, duplicate visible roles, large titles and role arrays, and unknown per-kind configuration. It accepts up to 100 blocks and maintains the Swift-compatible string-valued `config` representation; all eight kinds have explicit, bounded fields. Existing empty configuration dictionaries remain valid.
+
+Known optional configuration keys:
+- assignment: `allowSelfAssign` ("true" or "false")
+- location: `radiusMeters` (1–50000)
+- checklist: `minChecks` (0–100)
+- photoProof: `minPhotos` (1–20)
+- pricing: `currencyCode` (three uppercase ASCII letters), `requireApprovedQuote` (boolean text)
+- approval: `minApprovers` (1–10)
+- messaging: `channel` (lowercase slug)
+- closeout: `requireVerifiedEvidence` (boolean text)
+
+This is a *schema and safe storage contract*, not approval logic, evidence validation, tenant authentication, permissions to execute, or an Enforcer integration. Introducing new configuration keys requires an explicit schema-versioned review across backend and native clients. The publishing service remains unmounted and feature-flagged off.
