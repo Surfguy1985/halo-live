@@ -9,7 +9,7 @@ test("Postgres consumer queue: independent consumers, fencing, retry",{skip:!url
  const {Pool}=await import("pg");const pool=new Pool({connectionString:url,max:8});
  try{
   await pool.query("DROP SCHEMA IF EXISTS halo_execution CASCADE");
-  await pool.query("DO $$ BEGIN IF NOT EXISTS(SELECT FROM pg_roles WHERE rolname='halo_workflow_executor') THEN CREATE ROLE halo_workflow_executor NOLOGIN NOBYPASSRLS; END IF; END $$");
+  await pool.query("DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='halo_workflow_executor') THEN CREATE ROLE halo_workflow_executor NOLOGIN NOBYPASSRLS; END IF; END $$");
   for(const file of ["005_work_item_execution.sql","006_outbox_delivery.sql","008_outbox_lease_token.sql","009_consumer_deliveries.sql","010_consumer_dispatcher.sql"])
    await pool.query(await readFile(fileURLToPath(new URL("./migrations/"+file,import.meta.url)),"utf8"));
   const eventID="a".repeat(64);
@@ -27,8 +27,14 @@ test("Postgres consumer queue: independent consumers, fencing, retry",{skip:!url
   assert.equal(other.consumerID,"accounting");
   const info={tenantID:"tenant-a",eventID,consumerID:"enforcer",workerID:owner,leaseToken:entry.leaseToken,now:now+100};
   assert.equal(await store.complete({...info,leaseToken:"wrong"}),false);
+  await assert.rejects(()=>store.retry({...info,availableAt:Infinity,errorCode:"TIMEOUT"}),TypeError);
+  await assert.rejects(()=>store.retry({...info,availableAt:-1,errorCode:"TIMEOUT"}),TypeError);
   assert.equal(await store.retry({...info,availableAt:now+2000,errorCode:"TIMEOUT"}),true);
   assert.equal(await store.claim({consumerID:"enforcer",workerID:"worker-c",now:now+300,leaseMs:30000}),null);
+  // Fake future time cannot make an unavailable job claimable.
+  assert.equal(await store.claim({consumerID:"enforcer",workerID:"worker-c",now:now+3600000,leaseMs:30000}),null);
+  // Simulate elapsed retry interval on the disposable database, never caller time.
+  await pool.query("UPDATE halo_execution.consumer_deliveries SET available_at=clock_timestamp()-interval '1 second' WHERE tenant_id='tenant-a' AND consumer_id='enforcer'");
   const retry=await store.claim({consumerID:"enforcer",workerID:"worker-c",now:now+2001,leaseMs:30000});
   assert.ok(retry);
   assert.equal(await store.complete({...info,now:now+2100}),false);

@@ -11,12 +11,14 @@ export class PostgresFinancialApprovalStore {
    await c.query("BEGIN");started=true;
    await c.query("SET LOCAL ROLE halo_financial_approval_writer");
    await c.query("SELECT set_config('halo.tenant_id',$1,true)",[preliminary.tenantID]);
-   const r=await c.query(`SELECT status,outcome,reconciliation_revision FROM
+   const r=await c.query(`SELECT status,outcome,reconciliation_revision,(available_at='infinity'::timestamptz) AS quarantined,lease_owner FROM
     halo_execution.consumer_deliveries WHERE tenant_id=$1 AND consumer_id=$2
     AND event_id=$3 FOR SHARE`,
     [preliminary.tenantID,preliminary.consumerID,preliminary.eventID]);
    if(r.rowCount!==1 || r.rows[0].status!=="pending" ||
      r.rows[0].outcome!=="uncertain" ||
+     r.rows[0].lease_owner!==null ||
+     r.rows[0].quarantined!==true ||
      Number(r.rows[0].reconciliation_revision)!==expectedRevision)
     throw Error("RECONCILIATION_STATE_CONFLICT");
    const inserted=await c.query(`INSERT INTO halo_execution.financial_retry_approvals

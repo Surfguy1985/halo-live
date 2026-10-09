@@ -23,6 +23,8 @@ export class PostgresDeliveryOutcomeStore {
        WHERE p.tenant_id=d.tenant_id AND p.consumer_id=d.consumer_id AND p.event_id=d.event_id
          AND p.permit_id=$6::uuid AND p.registration_revision=$7
          AND p.lease_token=$5 AND p.consumed_at IS NOT NULL
+         AND p.consumed_at <= p.expires_at
+         AND (p.invalidated_at IS NULL OR p.invalidated_at > p.consumed_at)
       )
     RETURNING d.event_id`,
     [tenantID,consumerID,eventID,workerID,leaseToken,permitID,registrationRevision,outcome.state]);

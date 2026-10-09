@@ -20,7 +20,7 @@ test("signed HTTP request publishes exactly one tenant-scoped revision", {skip:!
   await admin.query("DROP SCHEMA IF EXISTS halo_workflow CASCADE");
   for(const file of ["001_workflow_publishing.sql","002_tenant_rls.sql","003_identity_memberships.sql","004_runtime_role.sql"]){
    if(file==="002_tenant_rls.sql") await admin.query(
-    "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='halo_workflow_executor') THEN CREATE ROLE halo_workflow_executor NOLOGIN NOBYPASSRLS; END IF; END $$");
+    "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='halo_workflow_executor') THEN CREATE ROLE halo_workflow_executor NOLOGIN NOBYPASSRLS; END IF; END $$");
    const sql=await readFile(fileURLToPath(new URL("./migrations/"+file,import.meta.url)),"utf8");
    await admin.query(sql);
   }

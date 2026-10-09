@@ -19,6 +19,12 @@ test("PostgreSQL delivery receipt: lease fencing and uncertain reconciliation",{
   const store=new PostgresDeliveryOutcomeStore(pool);
   const args={tenantID:"tenant-a",consumerID:"enforcer",eventID,workerID:"worker-a",leaseToken:"token-a",permitID,registrationRevision:3,outcome:{state:"uncertain"}};
   assert.equal(await store.commitOutcome({...args,leaseToken:"wrong"}),false);
+  // An invalidated permit cannot authorize a newly recorded delivery outcome.
+  await pool.query("UPDATE halo_execution.dispatch_permits SET invalidated_at=consumed_at - interval '1 second' WHERE permit_id=$1",[permitID]);
+  assert.equal(await store.commitOutcome(args),false);
+  await pool.query("UPDATE halo_execution.dispatch_permits SET invalidated_at=NULL,consumed_at=expires_at + interval '1 second' WHERE permit_id=$1",[permitID]);
+  assert.equal(await store.commitOutcome(args),false);
+  await pool.query("UPDATE halo_execution.dispatch_permits SET consumed_at=now() WHERE permit_id=$1",[permitID]);
   const races=await Promise.all([store.commitOutcome(args),store.commitOutcome(args)]);
   assert.deepEqual(races.sort(),[false,true]);
   const r=await pool.query("SELECT status,outcome,available_at='infinity'::timestamptz AS quarantined FROM halo_execution.consumer_deliveries WHERE tenant_id='tenant-a'");

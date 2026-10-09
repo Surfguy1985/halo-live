@@ -25,11 +25,12 @@ export class PostgresReconciliationService {
         reconciliation_state=$5,
         status=$6,
         outcome=$7,
-        outcome_updated_at=now()
+        delivered_at=CASE WHEN $5='confirmed_delivered' THEN clock_timestamp() ELSE delivered_at END,
+        outcome_updated_at=clock_timestamp()
     WHERE tenant_id=$1 AND consumer_id=$2 AND event_id=$3
       AND reconciliation_revision=$8 AND status='pending' AND outcome='uncertain'
     RETURNING reconciliation_revision`,
-    [tenantID,consumerID,eventID,decision.nextRevision,resolution,
+    [tenantID,consumerID,eventID,decision.nextRevision,resolution==="escalate"?"escalated":resolution,
      decision.nextStatus,decision.nextOutcome,expectedRevision]);
    if(result.rowCount!==1)throw Error("REVISION_CONFLICT");
    await c.query(`INSERT INTO halo_execution.delivery_reconciliation_audit
