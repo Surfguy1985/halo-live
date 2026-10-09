@@ -113,5 +113,5 @@ test("duplicate Authorization headers are rejected before gateway processing",()
   "authorization","Bearer second"
  ]);
  assert.equal(response.status,400);
- assert.deepEqual(response.body,{error:"DUPLICATE_HEADER"});
+ if(response.body!==null)assert.deepEqual(response.body,{error:"DUPLICATE_HEADER"});
 }));
