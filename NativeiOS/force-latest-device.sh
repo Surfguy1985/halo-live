@@ -3,13 +3,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-BRANCH="ios-swift-native-v1"
 STAMP="NATIVE-LIVE-STABILITY-R7"
 DERIVED="$SCRIPT_DIR/.device-derived-data"
 GLOBAL_DERIVED="$HOME/Library/Developer/Xcode/DerivedData"
 
 echo "== HALO PHYSICAL IPHONE BUILD PREP =="
-echo "This preserves local work, syncs the exact native branch, regenerates Xcode, and compiles the device target."
+echo "This builds the explicitly checked-out commit, regenerates Xcode, and compiles the device target."
 
 if pgrep -x Xcode >/dev/null 2>&1; then
   osascript -e 'tell application "Xcode" to quit' >/dev/null 2>&1 || true
@@ -24,25 +23,9 @@ if pgrep -x Xcode >/dev/null 2>&1; then
 fi
 
 cd "$ROOT"
-git fetch --prune origin "$BRANCH"
-
-if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
-  BACKUP="halo-device-local-backup-$(date +%Y%m%d-%H%M%S)"
-  echo "Preserving local changes in stash: $BACKUP"
-  git stash push -u -m "$BACKUP"
-fi
-
-git switch "$BRANCH"
-if [ "$(git rev-list --count "origin/$BRANCH..HEAD")" -gt 0 ]; then
-  BACKUP_BRANCH="halo-device-commit-backup-$(date +%Y%m%d-%H%M%S)"
-  git branch "$BACKUP_BRANCH" HEAD
-  echo "Preserved local commits on $BACKUP_BRANCH"
-fi
-git reset --hard "origin/$BRANCH"
-
 LOCAL="$(git rev-parse HEAD)"
-REMOTE="$(git rev-parse "origin/$BRANCH")"
-[ "$LOCAL" = "$REMOTE" ] || { echo "ERROR: Local HEAD does not equal remote HEAD."; exit 1; }
+echo "Source commit: $LOCAL"
+echo "This script never fetches, switches, stashes, or resets Git."
 
 cd "$SCRIPT_DIR"
 command -v xcodegen >/dev/null 2>&1 || { echo "ERROR: Install XcodeGen first: brew install xcodegen"; exit 1; }

@@ -3,37 +3,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-BRANCH="ios-swift-native-v1"
-EXPECTED_STAMP="NATIVE-LIVE-STABILITY-R7"
 
 cd "$ROOT"
 
 echo "== HALO PREPARE LATEST XCODE =="
-echo "Preserving any local edits, syncing exact remote native branch, rebuilding project, and opening Xcode."
-
-git fetch --prune origin "$BRANCH"
-
-if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
-  STAMP="$(date +%Y%m%d-%H%M%S)"
-  git stash push -u -m "halo-auto-before-xcode-sync-$STAMP"
-  echo "Saved local changes in stash: halo-auto-before-xcode-sync-$STAMP"
-fi
-
-git switch "$BRANCH"
-
-if [ "$(git rev-list --count "origin/$BRANCH..HEAD")" -gt 0 ]; then
-  BACKUP="halo-backup-before-xcode-sync-$(date +%Y%m%d-%H%M%S)"
-  git branch "$BACKUP" HEAD
-  echo "Saved local commits on branch: $BACKUP"
-fi
-
-git reset --hard "origin/$BRANCH"
-
+echo "Generating Xcode from the explicitly checked-out source without changing branches or files."
 LOCAL="$(git rev-parse HEAD)"
-REMOTE="$(git rev-parse "origin/$BRANCH")"
-echo "Local HEAD : $LOCAL"
-echo "Remote HEAD: $REMOTE"
-[ "$LOCAL" = "$REMOTE" ] || { echo "ERROR: local source does not match remote"; exit 1; }
+echo "Source commit: $LOCAL"
 
 cd "$SCRIPT_DIR"
 
@@ -46,10 +22,8 @@ for required in   "HaloField/Features/Camera/CameraProofView.swift"   "HaloField
   [ -f "$required" ] || { echo "ERROR: Missing $required"; exit 1; }
 done
 
-grep -q "$EXPECTED_STAMP" HaloField/App/HaloBuildStamp.swift || {
-  echo "ERROR: expected native build stamp $EXPECTED_STAMP not found"
-  exit 1
-}
+BUILD_STAMP="$(sed -nE 's/.*revision = "([^"]+)".*/\1/p' HaloField/App/HaloBuildStamp.swift)"
+[ -n "$BUILD_STAMP" ] || { echo "ERROR: native build stamp is missing"; exit 1; }
 
 echo "Closing Xcode so it cannot hold a stale generated project..."
 osascript -e 'tell application "Xcode" to quit' >/dev/null 2>&1 || true
@@ -89,7 +63,7 @@ open -a Xcode "$SCRIPT_DIR/HaloField.xcodeproj"
 echo
 echo "SUCCESS"
 echo "Commit: $LOCAL"
-echo "Build stamp: $EXPECTED_STAMP"
+echo "Build stamp: $BUILD_STAMP"
 echo "Project: $SCRIPT_DIR/HaloField.xcodeproj"
 echo "Scheme: HaloField"
 echo "Bundle: com.archangel.halofield"

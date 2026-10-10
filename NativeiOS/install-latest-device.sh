@@ -3,12 +3,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-BRANCH="ios-swift-native-v1"
 BUNDLE_ID="com.archangel.halofield"
 DERIVED="$SCRIPT_DIR/.iphone-install-derived-data"
 
 echo "== HALO CLEAN IPHONE INSTALL =="
-echo "Pull exact remote HEAD -> regenerate Xcode -> sign -> clean install -> launch"
+echo "Build the explicitly checked-out commit -> regenerate Xcode -> sign -> clean install -> launch"
 
 if [ ! -d "/Applications/Xcode.app" ]; then
   echo "ERROR: Xcode.app is not installed in /Applications."
@@ -23,25 +22,9 @@ if pgrep -x Xcode >/dev/null 2>&1; then
 fi
 
 cd "$ROOT"
-git fetch --prune origin "$BRANCH"
-
-if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
-  BACKUP="halo-before-device-install-$(date +%Y%m%d-%H%M%S)"
-  echo "Preserving local changes in stash: $BACKUP"
-  git stash push -u -m "$BACKUP"
-fi
-
-git switch "$BRANCH"
-if [ "$(git rev-list --count "origin/$BRANCH..HEAD")" -gt 0 ]; then
-  BACKUP_BRANCH="halo-local-commit-backup-$(date +%Y%m%d-%H%M%S)"
-  git branch "$BACKUP_BRANCH" HEAD
-  echo "Preserved local commits on $BACKUP_BRANCH"
-fi
-git reset --hard "origin/$BRANCH"
-
 LOCAL="$(git rev-parse HEAD)"
-REMOTE="$(git rev-parse "origin/$BRANCH")"
-[ "$LOCAL" = "$REMOTE" ] || { echo "ERROR: local HEAD does not match remote HEAD."; exit 1; }
+echo "Source commit: $LOCAL"
+echo "This script never fetches, switches, stashes, or resets Git."
 
 cd "$SCRIPT_DIR"
 command -v xcodegen >/dev/null 2>&1 || {
@@ -97,7 +80,7 @@ if [ -z "$TEAM" ]; then
 fi
 
 echo "Signing team: $TEAM"
-echo "Remote commit: $LOCAL"
+echo "Source commit: $LOCAL"
 
 echo "Purging stale HALO projects and DerivedData..."
 rm -rf HaloField.xcodeproj "$DERIVED"
