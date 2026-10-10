@@ -231,6 +231,43 @@ final class HaloStagingWorkflowClientTests: XCTestCase {
         XCTAssertEqual(calls, 0)
     }
 
+    func testLostNetworkReceiptRecoversReadOnlyWithoutSecondPublish() async throws {
+        let original = proposal
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StagingWorkflowURLProtocol.self]
+        var publishCalls = 0
+        var reconcileCalls = 0
+        StagingWorkflowURLProtocol.handler = { request in
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Idempotency-Key"),
+                           original.requestID.uuidString)
+            let path = request.url?.path
+            if path == "/v1/workflow-templates/fleet-dispatch/publish" {
+                publishCalls += 1
+                // Simulate a response lost after the server may have committed.
+                throw URLError(.networkConnectionLost)
+            }
+            XCTAssertEqual(path, "/v1/workflow-templates/fleet-dispatch/reconcile")
+            reconcileCalls += 1
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200,
+                                           httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
+            let body = #"{"status":"committed","receipt":{"templateID":"fleet-dispatch","revision":8,"templateVersion":1}}"#
+            return (response, Data(body.utf8))
+        }
+        let client = try HaloStagingWorkflowClient(stagingURL: staging,
+            session: URLSession(configuration: configuration))
+        do {
+            _ = try await client.publish(proposal: original, bearerToken: "staging-test-token")
+            XCTFail("A dropped response must not be reported as a successful publish")
+        } catch let error as URLError {
+            XCTAssertEqual(error.code, .networkConnectionLost)
+        }
+        let recovered = try await client.reconcileUncertainPublish(
+            originalProposal: original, bearerToken: "staging-test-token")
+        XCTAssertEqual(recovered.revision, original.expectedRevision + 1)
+        XCTAssertEqual(publishCalls, 1, "Network failure must not cause another mutation")
+        XCTAssertEqual(reconcileCalls, 1, "Recovery must use the read-only endpoint")
+    }
+
     func testRejectsIdempotencyConflict() async throws {
         let client = try makeClient(status: 409, payload: #"{"error":"IDEMPOTENCY_CONFLICT"}"#)
         do {
