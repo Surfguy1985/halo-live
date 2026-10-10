@@ -179,3 +179,62 @@ struct HaloStagingWorkflowClient {
         }
     }
 }
+
+
+/// Staging-only, opt-in durable record of a publish whose receipt is unresolved.
+/// Persist BEFORE sending the publish. Delete only after a verified receipt.
+/// No bearer token or identity credential is ever stored in this journal.
+/// File protection is device-enforced on iOS; callers must supply a private
+/// Application Support URL and an authenticated owner scope.
+actor HaloStagingPublishRecoveryJournal {
+    enum Failure: Error {
+        case invalidScope
+        case corruptRecord
+        case wrongOwner
+    }
+
+    private struct Record: Codable {
+        let ownerScope: String
+        let proposal: HaloTemplatePublishing.Proposal
+    }
+
+    private let fileURL: URL
+
+    init(fileURL: URL) {
+        self.fileURL = fileURL
+    }
+
+    func save(_ proposal: HaloTemplatePublishing.Proposal, ownerScope: String) throws {
+        guard !ownerScope.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw Failure.invalidScope
+        }
+        let manager = FileManager.default
+        try manager.createDirectory(at: fileURL.deletingLastPathComponent(),
+                                    withIntermediateDirectories: true)
+        let data = try JSONEncoder().encode(Record(ownerScope: ownerScope, proposal: proposal))
+        #if os(iOS)
+        try data.write(to: fileURL, options: [.atomic, .completeFileProtection])
+        #else
+        try data.write(to: fileURL, options: [.atomic])
+        #endif
+    }
+
+    func pending(ownerScope: String) throws -> HaloTemplatePublishing.Proposal? {
+        guard !ownerScope.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw Failure.invalidScope
+        }
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
+        let data = try Data(contentsOf: fileURL)
+        guard let record = try? JSONDecoder().decode(Record.self, from: data) else {
+            throw Failure.corruptRecord
+        }
+        guard record.ownerScope == ownerScope else { throw Failure.wrongOwner }
+        return record.proposal
+    }
+
+    func clear(confirmedRequestID: UUID, ownerScope: String) throws {
+        guard let proposal = try pending(ownerScope: ownerScope) else { return }
+        guard proposal.requestID == confirmedRequestID else { throw Failure.corruptRecord }
+        try FileManager.default.removeItem(at: fileURL)
+    }
+}
