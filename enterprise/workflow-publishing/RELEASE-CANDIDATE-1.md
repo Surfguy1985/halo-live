@@ -2,6 +2,8 @@
 
 Status: **candidate only**. Passing workflow CI is necessary, not sufficient, for a release.
 
+Canonical execution order: [`HISTORICAL-BUILD-ORDER.md`](./HISTORICAL-BUILD-ORDER.md). Its original five phases and nested safe-promotion sequence must not be skipped or reordered.
+
 ## Verified automated baseline
 
 - GitHub Actions **Workflow PostgreSQL Integration**, run `37936784629`, succeeded at commit `4acb25cd1579d7339078c536a90e7e775f6a7b45`.
