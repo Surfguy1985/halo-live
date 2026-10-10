@@ -371,6 +371,29 @@ final class HaloStagingWorkflowClientTests: XCTestCase {
         XCTAssertEqual(retained, proposal)
     }
 
+    func testCoordinatorRejectsAccountSwitchWithoutLeakingPendingProposal() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("halo-owner-switch-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("pending.json")
+        let journal = HaloStagingPublishRecoveryJournal(fileURL: url)
+        try await journal.save(proposal, ownerScope: "fleet-a:actor-1")
+        var calls = 0
+        let client = try makeClient(status: 200,
+            payload: #"{"status":"committed","receipt":{"templateID":"fleet-dispatch","revision":8,"templateVersion":1}}"#) { _ in
+            calls += 1
+        }
+        let coordinator = HaloStagingPublishRecoveryCoordinator(client: client, journal: journal)
+        do {
+            _ = try await coordinator.recover(ownerScope: "fleet-b:actor-2",
+                                              bearerToken: "staging-test-token")
+            XCTFail("A different signed-in owner cannot read the previous owner's journal")
+        } catch HaloStagingPublishRecoveryJournal.Failure.wrongOwner {}
+        XCTAssertEqual(calls, 0)
+        let retained = try await journal.pending(ownerScope: "fleet-a:actor-1")
+        XCTAssertEqual(retained, proposal)
+    }
+
     func testRejectsIdempotencyConflict() async throws {
         let client = try makeClient(status: 409, payload: #"{"error":"IDEMPOTENCY_CONFLICT"}"#)
         do {
