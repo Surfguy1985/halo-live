@@ -14,6 +14,7 @@ struct HaloStagingWorkflowClient {
         case invalidSchema
         case serviceUnavailable
         case commitOutcomeUnknown
+        case receiptNotFound
         case unexpectedStatus(Int)
         case invalidResponse
     }
@@ -100,15 +101,66 @@ struct HaloStagingWorkflowClient {
         }
     }
 
-    /// Explicit reconciliation after COMMIT_OUTCOME_UNKNOWN or a lost HTTP receipt.
-    /// The caller MUST persist and supply the original proposal and requestID.
-    /// This performs one authenticated idempotent replay, not an automatic retry.
-    /// Never construct a new UUID or silently change the expected revision.
+    /// Read-only recovery for a potentially committed publish. Never issues a
+    /// second mutation, changes the request ID, or treats 404 as rollback proof.
+    /// The caller retains the original proposal if a receipt is not yet visible.
     func reconcileUncertainPublish(
         originalProposal: HaloTemplatePublishing.Proposal,
         bearerToken: String
     ) async throws -> Receipt {
-        try await publish(proposal: originalProposal, bearerToken: bearerToken)
+        guard !bearerToken.isEmpty,
+              bearerToken.rangeOfCharacter(from: .whitespacesAndNewlines) == nil else {
+            throw Failure.invalidCredentials
+        }
+        let templateID = originalProposal.layout.templateID
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
+        guard !templateID.isEmpty, templateID.utf8.count <= 128,
+              templateID.unicodeScalars.allSatisfy({ allowed.contains($0) }) else {
+            throw Failure.invalidTemplateID
+        }
+        guard originalProposal.expectedRevision >= 0,
+              originalProposal.expectedRevision < 9_007_199_254_740_991,
+              case .success = HaloWorkflowBlocks.validate(originalProposal.layout) else {
+            throw Failure.invalidSchema
+        }
+        let endpoint = baseURL.appendingPathComponent("v1/workflow-templates/\(templateID)/reconcile")
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 15
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(originalProposal.requestID.uuidString, forHTTPHeaderField: "Idempotency-Key")
+        request.httpBody = try JSONEncoder().encode(ReconcileRequest(requestID: originalProposal.requestID))
+        let (data, response) = try await session.data(for: request, delegate: NoRedirects())
+        guard let http = response as? HTTPURLResponse else { throw Failure.invalidResponse }
+        switch http.statusCode {
+        case 200:
+            guard let envelope = try? JSONDecoder().decode(ReconcileEnvelope.self, from: data),
+                  envelope.status == "committed",
+                  envelope.receipt.templateID == templateID,
+                  envelope.receipt.revision == originalProposal.expectedRevision + 1,
+                  envelope.receipt.templateVersion == originalProposal.layout.templateVersion else {
+                throw Failure.invalidResponse
+            }
+            return envelope.receipt
+        case 401: throw Failure.unauthorized
+        case 403: throw Failure.forbidden
+        case 404: throw Failure.receiptNotFound
+        case 422: throw Failure.invalidSchema
+        case 429, 502, 503, 504: throw Failure.serviceUnavailable
+        default: throw Failure.unexpectedStatus(http.statusCode)
+        }
+    }
+
+    private struct ReconcileRequest: Encodable {
+        let requestID: UUID
+    }
+
+    private struct ReconcileEnvelope: Decodable {
+        let status: String
+        let receipt: Receipt
     }
 
     private struct ErrorPayload: Decodable {
