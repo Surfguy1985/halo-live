@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - 'release/halo-workflow-rc1-candidate'
+      - 'codex/halo-enterprise-reconciliation-rc1'
     paths:
       - 'enterprise/workflow-publishing/**'
       - 'package-lock.json'

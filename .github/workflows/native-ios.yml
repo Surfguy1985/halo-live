@@ -1,10 +1,12 @@
 name: Native iOS CI
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - ios-swift-native-v1
       - release/halo-workflow-rc1-candidate
+      - codex/halo-enterprise-reconciliation-rc1
     paths:
       - "NativeiOS/**"
       - ".github/workflows/native-ios.yml"
