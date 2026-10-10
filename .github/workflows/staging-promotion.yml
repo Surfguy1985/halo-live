@@ -192,9 +192,6 @@ jobs:
       HALO_OUTBOUND_SIDE_EFFECTS: disabled
       HALO_SWIFT_HTTPS_SIGNOFF_APPROVED: ephemeral-ci-https-only
       HALO_SWIFT_STAGING_HOST: workflow.staging.invalid
-      HALO_SWIFT_SIGNOFF_EXECUTABLE: ${{ runner.temp }}/halo-swift-https-signoff
-      HALO_SWIFT_TLS_CERTIFICATE: ${{ runner.temp }}/halo-swift-server.crt
-      HALO_SWIFT_TLS_PRIVATE_KEY: ${{ runner.temp }}/halo-swift-server.key
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -206,6 +203,11 @@ jobs:
         run: npm ci --prefix enterprise/workflow-publishing --no-audit --no-fund
       - name: Verify the checked-out signoff SHA
         run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Set ephemeral signoff artifact paths
+        run: |
+          printf 'HALO_SWIFT_SIGNOFF_EXECUTABLE=%s/halo-swift-https-signoff\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'HALO_SWIFT_TLS_CERTIFICATE=%s/halo-swift-server.crt\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'HALO_SWIFT_TLS_PRIVATE_KEY=%s/halo-swift-server.key\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - name: Compile the production Swift staging client
         run: |
           swift --version
