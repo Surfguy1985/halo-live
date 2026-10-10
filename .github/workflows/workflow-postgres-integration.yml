@@ -5,10 +5,14 @@ on:
       - 'release/halo-workflow-rc1-candidate'
     paths:
       - 'enterprise/workflow-publishing/**'
+      - 'package-lock.json'
+      - 'scripts/check-dependency-licenses.mjs'
       - '.github/workflows/workflow-postgres-integration.yml'
   pull_request:
     paths:
       - 'enterprise/workflow-publishing/**'
+      - 'package-lock.json'
+      - 'scripts/check-dependency-licenses.mjs'
       - '.github/workflows/workflow-postgres-integration.yml'
   workflow_dispatch:
 permissions:
@@ -43,7 +47,11 @@ jobs:
         with:
           node-version: '22'
       - name: Install isolated dependencies
-        run: npm install --prefix enterprise/workflow-publishing --no-audit --no-fund
+        run: npm ci --prefix enterprise/workflow-publishing --no-audit --no-fund
+      - name: Dependency vulnerability gate
+        run: npm audit --prefix enterprise/workflow-publishing --audit-level=moderate
+      - name: Dependency license gate
+        run: node scripts/check-dependency-licenses.mjs
       - name: JavaScript syntax preflight
         run: find enterprise/workflow-publishing -maxdepth 1 -name '*.mjs' -print0 | xargs -0 -r -n 1 node --check
       - name: Domain and adapter protocol tests

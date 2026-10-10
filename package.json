@@ -7,6 +7,7 @@
     "dev": "vite --config vite.config.ts --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "audit:licenses": "node scripts/check-dependency-licenses.mjs",
     "preview": "vite preview --host 0.0.0.0",
     "mobile:sync": "npm run build && npx cap sync",
     "mobile:ios": "npm run mobile:sync && npx cap open ios",

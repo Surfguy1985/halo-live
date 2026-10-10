@@ -13,7 +13,7 @@ Audit basis: GitHub comparison `main...release/halo-workflow-rc1-candidate` at `
 
 1. [ ] Review the **complete** 531-commit and 220-file cumulative diff against `main`, including third-party code, generated assets, secrets scanning, ownership, data handling, and licensing.
 2. [ ] Establish commit-specific Swift/Xcode build and XCTest results for the actual release SHA; validate signing entitlements and permissions.
-3. [ ] Freeze and review all dependency versions, lockfiles and supply-chain scanning.
+3. [x] Freeze dependency versions with npm lockfiles, enforce `npm ci`, and add repeatable vulnerability and license scanning. See `DEPENDENCY-SUPPLY-CHAIN.md`; production still requires explicit acceptance or replacement of the Hippocratic-2.1 map dependencies.
 4. [ ] Prove all SQL migrations are safe for a representative existing schema, with tenant-isolation/RLS tests, and rehearsed backup/recovery.
 5. [ ] Produce Swift ↔ backend API compatibility, auth/tenancy, idempotency and offline-retry contract evidence.
 6. [ ] Run a staging-only, failure-injected end-to-end flow with all outbound side effects disabled.

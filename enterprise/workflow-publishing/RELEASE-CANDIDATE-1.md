@@ -13,7 +13,7 @@ Status: **candidate only**. Passing workflow CI is necessary, not sufficient, fo
 
 - [ ] **Stacked PR ancestry**: review and land the ancestor PRs in order. PR #33 is based on `feature/workflow-financial-approval-store-v1` (PR #32), not the default branch. Do not squash or merge PR #33 directly into production without reviewing the complete stacked diff.
 - [ ] **Fresh CI**: all required branch-protection checks must pass on the exact final merge commit, not merely on the current draft branch.
-- [ ] **Reproducible install**: commit and review a dependency lockfile, switch CI to `npm ci` where appropriate, and scan dependencies for vulnerabilities and license obligations.
+- [x] **Reproducible install**: root and workflow-service lockfiles are committed, web and PostgreSQL CI use `npm ci`, and both dependency trees pass the moderate vulnerability gate. License inventory and the remaining Hippocratic-2.1 approval are documented in `DEPENDENCY-SUPPLY-CHAIN.md`.
 - [ ] **Migration staging rehearsal**: apply the complete ordered migration set to an empty staging DB and to a staged copy of a representative existing schema; test role grants, forced RLS, tenant isolation, and repeatable deploy behavior.
 - [ ] **Backup and rollback plan**: confirm a database recovery point and document reversible application rollout. PostgreSQL destructive/irreversible schema migrations may require restore/forward-fix rather than `DOWN` SQL.
 - [ ] **Swift/API contract checks**: verify native iOS authentication, tenant-scoped requests, idempotency, revision conflicts, transport failures, and reconnect behavior against deployed staging APIs.

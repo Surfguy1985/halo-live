@@ -1,0 +1,59 @@
+name: Web Build
+
+on:
+  push:
+    branches:
+      - main
+      - release/halo-workflow-rc1-candidate
+      - codex/halo-enterprise-reconciliation-rc1
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'enterprise/workflow-publishing/package-lock.json'
+      - 'scripts/check-dependency-licenses.mjs'
+      - 'tsconfig*.json'
+      - 'vite.config.ts'
+      - '.github/workflows/web.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'enterprise/workflow-publishing/package-lock.json'
+      - 'scripts/check-dependency-licenses.mjs'
+      - 'tsconfig*.json'
+      - 'vite.config.ts'
+      - '.github/workflows/web.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Dependency vulnerability gate
+        run: npm audit --audit-level=moderate
+      - name: Dependency license gate
+        run: npm run audit:licenses
+      - name: Source lint
+        run: npm exec -- oxlint src
+      - name: Production build
+        run: npm run build

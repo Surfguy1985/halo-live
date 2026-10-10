@@ -8,7 +8,7 @@ DoorDash × Turo for apartment make-ready. One live order — Field builds it, P
 git clone https://github.com/Surfguy1985/halo-live.git
 cd halo-live
 echo 'VITE_API_BASE=' > .env
-npm install
+npm ci
 PORT=5179 npm run dev
 ```
 
@@ -31,7 +31,7 @@ Fixed seed: ink `#080D1A` · gold `#E3B85C` · live `#B4FF44` · paper `#F4F4F0`
 Native **iOS** and **Android** via Capacitor. See [MOBILE.md](./MOBILE.md).
 
 ```bash
-npm install
+npm ci
 npx cap add ios
 npm run mobile:ios
 ```
