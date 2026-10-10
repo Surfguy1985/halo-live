@@ -116,6 +116,29 @@ test("Swift fixture crosses signed HTTP auth and durable tenant-scoped PostgreSQ
   assert.equal(missing.status,404);
   assert.deepEqual(await missing.json(),{error:"RECEIPT_NOT_FOUND"});
   assert.equal((await check(fixture.requestID,"invalid.jwt.signature")).status,401);
+  // A valid principal from a different tenant must never recover this receipt.
+  await pool.query(`INSERT INTO halo_workflow.identity_memberships
+   (actor_id,tenant_id,active,industry_ids,permissions)
+   VALUES($1,$2,true,$3::jsonb,$4::jsonb)`,
+   ["foreign-admin","tenant-other",JSON.stringify([fixture.layout.industryID]),
+    JSON.stringify(["workflow:publish"])]);
+  const foreignUnsigned=b64({alg:"RS256",typ:"JWT",kid:"swift-fixture-key"})+"."+
+   b64({iss:"https://id.example.test",aud:"halo-test-api",sub:"foreign-admin",iat:now-5,exp:now+600});
+  const foreignJWT=foreignUnsigned+"."+sign("RSA-SHA256",Buffer.from(foreignUnsigned),pair.privateKey).toString("base64url");
+  const foreign=await check(fixture.requestID,foreignJWT);
+  assert.equal(foreign.status,404);
+  assert.deepEqual(await foreign.json(),{error:"RECEIPT_NOT_FOUND"});
+  // Header/body mismatch cannot select a different stored request.
+  const mismatch=await fetch(reconcileEndpoint,{method:"POST",
+   headers:{"authorization":"Bearer "+jwt,"content-type":"application/json",
+    "idempotency-key":"other-key"},body:JSON.stringify({requestID:fixture.requestID})});
+  assert.equal(mismatch.status,422);
+  // Revoking the publishing permission must also revoke receipt access.
+  await pool.query(`UPDATE halo_workflow.identity_memberships
+   SET permissions='[]'::jsonb WHERE actor_id='swift-admin'`);
+  assert.equal((await check(fixture.requestID)).status,403);
+  await pool.query(`UPDATE halo_workflow.identity_memberships
+   SET permissions='["workflow:publish"]'::jsonb WHERE actor_id='swift-admin'`);
   const noWrite=await pool.query(`SELECT
    (SELECT count(*)::int FROM halo_workflow.template_revisions WHERE tenant_id=$1) AS revisions,
    (SELECT count(*)::int FROM halo_workflow.publish_audit WHERE tenant_id=$1) AS audits,
