@@ -29,14 +29,14 @@ test("rejects unsafe attributes, wrong memberships, direct ACLs, TLS and databas
  ]){
   await assert.rejects(attestStagingDatabasePrincipals({admission,
    identityPool:pool(identity),workflowPool:pool(changed)
-  }),{message:"HALO staging principal attestation denied"});
+  }),/HALO staging principal attestation denied/);
  }
 });
 
 test("rejects shared pools and discards a connection after query failure",async()=>{
  const shared=pool(row("halo_identity_runtime",["halo_identity_membership_reader"]));
  await assert.rejects(attestStagingDatabasePrincipals({admission,identityPool:shared,workflowPool:shared}),
-  {message:"HALO staging principal attestation denied"});
+  /HALO staging principal attestation denied/);
  let discarded;
  const broken={connect:async()=>({query:async()=>{throw Error("attestation query failed");},
   release:value=>{discarded=value;}})};

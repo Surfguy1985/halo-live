@@ -1,4 +1,5 @@
-const denied=()=>{throw new Error("HALO staging principal attestation denied");};
+const denied=reason=>{throw new Error("HALO staging principal attestation denied"+
+ (reason?` [${reason}]`:""));};
 
 const principalSQL=`SELECT
  session_user AS session_user,
@@ -7,9 +8,9 @@ const principalSQL=`SELECT
  coalesce((SELECT ssl FROM pg_stat_ssl WHERE pid=pg_backend_pid()),false) AS tls,
  role.rolcanlogin,role.rolinherit,role.rolsuper,role.rolcreatedb,
  role.rolcreaterole,role.rolreplication,role.rolbypassrls,
- coalesce((SELECT array_agg(parent.rolname ORDER BY parent.rolname)
+ coalesce((SELECT jsonb_agg(parent.rolname::text ORDER BY parent.rolname)
   FROM pg_auth_members membership JOIN pg_roles parent ON parent.oid=membership.roleid
-  WHERE membership.member=role.oid),'{}'::name[]) AS memberships,
+  WHERE membership.member=role.oid),'[]'::jsonb) AS memberships,
  EXISTS (SELECT 1 FROM pg_class relation
   JOIN pg_namespace namespace ON namespace.oid=relation.relnamespace
   CROSS JOIN LATERAL aclexplode(relation.relacl) acl
@@ -26,14 +27,19 @@ async function inspect(pool,expectedUser,expectedMemberships,admission){
  let discard=false;
  try{
   const result=await client.query(principalSQL);
-  if(result?.rows?.length!==1)denied();
+  if(result?.rows?.length!==1)denied("principal-row-count");
   const row=result.rows[0];
-  if(row.session_user!==expectedUser || row.current_user!==expectedUser ||
-     row.database_name!==admission.databaseName || row.tls!==admission.requireTLS ||
-     row.rolcanlogin!==true || row.rolinherit!==false || row.rolsuper!==false ||
-     row.rolcreatedb!==false || row.rolcreaterole!==false || row.rolreplication!==false ||
-     row.rolbypassrls!==false || row.direct_relation_acl!==false ||
-     !exactArray(row.memberships,expectedMemberships))denied();
+  const checks={
+   session_user:row.session_user===expectedUser,current_user:row.current_user===expectedUser,
+   database_name:row.database_name===admission.databaseName,tls:row.tls===admission.requireTLS,
+   rolcanlogin:row.rolcanlogin===true,rolinherit:row.rolinherit===false,
+   rolsuper:row.rolsuper===false,rolcreatedb:row.rolcreatedb===false,
+   rolcreaterole:row.rolcreaterole===false,rolreplication:row.rolreplication===false,
+   rolbypassrls:row.rolbypassrls===false,direct_relation_acl:row.direct_relation_acl===false,
+   memberships:exactArray(row.memberships,expectedMemberships)
+  };
+  const failure=Object.entries(checks).find(([,passed])=>!passed)?.[0];
+  if(failure)denied(failure);
  }catch(error){discard=true;throw error;}finally{client.release(discard);}
 }
 
