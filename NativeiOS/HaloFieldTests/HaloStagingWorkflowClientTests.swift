@@ -183,6 +183,54 @@ final class HaloStagingWorkflowClientTests: XCTestCase {
         }
     }
 
+    func testReconciliationDoesNotRetryOnServiceUnavailable() async throws {
+        var calls = 0
+        let client = try makeClient(status: 503, payload: #"{"error":"SERVICE_UNAVAILABLE"}"#) { request in
+            calls += 1
+            XCTAssertEqual(request.url?.path, "/v1/workflow-templates/fleet-dispatch/reconcile")
+        }
+        do {
+            _ = try await client.reconcileUncertainPublish(
+                originalProposal: proposal, bearerToken: "staging-test-token")
+            XCTFail("A transient error must not be reported as a recovered commit")
+        } catch let error as HaloStagingWorkflowClient.Failure {
+            XCTAssertEqual(error, .serviceUnavailable)
+        }
+        XCTAssertEqual(calls, 1, "No hidden retry or second publish")
+    }
+
+    func testReconciliationRejectsRevokedMembership() async throws {
+        var calls = 0
+        let client = try makeClient(status: 403, payload: #"{"error":"FORBIDDEN"}"#) { request in
+            calls += 1
+            XCTAssertEqual(request.url?.path, "/v1/workflow-templates/fleet-dispatch/reconcile")
+        }
+        do {
+            _ = try await client.reconcileUncertainPublish(
+                originalProposal: proposal, bearerToken: "staging-test-token")
+            XCTFail("Revoked membership cannot recover a receipt")
+        } catch let error as HaloStagingWorkflowClient.Failure {
+            XCTAssertEqual(error, .forbidden)
+        }
+        XCTAssertEqual(calls, 1)
+    }
+
+    func testReconciliationRejectsInvalidCredentialsWithoutNetwork() async throws {
+        var calls = 0
+        let client = try makeClient(status: 200,
+            payload: #"{"status":"committed","receipt":{"templateID":"fleet-dispatch","revision":8,"templateVersion":1}}"#) { _ in
+            calls += 1
+        }
+        do {
+            _ = try await client.reconcileUncertainPublish(
+                originalProposal: proposal, bearerToken: "bad token")
+            XCTFail("Invalid credentials must fail locally")
+        } catch let error as HaloStagingWorkflowClient.Failure {
+            XCTAssertEqual(error, .invalidCredentials)
+        }
+        XCTAssertEqual(calls, 0)
+    }
+
     func testRejectsIdempotencyConflict() async throws {
         let client = try makeClient(status: 409, payload: #"{"error":"IDEMPOTENCY_CONFLICT"}"#)
         do {
