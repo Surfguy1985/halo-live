@@ -130,21 +130,57 @@ final class HaloStagingWorkflowClientTests: XCTestCase {
         XCTAssertEqual(calls, 1, "Do not automatically replay a potentially committed mutation")
     }
 
-    func testExplicitReconciliationReusesOriginalIdempotencyKeyAndRevision() async throws {
+    func testExplicitReconciliationIsReadOnlyAndPreservesOriginalRequestID() async throws {
         var calls = 0
         let original = proposal
         let client = try makeClient(status: 200,
-            payload: #"{"templateID":"fleet-dispatch","revision":8,"templateVersion":1}"#) { request in
+            payload: #"{"status":"committed","receipt":{"templateID":"fleet-dispatch","revision":8,"templateVersion":1}}"#) { request in
             calls += 1
+            XCTAssertEqual(request.httpMethod, "POST")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Idempotency-Key"),
                            original.requestID.uuidString)
             XCTAssertEqual(request.url?.path,
-                           "/v1/workflow-templates/fleet-dispatch/publish")
+                           "/v1/workflow-templates/fleet-dispatch/reconcile")
+            // The recovery payload must contain only the original request ID,
+            // not a mutable workflow layout or a new publish attempt.
+            if let body = request.httpBody {
+                let object = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+                XCTAssertEqual(object.count, 1)
+                XCTAssertEqual(object["requestID"] as? String, original.requestID.uuidString)
+            }
         }
         let receipt = try await client.reconcileUncertainPublish(
             originalProposal: original, bearerToken: "staging-test-token")
         XCTAssertEqual(receipt.revision, original.expectedRevision + 1)
         XCTAssertEqual(calls, 1)
+    }
+
+    func testMissingReconciliationReceiptDoesNotTriggerRepublish() async throws {
+        var calls = 0
+        let client = try makeClient(status: 404, payload: #"{"error":"RECEIPT_NOT_FOUND"}"#) { request in
+            calls += 1
+            XCTAssertEqual(request.url?.path, "/v1/workflow-templates/fleet-dispatch/reconcile")
+        }
+        do {
+            _ = try await client.reconcileUncertainPublish(
+                originalProposal: proposal, bearerToken: "staging-test-token")
+            XCTFail("Missing receipt is not proof that the original commit rolled back")
+        } catch let error as HaloStagingWorkflowClient.Failure {
+            XCTAssertEqual(error, .receiptNotFound)
+        }
+        XCTAssertEqual(calls, 1)
+    }
+
+    func testReconciliationRejectsUntrustedReceiptRevision() async throws {
+        let client = try makeClient(status: 200,
+            payload: #"{"status":"committed","receipt":{"templateID":"fleet-dispatch","revision":9,"templateVersion":1}}"#)
+        do {
+            _ = try await client.reconcileUncertainPublish(
+                originalProposal: proposal, bearerToken: "staging-test-token")
+            XCTFail("Recovery cannot accept a receipt for another revision")
+        } catch let error as HaloStagingWorkflowClient.Failure {
+            XCTAssertEqual(error, .invalidResponse)
+        }
     }
 
     func testRejectsIdempotencyConflict() async throws {
