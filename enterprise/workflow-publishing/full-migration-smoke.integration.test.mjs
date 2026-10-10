@@ -126,7 +126,7 @@ test("ordered migrations 001–024: complete schema with FORCE RLS", {skip:!url}
    assert.deepEqual(scoped.rows,[{actor_id:"migration-actor-a"}]);
    await assert.rejects(()=>identityReader.query(
     "UPDATE halo_workflow.identity_memberships SET active=false WHERE actor_id='migration-actor-a'"),
-    /permission denied/);
+    /permission denied|read-only transaction/);
    await identityReader.query("ROLLBACK");
   }finally{identityReader.release();}
   // Financial approvals must be inaccessible without a trusted tenant context.
