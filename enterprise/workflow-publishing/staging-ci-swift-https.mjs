@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import http from "node:http";
 import https from "node:https";
-import {generateKeyPairSync,randomBytes} from "node:crypto";
+import {generateKeyPairSync,randomBytes,randomUUID} from "node:crypto";
 import {readFile} from "node:fs/promises";
 import {fileURLToPath,pathToFileURL} from "node:url";
 import {spawn} from "node:child_process";
@@ -29,14 +29,15 @@ const close=server=>new Promise((resolve,reject)=>{
  if(typeof server.closeAllConnections==="function")server.closeAllConnections();
 });
 
-function runSwiftSignoff({executable,stagingURL,bearerToken,fixturePath}){
+function runSwiftSignoff({executable,stagingURL,bearerToken,fixturePath,redirectProbeRequestID}){
  return new Promise((resolve,reject)=>{
   const child=spawn(executable,[],{stdio:["ignore","pipe","pipe"],env:{
    PATH:process.env.PATH??"/usr/local/bin:/usr/bin:/bin",
    LANG:process.env.LANG??"C.UTF-8",
    HALO_SWIFT_STAGING_URL:stagingURL,
    HALO_SWIFT_BEARER_TOKEN:bearerToken,
-   HALO_SWIFT_FIXTURE_PATH:fixturePath
+   HALO_SWIFT_FIXTURE_PATH:fixturePath,
+   HALO_SWIFT_REDIRECT_PROBE_REQUEST_ID:redirectProbeRequestID
   }});
   let stdout="",stderr="",settled=false;
   let timer;
@@ -58,7 +59,26 @@ function runSwiftSignoff({executable,stagingURL,bearerToken,fixturePath}){
  });
 }
 
-function createLoopbackTLSProxy({certificate,privateKey,backendPort,hostname,counters}){
+function createRedirectCaptureServer({certificate,privateKey,hostname,counters}){
+ let expectedAuthority;
+ const server=https.createServer({cert:certificate,key:privateKey,minVersion:"TLSv1.2"},(request,response)=>{
+  counters.requests++;
+  if(request.headers.authorization)counters.authorizationHeadersPresent++;
+  if(!loopback(request.socket.remoteAddress) || request.socket.servername!==hostname ||
+     request.headers.host!==expectedAuthority){
+   response.writeHead(421,{"content-type":"application/json","cache-control":"no-store"});
+   response.end(JSON.stringify({error:"MISDIRECTED_REQUEST"}));return;
+  }
+  response.writeHead(418,{"content-type":"application/json","cache-control":"no-store"});
+  response.end(JSON.stringify({error:"REDIRECT_MUST_NOT_BE_FOLLOWED"}));
+ });
+ server.on("secureConnection",()=>{counters.secureConnections++;});
+ server.on("tlsClientError",()=>{counters.tlsErrors++;});
+ server.on("clientError",(_error,socket)=>socket.destroy());
+ return {server,setAuthority:value=>{expectedAuthority=value;}};
+}
+
+function createLoopbackTLSProxy({certificate,privateKey,backendPort,hostname,counters,redirectProbe}){
  let expectedAuthority;
  const server=https.createServer({cert:certificate,key:privateKey,minVersion:"TLSv1.2"},(request,response)=>{
   counters.requests++;
@@ -68,13 +88,28 @@ function createLoopbackTLSProxy({certificate,privateKey,backendPort,hostname,cou
    response.writeHead(421,{"content-type":"application/json","cache-control":"no-store"});
    response.end(JSON.stringify({error:"MISDIRECTED_REQUEST"}));return;
   }
+  if(request.headers["idempotency-key"]===redirectProbe.requestID){
+   counters.redirectProbeRequests++;
+   if(request.method==="POST")counters.redirectSourceMethodMatched++;
+   if(request.headers.authorization===`Bearer ${redirectProbe.bearerToken}`){
+    counters.redirectSourceAuthorizationMatched++;
+   }
+   request.resume();
+   if(request.method!=="POST" || request.headers.authorization!==`Bearer ${redirectProbe.bearerToken}`){
+    response.writeHead(400,{"content-type":"application/json","cache-control":"no-store"});
+    response.end(JSON.stringify({error:"INVALID_REDIRECT_PROBE"}));return;
+   }
+   counters.redirectsIssued++;
+   response.writeHead(307,{location:redirectProbe.location,"cache-control":"no-store"});
+   response.end();return;
+  }
   const headers={...request.headers,host:`127.0.0.1:${backendPort}`};
   for(const name of ["connection","keep-alive","proxy-authenticate","proxy-authorization",
    "te","trailer","transfer-encoding","upgrade"]) delete headers[name];
   const upstream=http.request({hostname:"127.0.0.1",port:backendPort,path:request.url,
    method:request.method,headers},upstreamResponse=>{
    if((upstreamResponse.statusCode??500)>=300 && (upstreamResponse.statusCode??500)<400){
-    counters.redirects++;
+    counters.upstreamRedirects++;
    }
    const responseHeaders={...upstreamResponse.headers};
    for(const name of ["connection","keep-alive","transfer-encoding","upgrade"]) delete responseHeaders[name];
@@ -97,7 +132,7 @@ export async function runCIStagingSwiftHTTPS(config=process.env){
  const admission=assertCIStagingSwiftHTTPSConfiguration(config);
  const {Pool}=await import("pg");
  const admin=new Pool({connectionString:config.HALO_WORKFLOW_DATABASE_URL,max:3});
- let identityPool,workflowPool,app,tlsServer;
+ let identityPool,workflowPool,app,tlsServer,redirectCaptureServer;
  try{
   await migrateCIStagingDatabase(admin);
   const workflowPassword=randomBytes(32).toString("hex");
@@ -125,31 +160,52 @@ export async function runCIStagingSwiftHTTPS(config=process.env){
   const backendAddress=await app.start();
   assert.deepEqual(backendAddress.host,"127.0.0.1");
 
-  const counters={requests:0,redirects:0,tlsErrors:0,protocols:new Set()};
+  const certificate=await readFile(config.HALO_SWIFT_TLS_CERTIFICATE);
+  const privateKey=await readFile(config.HALO_SWIFT_TLS_PRIVATE_KEY);
+  const redirectCaptureCounters={requests:0,authorizationHeadersPresent:0,
+   secureConnections:0,tlsErrors:0};
+  const redirectCapture=createRedirectCaptureServer({certificate,privateKey,
+   hostname:admission.publicHost,counters:redirectCaptureCounters});
+  redirectCaptureServer=redirectCapture.server;
+  const redirectCaptureAddress=await listen(redirectCaptureServer);
+  const redirectCaptureAuthority=`${admission.publicHost}:${redirectCaptureAddress.port}`;
+  redirectCapture.setAuthority(redirectCaptureAuthority);
+  const redirectProbeRequestID=randomUUID().toUpperCase();
+  const token=signCIStagingToken(keys.privateKey,config);
+  const counters={requests:0,upstreamRedirects:0,redirectsIssued:0,
+   redirectProbeRequests:0,redirectSourceMethodMatched:0,
+   redirectSourceAuthorizationMatched:0,tlsErrors:0,protocols:new Set()};
   const proxy=createLoopbackTLSProxy({
-   certificate:await readFile(config.HALO_SWIFT_TLS_CERTIFICATE),
-   privateKey:await readFile(config.HALO_SWIFT_TLS_PRIVATE_KEY),
-   backendPort:backendAddress.port,hostname:admission.publicHost,counters
+   certificate,privateKey,backendPort:backendAddress.port,
+   hostname:admission.publicHost,counters,redirectProbe:{
+    requestID:redirectProbeRequestID,bearerToken:token,
+    location:`https://${redirectCaptureAuthority}/credential-capture`
+   }
   });
   tlsServer=proxy.server;
   const tlsAddress=await listen(tlsServer);
   const authority=`${admission.publicHost}:${tlsAddress.port}`;
   proxy.setAuthority(authority);
-  const token=signCIStagingToken(keys.privateKey,config);
   const swiftOutput=await runSwiftSignoff({
    executable:config.HALO_SWIFT_SIGNOFF_EXECUTABLE,
    stagingURL:`https://${authority}/`,bearerToken:token,
-   fixturePath:fileURLToPath(fixtureURL)
+   fixturePath:fileURLToPath(fixtureURL),redirectProbeRequestID
   });
   const swiftSummary=JSON.parse(swiftOutput);
   assert.deepEqual(swiftSummary,{
    transport:"swift-urlsession-trusted-https",publish:"passed",
    idempotentReplay:"passed",reconciliation:"passed",
-   authorizationFailure:"passed",revisionConflict:"passed"
+   authorizationFailure:"passed",revisionConflict:"passed",redirectRefusal:"passed"
   });
-  assert.equal(counters.requests,5);
-  assert.equal(counters.redirects,0);
+  assert.equal(counters.requests,6);
+  assert.equal(counters.redirectProbeRequests,1);
+  assert.equal(counters.redirectSourceMethodMatched,1);
+  assert.equal(counters.redirectSourceAuthorizationMatched,1);
+  assert.equal(counters.redirectsIssued,1);
+  assert.equal(counters.upstreamRedirects,0);
   assert.equal(counters.tlsErrors,0);
+  assert.deepEqual(redirectCaptureCounters,
+   {requests:0,authorizationHeadersPresent:0,secureConnections:0,tlsErrors:0});
   assert.ok(counters.protocols.size>=1);
   assert.ok([...counters.protocols].every(protocol=>protocol==="TLSv1.2" || protocol==="TLSv1.3"));
 
@@ -171,9 +227,11 @@ export async function runCIStagingSwiftHTTPS(config=process.env){
 
   return Object.freeze({releaseSHA:admission.releaseSHA,tests:"passed",
    transport:"swift-urlsession-trusted-https",tlsProtocols:[...counters.protocols].sort(),
-   redirects:0,revisions:1,audits:1,idempotency:1,outboundSideEffects:0});
+   redirectsIssued:1,redirectsFollowed:0,redirectedAuthorizationHeaders:0,
+   revisions:1,audits:1,idempotency:1,outboundSideEffects:0});
  }finally{
   if(tlsServer)await close(tlsServer).catch(()=>{});
+  if(redirectCaptureServer)await close(redirectCaptureServer).catch(()=>{});
   if(app)await app.stop().catch(()=>{});
   if(identityPool)await identityPool.end().catch(()=>{});
   if(workflowPool)await workflowPool.end().catch(()=>{});

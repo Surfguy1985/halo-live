@@ -127,6 +127,33 @@ final class HaloTemplatePublishRecoveryStoreTests: XCTestCase {
         XCTAssertEqual(records, [])
     }
 
+    func testEveryUnexpectedHTTPStatusPreservesOriginalRecoveryIdentity() async throws {
+        for status in [302, 408, 418, 425, 499, 500] {
+            let store = HaloTemplatePublishRecoveryStore(fileURL: temporaryStoreURL())
+            let detectedAt = Date(timeIntervalSince1970: 1_800_000_000 + Double(status))
+            let coordinator = HaloTemplatePublishCoordinator(
+                recoveryStore: store,
+                now: { detectedAt },
+                publishOperation: { _, _ in
+                    throw HaloStagingWorkflowClient.Failure.unexpectedStatus(status)
+                }
+            )
+
+            let outcome = try await coordinator.publish(
+                proposal: proposal,
+                bearerToken: "token"
+            )
+
+            let expected = HaloTemplatePublishing.UncertainPublish(
+                originalProposal: proposal,
+                detectedAt: detectedAt
+            )
+            let records = try await store.records()
+            XCTAssertEqual(outcome, .recoveryRequired(expected), "HTTP \(status)")
+            XCTAssertEqual(records, [expected], "HTTP \(status)")
+        }
+    }
+
     private var proposal: HaloTemplatePublishing.Proposal {
         .init(
             requestID: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!,

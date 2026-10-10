@@ -17,10 +17,17 @@ const valid = () => ({
  HALO_WORKFLOW_PORT:"0",
  HALO_WORKFLOW_EPHEMERAL_TEST_ONLY:"true"
 });
+const reachableRole=(role_name,rolcanlogin=false)=>({role_name,rolcanlogin,rolinherit:false,
+ rolsuper:false,rolcreatedb:false,rolcreaterole:false,rolreplication:false,
+ rolbypassrls:false,owns_database:false,owns_protected_schema:false,
+ owns_protected_relation:false});
 const principal=(user,memberships)=>({session_user:user,current_user:user,
  database_name:"halo_staging_workflow",tls:true,rolcanlogin:true,rolinherit:false,
  rolsuper:false,rolcreatedb:false,rolcreaterole:false,rolreplication:false,
- rolbypassrls:false,memberships,direct_relation_acl:false});
+ rolbypassrls:false,memberships,reachable_admin_option:false,
+ direct_schema_acl:false,direct_relation_acl:false,
+ reachable_roles:[reachableRole(user,true),...memberships.map(name=>reachableRole(name))]
+  .sort((left,right)=>left.role_name.localeCompare(right.role_name))});
 const connection=row=>({query:async()=>({rows:[row]}),release:()=>{}});
 const deps=({healthy=true}={})=>{
  const health={healthy};

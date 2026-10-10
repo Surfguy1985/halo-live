@@ -28,8 +28,9 @@ GitHub environment, or OIDC authority.
   logins. Actor membership reads are RLS-scoped; the login has no direct table
   grant.
 - Before binding, `staging-principal-attestation.mjs` verifies actual session
-  users, database, TLS expectation, safe role attributes, exact memberships,
-  and the absence of direct application-table ACLs.
+  users, database, TLS expectation, the complete transitive role-membership
+  closure, safe attributes on every reachable role, absence of protected-object
+  ownership, and absence of direct login schema/table ACLs.
 - The canonical Swift fixture proves publish, exact replay, reconciliation,
   missing receipt, idempotency conflict, revision conflict, request-ID mismatch,
   invalid JWT, tenant denial, invalid schema, membership revocation, dependency
@@ -46,12 +47,15 @@ to the runner trust store for the job, and it is removed in an `always()`
 cleanup step. The Swift client uses ordinary `URLSession` trust evaluation; it
 has no certificate bypass or redirect override.
 
-The signoff proves a TLS 1.2-or-newer handshake, zero redirects, successful
-publish, exact idempotent replay, read-only reconciliation, invalid-token
-rejection, revision conflict handling, one durable revision/audit/idempotency
-record, and zero outbound side effects. Its additional admission marker cannot
-weaken the base exact-repository, branch, SHA, service, or feature-disable
-constraints.
+The signoff proves a TLS 1.2-or-newer handshake and actively issues a trusted
+HTTPS `307` for a credential-bearing publish probe. The production client must
+return that response without contacting a separate credential-capture HTTPS
+server; the gate requires zero followed redirects and zero redirected
+Authorization headers. It also proves successful publish, exact idempotent
+replay, read-only reconciliation, invalid-token rejection, revision conflict
+handling, one durable revision/audit/idempotency record, and zero outbound side
+effects. Its additional admission marker cannot weaken the base exact-repository,
+branch, SHA, service, or feature-disable constraints.
 
 The trusted hostname and certificate are synthetic and runner-local. This is
 integration/security evidence for the isolated Phase 5 staging boundary, not a

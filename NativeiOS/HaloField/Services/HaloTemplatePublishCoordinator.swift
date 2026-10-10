@@ -90,8 +90,11 @@ struct HaloTemplatePublishCoordinator {
         switch failure {
         case .commitOutcomeUnknown, .serviceUnavailable, .invalidResponse:
             return true
-        case let .unexpectedStatus(status):
-            return status >= 500
+        case .unexpectedStatus:
+            // An unclassified response never proves that the mutation was
+            // rejected before commit. This includes HTTP 408: the server can
+            // time out its response while the database operation continues.
+            return true
         case .invalidStagingURL, .invalidCredentials, .invalidTemplateID,
              .unauthorized, .forbidden, .revisionConflict, .idempotencyConflict,
              .publishRequestNotFound, .invalidSchema:
