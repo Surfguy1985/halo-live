@@ -111,8 +111,8 @@ test("Postgres: concurrent publish, durability, tenant isolation, rollback and r
     await t.test("receipt persistence failure rolls back all writes before exact retry",async()=>{
       const tenant="tenant-receipt-failure";
       await pool.query(`CREATE OR REPLACE FUNCTION halo_workflow.block_test_receipt() RETURNS trigger
-        LANGUAGE plpgsql AS $ BEGIN IF NEW.tenant_id='tenant-receipt-failure' THEN
-          RAISE EXCEPTION 'forced receipt failure'; END IF; RETURN NEW; END $`);
+        LANGUAGE plpgsql AS 'BEGIN IF NEW.tenant_id=''tenant-receipt-failure'' THEN
+          RAISE EXCEPTION ''forced receipt failure''; END IF; RETURN NEW; END'`);
       await pool.query(`CREATE TRIGGER block_test_receipt BEFORE INSERT ON halo_workflow.publish_idempotency
         FOR EACH ROW EXECUTE FUNCTION halo_workflow.block_test_receipt()`);
       try{
