@@ -303,8 +303,8 @@ final class HaloStagingWorkflowClientTests: XCTestCase {
             try await journal.save(replacement, ownerScope: "tenant-fleet-a:actor-1")
             XCTFail("An unresolved proposal must not be overwritten")
         } catch HaloStagingPublishRecoveryJournal.Failure.corruptRecord {}
-        XCTAssertEqual(try await journal.pending(ownerScope: "tenant-fleet-a:actor-1"),
-                       proposal)
+        let retained = try await journal.pending(ownerScope: "tenant-fleet-a:actor-1")
+        XCTAssertEqual(retained, proposal)
     }
 
     func testRejectsIdempotencyConflict() async throws {
