@@ -85,3 +85,58 @@ jobs:
         run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
       - name: Deploy and verify isolated staging
         run: node enterprise/workflow-publishing/staging-ci-deploy.mjs
+
+  rehearse-backup-restore-rollback:
+    needs: [deploy-isolated-staging]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: staging-ci-only
+          POSTGRES_DB: halo_staging_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d halo_staging_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      HALO_EXPECTED_RELEASE_SHA: ${{ github.sha }}
+      HALO_DEPLOYMENT_ENV: ci
+      HALO_WORKFLOW_PUBLISH_ENABLED: 'true'
+      HALO_WORKFLOW_DEPLOYMENT_APPROVED: ephemeral-ci-only
+      HALO_WORKFLOW_EPHEMERAL_TEST_ONLY: 'true'
+      HALO_WORKFLOW_BIND_HOST: 127.0.0.1
+      HALO_WORKFLOW_PORT: '0'
+      HALO_WORKFLOW_DATABASE_USER: halo_workflow_runtime
+      HALO_IDENTITY_DATABASE_USER: halo_identity_runtime
+      HALO_WORKFLOW_PUBLIC_URL: https://workflow.staging.invalid/
+      HALO_WORKFLOW_AUTH_ISSUER: https://identity.staging.invalid/ci
+      HALO_WORKFLOW_AUTH_AUDIENCE: halo-staging-ci
+      HALO_WORKFLOW_DATABASE_URL: postgresql://postgres:staging-ci-only@127.0.0.1:5432/halo_staging_ci?sslmode=disable
+      HALO_WORKFLOW_REDIS_URL: redis://127.0.0.1:6379/0
+      HALO_PAYMENTS_ENABLED: 'false'
+      HALO_WEBHOOKS_ENABLED: 'false'
+      HALO_DISPATCH_ENABLED: 'false'
+      HALO_ENFORCER_ENABLED: 'false'
+      HALO_OUTBOUND_SIDE_EFFECTS: disabled
+      HALO_REHEARSAL_APPROVED: ephemeral-ci-backup-restore-rollback
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+      - name: Install locked isolated dependencies
+        run: npm ci --prefix enterprise/workflow-publishing --no-audit --no-fund
+      - name: Verify the checked-out recovery SHA
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Rehearse backup, migration, rollback, restore, and reapply
+        run: node enterprise/workflow-publishing/staging-ci-rehearsal.mjs
