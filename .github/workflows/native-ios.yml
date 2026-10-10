@@ -7,10 +7,21 @@ on:
       - release/halo-workflow-rc1-candidate
     paths:
       - "NativeiOS/**"
+      - "enterprise/workflow-publishing/fixtures/swift-publish-v1.json"
+      - "enterprise/workflow-publishing/swift-wire-integration.test.mjs"
+      - "enterprise/workflow-publishing/layout-contract.mjs"
+      - "enterprise/workflow-publishing/api-handler.mjs"
+      - "enterprise/workflow-publishing/publisher.mjs"
       - ".github/workflows/native-ios.yml"
   pull_request:
     paths:
       - "NativeiOS/**"
+      - "enterprise/workflow-publishing/fixtures/swift-publish-v1.json"
+      - "enterprise/workflow-publishing/swift-wire-integration.test.mjs"
+      - "enterprise/workflow-publishing/layout-contract.mjs"
+      - "enterprise/workflow-publishing/api-handler.mjs"
+      - "enterprise/workflow-publishing/publisher.mjs"
+      - ".github/workflows/native-ios.yml"
 
 concurrency:
   group: native-ios-${{ github.ref }}
