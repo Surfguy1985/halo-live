@@ -208,6 +208,10 @@ actor HaloStagingPublishRecoveryJournal {
         guard !ownerScope.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw Failure.invalidScope
         }
+        // Never overwrite an unresolved operation with a different request ID.
+        if let existing = try pending(ownerScope: ownerScope), existing != proposal {
+            throw Failure.corruptRecord
+        }
         let manager = FileManager.default
         try manager.createDirectory(at: fileURL.deletingLastPathComponent(),
                                     withIntermediateDirectories: true)

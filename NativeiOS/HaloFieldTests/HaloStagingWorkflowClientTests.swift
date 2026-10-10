@@ -268,6 +268,45 @@ final class HaloStagingWorkflowClientTests: XCTestCase {
         XCTAssertEqual(reconcileCalls, 1, "Recovery must use the read-only endpoint")
     }
 
+    func testRecoveryJournalSurvivesRecreationWithoutSavingCredentials() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("halo-recovery-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("pending.json")
+        let journal = HaloStagingPublishRecoveryJournal(fileURL: url)
+        try await journal.save(proposal, ownerScope: "tenant-fleet-a:actor-1")
+        let recreated = HaloStagingPublishRecoveryJournal(fileURL: url)
+        let restored = try await recreated.pending(ownerScope: "tenant-fleet-a:actor-1")
+        XCTAssertEqual(restored, proposal)
+        let stored = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertFalse(stored.contains("staging-test-token"))
+        try await recreated.clear(confirmedRequestID: proposal.requestID,
+                                  ownerScope: "tenant-fleet-a:actor-1")
+        let empty = try await recreated.pending(ownerScope: "tenant-fleet-a:actor-1")
+        XCTAssertNil(empty)
+    }
+
+    func testRecoveryJournalRejectsCrossOwnerAndReplacement() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("halo-recovery-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let journal = HaloStagingPublishRecoveryJournal(
+            fileURL: directory.appendingPathComponent("pending.json"))
+        try await journal.save(proposal, ownerScope: "tenant-fleet-a:actor-1")
+        do {
+            _ = try await journal.pending(ownerScope: "tenant-other:actor-2")
+            XCTFail("Another owner cannot load this pending proposal")
+        } catch HaloStagingPublishRecoveryJournal.Failure.wrongOwner {}
+        let replacement = HaloTemplatePublishing.Proposal(
+            requestID: UUID(), expectedRevision: proposal.expectedRevision, layout: proposal.layout)
+        do {
+            try await journal.save(replacement, ownerScope: "tenant-fleet-a:actor-1")
+            XCTFail("An unresolved proposal must not be overwritten")
+        } catch HaloStagingPublishRecoveryJournal.Failure.corruptRecord {}
+        XCTAssertEqual(try await journal.pending(ownerScope: "tenant-fleet-a:actor-1"),
+                       proposal)
+    }
+
     func testRejectsIdempotencyConflict() async throws {
         let client = try makeClient(status: 409, payload: #"{"error":"IDEMPOTENCY_CONFLICT"}"#)
         do {
