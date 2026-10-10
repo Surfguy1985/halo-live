@@ -263,6 +263,11 @@ actor HaloStagingPublishRecoveryCoordinator {
         ownerScope: String,
         bearerToken: String
     ) async throws -> HaloStagingWorkflowClient.Receipt {
+        // Do not persist a proposal if credentials are malformed.
+        guard !bearerToken.isEmpty,
+              bearerToken.rangeOfCharacter(from: .whitespacesAndNewlines) == nil else {
+            throw HaloStagingWorkflowClient.Failure.invalidCredentials
+        }
         try await journal.save(proposal, ownerScope: ownerScope)
         let receipt = try await client.publish(proposal: proposal, bearerToken: bearerToken)
         try await journal.clear(confirmedRequestID: proposal.requestID, ownerScope: ownerScope)

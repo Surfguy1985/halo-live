@@ -394,6 +394,30 @@ final class HaloStagingWorkflowClientTests: XCTestCase {
         XCTAssertEqual(retained, proposal)
     }
 
+    func testCoordinatorRejectsMalformedCredentialBeforePersisting() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("halo-invalid-credential-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let journal = HaloStagingPublishRecoveryJournal(
+            fileURL: directory.appendingPathComponent("pending.json"))
+        var calls = 0
+        let client = try makeClient(status: 200,
+            payload: #"{"templateID":"fleet-dispatch","revision":8,"templateVersion":1}"#) { _ in
+            calls += 1
+        }
+        let coordinator = HaloStagingPublishRecoveryCoordinator(client: client, journal: journal)
+        do {
+            _ = try await coordinator.publish(proposal: proposal,
+                ownerScope: "fleet-a:actor-1", bearerToken: "invalid token")
+            XCTFail("Invalid credentials must fail before journaling")
+        } catch let error as HaloStagingWorkflowClient.Failure {
+            XCTAssertEqual(error, .invalidCredentials)
+        }
+        let pending = try await journal.pending(ownerScope: "fleet-a:actor-1")
+        XCTAssertNil(pending)
+        XCTAssertEqual(calls, 0)
+    }
+
     func testRejectsIdempotencyConflict() async throws {
         let client = try makeClient(status: 409, payload: #"{"error":"IDEMPOTENCY_CONFLICT"}"#)
         do {
