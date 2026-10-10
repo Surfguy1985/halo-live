@@ -103,6 +103,12 @@ test("Swift fixture crosses signed HTTP auth and durable tenant-scoped PostgreSQ
     "content-type":"application/json","idempotency-key":requestID},
    body:JSON.stringify({requestID})
   });
+  // Exercise storage independently so CI reports the original PostgreSQL error
+  // rather than the intentionally redacted public HTTP 500.
+  const {PostgresWorkflowStore}=await import("./postgres-store.mjs");
+  const directReceipt=await new PostgresWorkflowStore(pool).reconcile(
+   fixture.layout.tenantID,fixture.layout.templateID,fixture.requestID,[fixture.layout.industryID]);
+  assert.deepEqual(directReceipt,receipt);
   const confirmed=await check(fixture.requestID);
   assert.equal(confirmed.status,200);
   assert.deepEqual(await confirmed.json(),{status:"committed",receipt});
