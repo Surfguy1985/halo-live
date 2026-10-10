@@ -18,7 +18,7 @@ test("HALO durable delivery lifecycle: outbox -> consumer -> permit -> uncertain
  const eventID="d".repeat(64),permitID="00000000-0000-4000-8000-000000000044";
  try{
   await pool.query("DROP SCHEMA IF EXISTS halo_execution CASCADE");
-  await pool.query("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='halo_workflow_executor') THEN CREATE ROLE halo_workflow_executor NOLOGIN NOBYPASSRLS; END IF; END $$");
+  await pool.query("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='halo_workflow_executor') THEN CREATE ROLE halo_workflow_executor NOLOGIN NOINHERIT NOBYPASSRLS; END IF; END $$");
   for(const filename of [
    "005_work_item_execution.sql","006_outbox_delivery.sql",
    "007_outbox_worker_role.sql","008_outbox_lease_token.sql",

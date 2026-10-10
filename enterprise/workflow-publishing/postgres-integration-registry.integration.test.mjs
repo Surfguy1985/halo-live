@@ -11,7 +11,7 @@ test("Postgres registry: CAS races, audit, replay, tenant RLS",{skip:!url},async
  try{
   await pool.query("DROP SCHEMA IF EXISTS halo_execution CASCADE");
   for(const file of ["005_work_item_execution.sql","011_integration_registrations.sql","012_integration_registry_audit.sql","013_registry_manager.sql"]){
-   if(file==="005_work_item_execution.sql")await pool.query("DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='halo_workflow_executor') THEN CREATE ROLE halo_workflow_executor NOLOGIN NOBYPASSRLS; END IF; END $$");
+   if(file==="005_work_item_execution.sql")await pool.query("DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='halo_workflow_executor') THEN CREATE ROLE halo_workflow_executor NOLOGIN NOINHERIT NOBYPASSRLS; END IF; END $$");
    await pool.query(await readFile(fileURLToPath(new URL("./migrations/"+file,import.meta.url)),"utf8"));
   }
   const svc=new IntegrationManagementService(new PostgresIntegrationRegistryStore(pool));

@@ -8,6 +8,8 @@ const valid = () => ({
  HALO_WORKFLOW_PUBLISH_ENABLED:"true",
  HALO_WORKFLOW_DEPLOYMENT_APPROVED:"staging-only",
  HALO_WORKFLOW_BIND_HOST:"127.0.0.1",
+ HALO_WORKFLOW_DATABASE_USER:"halo_workflow_runtime",
+ HALO_IDENTITY_DATABASE_USER:"halo_identity_runtime",
  HALO_WORKFLOW_PUBLIC_URL:"https://api.staging.halo.example",
  HALO_WORKFLOW_AUTH_ISSUER:"https://identity.example.test/issuer",
  HALO_WORKFLOW_AUTH_AUDIENCE:"halo-staging-workflow",
@@ -15,14 +17,21 @@ const valid = () => ({
  HALO_WORKFLOW_PORT:"0",
  HALO_WORKFLOW_EPHEMERAL_TEST_ONLY:"true"
 });
+const principal=(user,memberships)=>({session_user:user,current_user:user,
+ database_name:"halo_staging_workflow",tls:true,rolcanlogin:true,rolinherit:false,
+ rolsuper:false,rolcreatedb:false,rolcreaterole:false,rolreplication:false,
+ rolbypassrls:false,memberships,direct_relation_acl:false});
+const connection=row=>({query:async()=>({rows:[row]}),release:()=>{}});
 const deps=({healthy=true}={})=>{
  const health={healthy};
  const calls={identity:0,workflow:0,jwks:0,redis:0};
- const identityPool={query:async()=>{calls.identity++;return {rows:[]};}};
+ const identityPool={connect:async()=>connection(
+  principal("halo_identity_runtime",["halo_identity_membership_reader"]))};
  const workflowPool={
   query:async()=>{calls.workflow++;if(!health.healthy)throw Error("db unavailable");
    return {rows:[{ready:1}]};},
-  connect:async()=>{throw Error("No workflow SQL expected");}
+  connect:async()=>connection(
+   principal("halo_workflow_runtime",["halo_workflow_executor","halo_workflow_receipt_reader"]))
  };
  const redis={
   ping:async()=>{calls.redis++;return "PONG";},

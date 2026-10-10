@@ -9,7 +9,7 @@ test("Postgres consumer queue: independent consumers, fencing, retry",{skip:!url
  const {Pool}=await import("pg");const pool=new Pool({connectionString:url,max:8});
  try{
   await pool.query("DROP SCHEMA IF EXISTS halo_execution CASCADE");
-  await pool.query("DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='halo_workflow_executor') THEN CREATE ROLE halo_workflow_executor NOLOGIN NOBYPASSRLS; END IF; END $$");
+  await pool.query("DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='halo_workflow_executor') THEN CREATE ROLE halo_workflow_executor NOLOGIN NOINHERIT NOBYPASSRLS; END IF; END $$");
   for(const file of ["005_work_item_execution.sql","006_outbox_delivery.sql","008_outbox_lease_token.sql","009_consumer_deliveries.sql","010_consumer_dispatcher.sql"])
    await pool.query(await readFile(fileURLToPath(new URL("./migrations/"+file,import.meta.url)),"utf8"));
   const eventID="a".repeat(64);

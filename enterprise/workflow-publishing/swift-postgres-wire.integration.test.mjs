@@ -16,7 +16,7 @@ test("Swift wire fixture -> Node publish handler -> real PostgreSQL transaction"
  try{
   // Dedicated disposable database; independently provision only the publishing schema.
   await pool.query("DROP SCHEMA IF EXISTS halo_workflow CASCADE");
-  await pool.query("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='halo_workflow_executor') THEN CREATE ROLE halo_workflow_executor NOLOGIN NOBYPASSRLS; END IF; END $$");
+  await pool.query("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='halo_workflow_executor') THEN CREATE ROLE halo_workflow_executor NOLOGIN NOINHERIT NOBYPASSRLS; END IF; END $$");
   for(const file of ["001_workflow_publishing.sql","002_tenant_rls.sql","004_runtime_role.sql"])
    await pool.query(await readFile(new URL("./migrations/"+file,import.meta.url),"utf8"));
 

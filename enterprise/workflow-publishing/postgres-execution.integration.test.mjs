@@ -10,7 +10,7 @@ test("Postgres execution: concurrent CAS, replay, tenant isolation, audit rollba
  const {Pool}=await import("pg");const pool=new Pool({connectionString:url,max:8});
  try{
   await pool.query("DROP SCHEMA IF EXISTS halo_execution CASCADE");
-  await pool.query("DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='halo_workflow_executor') THEN CREATE ROLE halo_workflow_executor NOLOGIN NOBYPASSRLS; END IF; END $$");
+  await pool.query("DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='halo_workflow_executor') THEN CREATE ROLE halo_workflow_executor NOLOGIN NOINHERIT NOBYPASSRLS; END IF; END $$");
   await pool.query(await readFile(fileURLToPath(new URL("./migrations/005_work_item_execution.sql",import.meta.url)),"utf8"));
   const seed=(tenant,id="job-a")=>pool.query(
    "INSERT INTO halo_execution.work_items(tenant_id,work_item_id,industry_id,template_id,template_version,assignee_id,state) VALUES($1,$2,'construction','dispatch',1,'crew-a','created')",[tenant,id]);

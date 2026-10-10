@@ -10,7 +10,7 @@ test("PostgreSQL dual approval: one stored proposal, no queue release",{skip:!db
  const {Pool}=await import("pg"),pool=new Pool({connectionString:dbURL,max:8});
  try{
   await pool.query("DROP SCHEMA IF EXISTS halo_execution CASCADE");
-  await pool.query("DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='halo_workflow_executor') THEN CREATE ROLE halo_workflow_executor NOLOGIN NOBYPASSRLS; END IF; END $$");
+  await pool.query("DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='halo_workflow_executor') THEN CREATE ROLE halo_workflow_executor NOLOGIN NOINHERIT NOBYPASSRLS; END IF; END $$");
   for(const f of ["005_work_item_execution.sql","006_outbox_delivery.sql","008_outbox_lease_token.sql","009_consumer_deliveries.sql","014_dispatch_permits.sql","016_delivery_reliability.sql","019_delivery_reconciliation.sql","021_financial_retry_approvals.sql","022_financial_approval_writer.sql"])
    await pool.query(await readFile(fileURLToPath(new URL("./migrations/"+f,import.meta.url)),"utf8"));
   const eventID="a".repeat(64);

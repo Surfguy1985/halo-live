@@ -2,9 +2,23 @@
 -- This role can inspect durable receipts but cannot create templates, publish
 -- revisions, append audit records, or modify any workflow row.
 BEGIN;
-DO $$ BEGIN
+DO $$ DECLARE reader_oid oid; BEGIN
  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='halo_workflow_receipt_reader') THEN
-  CREATE ROLE halo_workflow_receipt_reader NOLOGIN NOBYPASSRLS;
+  CREATE ROLE halo_workflow_receipt_reader NOLOGIN NOINHERIT NOSUPERUSER NOCREATEDB
+   NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+ END IF;
+ SELECT oid INTO reader_oid FROM pg_roles
+  WHERE rolname='halo_workflow_receipt_reader'
+    AND NOT rolcanlogin AND NOT rolinherit AND NOT rolsuper
+    AND NOT rolcreatedb AND NOT rolcreaterole AND NOT rolreplication
+    AND NOT rolbypassrls;
+ IF reader_oid IS NULL THEN
+  RAISE EXCEPTION 'halo_workflow_receipt_reader has unsafe role attributes';
+ END IF;
+ IF EXISTS (SELECT 1 FROM pg_auth_members WHERE member=reader_oid) OR
+    EXISTS (SELECT 1 FROM pg_auth_members am JOIN pg_roles member_role ON member_role.oid=am.member
+            WHERE am.roleid=reader_oid AND member_role.rolname<>'halo_workflow_runtime') THEN
+  RAISE EXCEPTION 'halo_workflow_receipt_reader has unexpected role memberships';
  END IF;
 END $$;
 GRANT USAGE ON SCHEMA halo_workflow TO halo_workflow_receipt_reader;

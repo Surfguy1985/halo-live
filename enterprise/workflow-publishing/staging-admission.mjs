@@ -25,7 +25,9 @@ export function assertStagingWorkflowConfiguration(config = process.env) {
   if(config.HALO_DEPLOYMENT_ENV !== "staging" ||
      config.HALO_WORKFLOW_PUBLISH_ENABLED !== "true" ||
      config.HALO_WORKFLOW_DEPLOYMENT_APPROVED !== "staging-only" ||
-     config.HALO_WORKFLOW_BIND_HOST !== "127.0.0.1") fail();
+     config.HALO_WORKFLOW_BIND_HOST !== "127.0.0.1" ||
+     config.HALO_WORKFLOW_DATABASE_USER !== "halo_workflow_runtime" ||
+     config.HALO_IDENTITY_DATABASE_USER !== "halo_identity_runtime") fail();
 
   const publicURL = parseURL(config.HALO_WORKFLOW_PUBLIC_URL, ["https:"]);
   if(!stageLabel(publicURL.hostname) || publicURL.username || publicURL.password ||
@@ -36,9 +38,11 @@ export function assertStagingWorkflowConfiguration(config = process.env) {
   if(!/^halo-staging-[a-z0-9_-]{3,80}$/.test(config.HALO_WORKFLOW_AUTH_AUDIENCE ?? "")) fail();
 
   const database = parseURL(config.HALO_WORKFLOW_DATABASE_URL, ["postgresql:", "postgres:"]);
+  const databaseParameters = [...database.searchParams.entries()];
   if(!/^\/halo_staging_[a-z0-9_]{3,64}$/.test(database.pathname) ||
-     database.searchParams.get("sslmode") !== "verify-full" ||
-     database.hash || database.searchParams.has("options")) fail();
+     databaseParameters.length !== 1 ||
+     databaseParameters[0][0] !== "sslmode" ||
+     databaseParameters[0][1] !== "verify-full" || database.hash) fail();
 
   // Return only non-sensitive admission metadata, never the database URL or password.
   return Object.freeze({
@@ -46,6 +50,9 @@ export function assertStagingWorkflowConfiguration(config = process.env) {
     publicHost: publicURL.hostname,
     issuerHost: issuer.hostname,
     databaseName: database.pathname.slice(1),
-    bindHost: "127.0.0.1"
+    bindHost: "127.0.0.1",
+    workflowUser:"halo_workflow_runtime",
+    identityUser:"halo_identity_runtime",
+    requireTLS:true
   });
 }

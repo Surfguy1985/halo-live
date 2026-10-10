@@ -37,15 +37,17 @@ test("Postgres: concurrent publish, durability, tenant isolation, rollback and r
     const migration = await readFile(fileURLToPath(new URL("./migrations/001_workflow_publishing.sql",import.meta.url)),"utf8");
     await client.query(migration);
     const executorRole = await client.query("SELECT 1 FROM pg_roles WHERE rolname=$1",["halo_workflow_executor"]);
-    if(executorRole.rowCount===0) await client.query("CREATE ROLE halo_workflow_executor NOLOGIN NOBYPASSRLS");
+    if(executorRole.rowCount===0) await client.query("CREATE ROLE halo_workflow_executor NOLOGIN NOINHERIT NOBYPASSRLS");
     const rlsMigration = await readFile(fileURLToPath(new URL("./migrations/002_tenant_rls.sql",import.meta.url)),"utf8");
     await client.query(rlsMigration);
+    const membershipMigration=await readFile(fileURLToPath(new URL("./migrations/003_identity_memberships.sql",import.meta.url)),"utf8");
+    await client.query(membershipMigration);
     const runtimeMigration=await readFile(fileURLToPath(new URL("./migrations/004_runtime_role.sql",import.meta.url)),"utf8");
     await client.query(runtimeMigration);
     const receiptReaderMigration=await readFile(fileURLToPath(new URL("./migrations/023_workflow_receipt_reader.sql",import.meta.url)),"utf8");
     await client.query(receiptReaderMigration);
-    const membershipMigration=await readFile(fileURLToPath(new URL("./migrations/003_identity_memberships.sql",import.meta.url)),"utf8");
-    await client.query(membershipMigration);
+    const identityReaderMigration=await readFile(fileURLToPath(new URL("./migrations/024_identity_membership_reader.sql",import.meta.url)),"utf8");
+    await client.query(identityReaderMigration);
     const publisher = new WorkflowTemplatePublisher(new PostgresWorkflowStore(pool));
 
     await t.test("simultaneous first publishes never both win",async()=>{

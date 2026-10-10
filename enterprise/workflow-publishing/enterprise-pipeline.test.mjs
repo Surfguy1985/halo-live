@@ -23,9 +23,14 @@ function make({active=true,enabled=true,reconciliationLookup=false}={}) {
    return {rows:[],rowCount:0};
   },release:()=>{}};
  }};
- const identityPool={query:async(_sql,args)=>{calls.queries++;assert.deepEqual(args,["actor-1"]);
-  return {rows:[{tenant_id:"tenant-a",active,industry_ids:["construction"],permissions:["workflow:publish"]}]};
- }};
+ const identityPool={connect:async()=>({query:async(sql,args)=>{
+  if(sql.includes("FROM halo_workflow.identity_memberships")){
+   calls.queries++;assert.deepEqual(args,["actor-1"]);
+   return {rows:[{tenant_id:"tenant-a",active,industry_ids:["construction"],permissions:["workflow:publish"]}]};
+  }
+  if(sql.includes("set_config"))assert.deepEqual(args,["actor-1"]);
+  return {rows:[]};
+ },release:()=>{}})};
  const gateway=createEnterpriseWorkflowPipeline({issuer:"https://id.example",audience:"halo-api",
   fetchJWKS:async()=>({keys:[{...pair.publicKey.export({format:"jwk"}),kid:"kid1",kty:"RSA",alg:"RS256",use:"sig"}]}),
   identityPool,workflowPool,enabled,clock:()=>now*1000});

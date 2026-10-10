@@ -1,10 +1,20 @@
 -- HALO isolated security phase, PostgreSQL 15+. Never execute against a live database without review.
--- A DBA provisions halo_workflow_executor as a NOLOGIN, NOBYPASSRLS role first.
+-- A DBA provisions halo_workflow_executor as a restricted NOLOGIN role first.
 -- Do NOT grant this role to public-facing users or arbitrary SQL clients.
 BEGIN;
-DO $$ BEGIN
- IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='halo_workflow_executor' AND NOT rolbypassrls)
- THEN RAISE EXCEPTION 'Provision halo_workflow_executor as NOBYPASSRLS before migration';
+DO $$ DECLARE executor_oid oid; BEGIN
+ SELECT oid INTO executor_oid FROM pg_roles
+  WHERE rolname='halo_workflow_executor'
+    AND NOT rolcanlogin AND NOT rolinherit AND NOT rolsuper
+    AND NOT rolcreatedb AND NOT rolcreaterole AND NOT rolreplication
+    AND NOT rolbypassrls;
+ IF executor_oid IS NULL THEN
+  RAISE EXCEPTION 'Provision halo_workflow_executor with exact restricted attributes before migration';
+ END IF;
+ IF EXISTS (SELECT 1 FROM pg_auth_members WHERE member=executor_oid) OR
+    EXISTS (SELECT 1 FROM pg_auth_members am JOIN pg_roles member_role ON member_role.oid=am.member
+            WHERE am.roleid=executor_oid AND member_role.rolname<>'halo_workflow_runtime') THEN
+  RAISE EXCEPTION 'halo_workflow_executor has unexpected role memberships';
  END IF;
 END $$;
 REVOKE ALL ON SCHEMA halo_workflow FROM PUBLIC;

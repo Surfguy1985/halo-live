@@ -1,23 +1,25 @@
 // Isolated staging-only composition root. No process entrypoint or automatic listen.
 // This module never touches the live Base44 mobile transport.
 import {assertStagingWorkflowConfiguration} from "./staging-admission.mjs";
+import {assertCIStagingWorkflowConfiguration} from "./staging-ci-admission.mjs";
+import {attestStagingDatabasePrincipals} from "./staging-principal-attestation.mjs";
 import {createEnterpriseWorkflowPipeline} from "./enterprise-pipeline.mjs";
 import {createWorkflowReadiness} from "./readiness.mjs";
 import {createWorkflowHTTPServer} from "./http-server.mjs";
 
 const deny = () => { throw new Error("HALO staging bootstrap denied"); };
 
-export function createStagingWorkflowBootstrap({
+function createAdmittedWorkflowBootstrap({
   config, fetchJWKS, identityPool, workflowPool, redis, logger
-} = {}) {
+} = {},assertAdmission) {
   // Admission must precede any use of injected dependencies.
-  const admission = assertStagingWorkflowConfiguration(config);
+  const admission = assertAdmission(config);
   const port = Number(config.HALO_WORKFLOW_PORT);
   if (!/^(0|[1-9][0-9]{0,4})$/.test(config.HALO_WORKFLOW_PORT ?? "") ||
       !Number.isSafeInteger(port) || port > 65535 ||
       (port === 0 && config.HALO_WORKFLOW_EPHEMERAL_TEST_ONLY !== "true")) deny();
   if(typeof fetchJWKS !== "function" ||
-     !identityPool || typeof identityPool.query !== "function" ||
+     !identityPool || typeof identityPool.connect !== "function" ||
      !workflowPool || typeof workflowPool.query !== "function" ||
      typeof workflowPool.connect !== "function" ||
      identityPool === workflowPool ||
@@ -51,6 +53,7 @@ export function createStagingWorkflowBootstrap({
       state = "starting";
       try {
         if(await readiness() !== true) deny();
+        await attestStagingDatabasePrincipals({identityPool,workflowPool,admission});
         await new Promise((resolve,reject)=>{
           const cleanup=()=>{server.off("error",onError);server.off("listening",onListen);};
           const onError=error=>{cleanup();reject(error);};
@@ -81,4 +84,12 @@ export function createStagingWorkflowBootstrap({
     },
     metrics() { return server.haloMetrics(); }
   });
+}
+
+export function createStagingWorkflowBootstrap(options){
+ return createAdmittedWorkflowBootstrap(options,assertStagingWorkflowConfiguration);
+}
+
+export function createCIStagingWorkflowBootstrap(options){
+ return createAdmittedWorkflowBootstrap(options,assertCIStagingWorkflowConfiguration);
 }

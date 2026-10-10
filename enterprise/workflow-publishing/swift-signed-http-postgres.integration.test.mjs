@@ -19,10 +19,10 @@ test("Swift fixture crosses signed HTTP auth and durable tenant-scoped PostgreSQ
  let server;
  try {
   await pool.query("DROP SCHEMA IF EXISTS halo_workflow CASCADE");
-  await pool.query("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='halo_workflow_executor') THEN CREATE ROLE halo_workflow_executor NOLOGIN NOBYPASSRLS; END IF; END $$");
+  await pool.query("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='halo_workflow_executor') THEN CREATE ROLE halo_workflow_executor NOLOGIN NOINHERIT NOBYPASSRLS; END IF; END $$");
   for(const file of ["001_workflow_publishing.sql","002_tenant_rls.sql",
                      "003_identity_memberships.sql","004_runtime_role.sql",
-                     "023_workflow_receipt_reader.sql"])
+                     "023_workflow_receipt_reader.sql","024_identity_membership_reader.sql"])
    await pool.query(await readFile(new URL("./migrations/"+file,import.meta.url),"utf8"));
   const fixture=JSON.parse(await readFile(new URL("./fixtures/swift-publish-v1.json",import.meta.url),"utf8"));
   await pool.query(`INSERT INTO halo_workflow.identity_memberships
