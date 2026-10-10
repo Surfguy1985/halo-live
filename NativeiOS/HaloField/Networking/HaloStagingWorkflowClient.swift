@@ -242,3 +242,44 @@ actor HaloStagingPublishRecoveryJournal {
         try FileManager.default.removeItem(at: fileURL)
     }
 }
+
+
+/// Explicit staging coordinator. The host app supplies a verified owner scope,
+/// current bearer credential and a private journal URL. No automatic background
+/// retries, startup network calls or production integration.
+actor HaloStagingPublishRecoveryCoordinator {
+    private let client: HaloStagingWorkflowClient
+    private let journal: HaloStagingPublishRecoveryJournal
+
+    init(client: HaloStagingWorkflowClient, journal: HaloStagingPublishRecoveryJournal) {
+        self.client = client
+        self.journal = journal
+    }
+
+    /// Journal the original mutation before the first network attempt.
+    /// An existing unresolved request cannot be replaced by another proposal.
+    func publish(
+        proposal: HaloTemplatePublishing.Proposal,
+        ownerScope: String,
+        bearerToken: String
+    ) async throws -> HaloStagingWorkflowClient.Receipt {
+        try await journal.save(proposal, ownerScope: ownerScope)
+        let receipt = try await client.publish(proposal: proposal, bearerToken: bearerToken)
+        try await journal.clear(confirmedRequestID: proposal.requestID, ownerScope: ownerScope)
+        return receipt
+    }
+
+    /// Called explicitly after restart or an uncertain response, once the
+    /// authenticated principal has been verified again by the host application.
+    /// A 404, transport error, or revoked membership keeps the journal intact.
+    func recover(
+        ownerScope: String,
+        bearerToken: String
+    ) async throws -> HaloStagingWorkflowClient.Receipt? {
+        guard let proposal = try await journal.pending(ownerScope: ownerScope) else { return nil }
+        let receipt = try await client.reconcileUncertainPublish(
+            originalProposal: proposal, bearerToken: bearerToken)
+        try await journal.clear(confirmedRequestID: proposal.requestID, ownerScope: ownerScope)
+        return receipt
+    }
+}
