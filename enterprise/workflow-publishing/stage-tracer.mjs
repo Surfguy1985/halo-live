@@ -2,7 +2,7 @@
 // No tokens, SQL values or customer payloads appear in emitted events.
 export function createStageTracer({emit=()=>{},clock=()=>performance.now()}={}) {
  return async function stage(name,correlationID,operation) {
-  if(!/^(auth.verify|membership.load|workflow.publish|database.transaction)$/.test(name))
+  if(!/^(auth.verify|membership.load|workflow.publish|workflow.reconcile|database.transaction)$/.test(name))
    throw new TypeError("Unknown trace stage");
   if(typeof operation!=="function")throw new TypeError("operation required");
   const start=clock();
