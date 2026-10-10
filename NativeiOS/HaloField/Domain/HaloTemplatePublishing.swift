@@ -8,6 +8,16 @@ enum HaloTemplatePublishing {
         let layout: HaloWorkflowBlocks.Layout
     }
 
+    /// Persist this value when a publish receipt is lost or the server reports
+    /// COMMIT_OUTCOME_UNKNOWN. Recovery must present `originalProposal`
+    /// unchanged to the read-only reconciliation endpoint.
+    struct UncertainPublish: Codable, Equatable, Identifiable {
+        let originalProposal: Proposal
+        let detectedAt: Date
+
+        var id: UUID { originalProposal.requestID }
+    }
+
     enum Failure: Error, Equatable {
         case invalidLayout
         case invalidRevision

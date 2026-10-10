@@ -1,6 +1,6 @@
 // Reference publishing domain service. Not mounted on a live API.
 // Store.transaction MUST provide a serializable/durable transaction in production.
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import {validateLayoutV1} from "./layout-contract.mjs";
 
 export class PublishError extends Error {
@@ -54,5 +54,57 @@ export class WorkflowTemplatePublisher {
         contentHash: layoutHash(layout), idempotencyKey });
       return result;
     }, layout.industryID, session.actorID);
+  }
+
+  async reconcile({session, templateID, idempotencyKey, proposal}) {
+    // Reconciliation uses the caller's current, server-verified membership.
+    // It only reads the receipt written by the original publish transaction;
+    // it must never call publish() or reconstruct/replay the proposal.
+    if (!session?.authenticated || !text(session.tenantID) || !text(session.actorID) ||
+        !Array.isArray(session.permissions) || !session.permissions.includes("workflow:publish"))
+      throw new PublishError("FORBIDDEN", "Not authorized");
+    if (!text(templateID) || templateID.length > 128 ||
+        !text(idempotencyKey) || idempotencyKey.length > 128 ||
+        !keys(proposal) || !Number.isSafeInteger(proposal.expectedRevision) ||
+        proposal.expectedRevision < 0 || proposal.expectedRevision >= Number.MAX_SAFE_INTEGER ||
+        !validateLayout(proposal.layout))
+      throw new PublishError("INVALID", "Invalid reconciliation request");
+    const layout = proposal.layout;
+    if (layout.tenantID !== session.tenantID || layout.templateID !== templateID)
+      throw new PublishError("FORBIDDEN", "Tenant or resource mismatch");
+    if (!Array.isArray(session.industryIDs) || session.industryIDs.length === 0 ||
+        session.industryIDs.length > 128 ||
+        session.industryIDs.some(industryID => !text(industryID) || industryID.length > 128))
+      throw new PublishError("FORBIDDEN", "Industry scope denied");
+    if (!session.industryIDs.includes(layout.industryID))
+      throw new PublishError("FORBIDDEN", "Industry scope denied");
+    if (typeof this.store?.findPublishReceipt !== "function")
+      throw new Error("Workflow receipt lookup unavailable");
+
+    const receipt = await this.store.findPublishReceipt(
+      session.tenantID, templateID, idempotencyKey, [layout.industryID]
+    );
+    if (receipt === null)
+      throw new PublishError("PUBLISH_REQUEST_NOT_FOUND", "Publish request not found");
+    const fingerprint = layoutHash({templateID, proposal});
+    if (typeof receipt.fingerprint !== "string" || !/^[0-9a-f]{64}$/.test(receipt.fingerprint))
+      throw new Error("Invalid stored workflow publish fingerprint");
+    if (!timingSafeEqual(Buffer.from(receipt.fingerprint,"hex"),Buffer.from(fingerprint,"hex")))
+      throw new PublishError("IDEMPOTENCY_CONFLICT", "Request does not match stored receipt");
+    const response = receipt.response;
+    // Treat malformed database data as an internal failure instead of returning
+    // an ambiguous or cross-resource receipt to the caller.
+    if (!keys(response) || Object.keys(response).sort().join(",") !== "revision,templateID,templateVersion" ||
+        response.templateID !== templateID ||
+        !Number.isSafeInteger(response.revision) ||
+        response.revision !== proposal.expectedRevision + 1 ||
+        !Number.isSafeInteger(response.templateVersion) ||
+        response.templateVersion !== layout.templateVersion)
+      throw new Error("Invalid stored workflow publish receipt");
+    return Object.freeze({
+      requestID:idempotencyKey,
+      outcome:"COMMITTED",
+      result:Object.freeze({...response})
+    });
   }
 }

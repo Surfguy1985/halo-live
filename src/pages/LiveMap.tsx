@@ -6,7 +6,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, CircleMarker, Marker, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import {
-  Camera, MessageCircle, ShoppingBag, LayoutGrid, Map as MapIcon, X, Loader2,
+  Camera, MessageCircle, LayoutGrid, Map as MapIcon, X, Loader2,
 } from 'lucide-react'
 import {
   getPlate, getWorkItems, getRoleFromStorage, subscribePlate, getWorkVerification,
@@ -303,7 +303,6 @@ export default function LiveMap() {
                     <JobRow
                       key={w.id}
                       job={w}
-                      selected={selectedJob?.id === w.id}
                       onClick={() => openJob(w)}
                     />
                   ))}

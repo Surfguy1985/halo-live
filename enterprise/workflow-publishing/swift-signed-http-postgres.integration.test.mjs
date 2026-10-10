@@ -21,7 +21,8 @@ test("Swift fixture crosses signed HTTP auth and durable tenant-scoped PostgreSQ
   await pool.query("DROP SCHEMA IF EXISTS halo_workflow CASCADE");
   await pool.query("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='halo_workflow_executor') THEN CREATE ROLE halo_workflow_executor NOLOGIN NOBYPASSRLS; END IF; END $$");
   for(const file of ["001_workflow_publishing.sql","002_tenant_rls.sql",
-                     "003_identity_memberships.sql","004_runtime_role.sql"])
+                     "003_identity_memberships.sql","004_runtime_role.sql",
+                     "023_workflow_receipt_reader.sql"])
    await pool.query(await readFile(new URL("./migrations/"+file,import.meta.url),"utf8"));
   const fixture=JSON.parse(await readFile(new URL("./fixtures/swift-publish-v1.json",import.meta.url),"utf8"));
   await pool.query(`INSERT INTO halo_workflow.identity_memberships
@@ -54,7 +55,9 @@ test("Swift fixture crosses signed HTTP auth and durable tenant-scoped PostgreSQ
   await new Promise(resolve=>server.listen(0,"127.0.0.1",resolve));
   const endpoint="http://127.0.0.1:"+server.address().port+
    "/v1/workflow-templates/"+fixture.layout.templateID+"/publish";
-  const send=(body=fixture,{token=jwt,key=body.requestID}={})=>fetch(endpoint,{
+  const reconcileEndpoint="http://127.0.0.1:"+server.address().port+
+   "/v1/workflow-templates/"+fixture.layout.templateID+"/reconcile";
+  const send=(body=fixture,{token=jwt,key=body.requestID,target=endpoint}={})=>fetch(target,{
    method:"POST",headers:{"authorization":"Bearer "+token,
     "content-type":"application/json","idempotency-key":key},body:JSON.stringify(body)
   });
@@ -67,11 +70,13 @@ test("Swift fixture crosses signed HTTP auth and durable tenant-scoped PostgreSQ
    [fixture.layout.tenantID,fixture.layout.templateID]);
   assert.equal(committedBeforeRetry.rows[0].n,1,
    "first publish committed even though client did not receive a receipt");
-  const reconciled=await send();
+  const reconciled=await send(fixture,{target:reconcileEndpoint});
   const firstBody=await reconciled.text();
   assert.equal(reconciled.status,200,firstBody);
   const receipt=JSON.parse(firstBody);
-  assert.deepEqual(receipt,{templateID:fixture.layout.templateID,revision:1,templateVersion:fixture.layout.templateVersion});
+  assert.deepEqual(receipt,{requestID:fixture.requestID,outcome:"COMMITTED",result:{
+   templateID:fixture.layout.templateID,revision:1,templateVersion:fixture.layout.templateVersion
+  }});
   const saved=await pool.query(`SELECT layout,revision FROM halo_workflow.template_revisions
    WHERE tenant_id=$1 AND template_id=$2`,[fixture.layout.tenantID,fixture.layout.templateID]);
   assert.equal(saved.rowCount,1);
@@ -80,7 +85,7 @@ test("Swift fixture crosses signed HTTP auth and durable tenant-scoped PostgreSQ
 
   const replay=await send();
   assert.equal(replay.status,200);
-  assert.deepEqual(await replay.json(),receipt);
+  assert.deepEqual(await replay.json(),receipt.result);
   const afterReconcile=await pool.query(`SELECT
    (SELECT count(*)::int FROM halo_workflow.template_revisions
      WHERE tenant_id=$1 AND template_id=$2) AS revisions,
@@ -100,6 +105,10 @@ test("Swift fixture crosses signed HTTP auth and durable tenant-scoped PostgreSQ
   const altered=await send({...fixture,expectedRevision:1});
   assert.equal(altered.status,409,"same idempotency key cannot be reused for a different revision");
   assert.deepEqual(await altered.json(),{error:"IDEMPOTENCY_CONFLICT"});
+  const alteredReconciliation=await send({...fixture,expectedRevision:1},{target:reconcileEndpoint});
+  assert.equal(alteredReconciliation.status,409,
+   "reconciliation must bind the original request ID to its original proposal");
+  assert.deepEqual(await alteredReconciliation.json(),{error:"IDEMPOTENCY_CONFLICT"});
   const stale=await send({...fixture,requestID:"stale-swift-request"});
   assert.equal(stale.status,409);
   assert.deepEqual(await stale.json(),{error:"REVISION_CONFLICT"});

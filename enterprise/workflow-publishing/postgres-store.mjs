@@ -122,4 +122,44 @@ export class PostgresWorkflowStore {
       client.release(discardConnection);
     }
   }
+
+  async findPublishReceipt(tenantID, templateID, idempotencyKey, industryIDs) {
+    if (![tenantID, templateID, idempotencyKey].every(value =>
+      typeof value === "string" && value.trim() && value.length <= 128) ||
+      !Array.isArray(industryIDs) || industryIDs.length === 0 || industryIDs.length > 128 ||
+      industryIDs.some(value => typeof value !== "string" || !value.trim() || value.length > 128))
+      throw new TypeError("Trusted reconciliation scope required");
+    const client = await this.pool.connect();
+    let active = false;
+    let discardConnection = false;
+    try {
+      // This is intentionally a read-only transaction. The original publish
+      // proposal is never submitted to storage again during reconciliation.
+      await client.query("BEGIN ISOLATION LEVEL READ COMMITTED READ ONLY");
+      active = true;
+      await client.query("SET LOCAL ROLE halo_workflow_receipt_reader");
+      await client.query("SELECT set_config('halo.tenant_id', $1, true)", [tenantID]);
+      const result = await client.query(
+        `SELECT trim(receipt.request_sha256) AS request_sha256, receipt.response
+         FROM halo_workflow.publish_idempotency AS receipt
+         INNER JOIN halo_workflow.template_heads AS head
+           ON head.tenant_id=receipt.tenant_id AND head.template_id=receipt.template_id
+         WHERE receipt.tenant_id=$1 AND receipt.template_id=$2
+           AND receipt.idempotency_key=$3 AND head.industry_id=ANY($4::text[])`,
+        [tenantID, templateID, idempotencyKey, industryIDs]
+      );
+      await client.query("COMMIT");
+      active = false;
+      const row = result.rows[0];
+      return row ? {fingerprint:row.request_sha256,response:row.response} : null;
+    } catch (error) {
+      if (active) {
+        try { await client.query("ROLLBACK"); }
+        catch { discardConnection = true; }
+      }
+      throw error;
+    } finally {
+      client.release(discardConnection);
+    }
+  }
 }

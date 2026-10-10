@@ -26,7 +26,7 @@ test("membership is server-owned and disabled users denied",async()=>{
 });
 test("trusted identity, membership and permissions reach publisher",async()=>{
  let captured;
- const publisher={publish:async args=>{captured=args;return {revision:1}}};
+ const publisher={publish:async args=>{captured=args;return {revision:1}},reconcile:async()=>{throw Error("must not call");}};
  const gateway=createAuthenticatedWorkflowGateway({resolveSession:resolver(),
  publishHandler:createWorkflowPublishHandler({publisher,enabled:true})});
  const r=await gateway(request());
@@ -36,7 +36,7 @@ test("trusted identity, membership and permissions reach publisher",async()=>{
  assert.ok(Object.isFrozen(captured.session));
 });
 test("forged tenant in payload rejected by domain, never passed as authority",async()=>{
- const publisher={publish:async args=>{
+ const publisher={reconcile:async()=>{throw Error("must not call");},publish:async args=>{
  if(args.proposal.layout.tenantID!==args.session.tenantID) {
    const {PublishError}=await import("./publisher.mjs");
    throw new PublishError("FORBIDDEN","mismatch");

@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { setWalkUnit } from '@/lib/catalog'
 import { getWorkItems } from '@/lib/api'
-import { PrimaryCTA } from '@/components/PrimaryCTA'
 
 type UnitCard = { unit: string; bedrooms: number; property: string; status: string; photo: null }
 
@@ -40,7 +39,7 @@ export default function UnitsToday() {
         const unit = String(it.unit || '').trim()
         if (!unit || seen.has(unit)) continue
         seen.add(unit)
-        const st = it.status === 'done' ? 'Approved' : it.status === 'in_progress' ? 'In progress' : 'Not walked'
+        const st = it.status === 'approved' ? 'Approved' : it.status === 'in_progress' ? 'In progress' : 'Not walked'
         cards.push({
           unit,
           bedrooms: 1,

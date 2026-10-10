@@ -12,9 +12,17 @@ const layout={schemaVersion:1,tenantID:"tenant-a",templateID:"template",template
 const request=(token=bearer)=>({method:"POST",path:"/v1/workflow-templates/template/publish",
  headers:{"authorization":"Bearer "+token,"content-type":"application/json","idempotency-key":"one"},
  body:JSON.stringify({requestID:"one",expectedRevision:0,layout})});
-function make({active=true,enabled=true}={}) {
- const calls={writes:0,queries:0};
- const workflowPool={connect:async()=>{calls.writes++;throw Error("STOP_BEFORE_SQL");}};
+function make({active=true,enabled=true,reconciliationLookup=false}={}) {
+ const calls={writes:0,queries:0,workflowSQL:[]};
+ const workflowPool={connect:async()=>{
+  calls.writes++;
+  if(!reconciliationLookup)throw Error("STOP_BEFORE_SQL");
+  return {query:async sql=>{
+   calls.workflowSQL.push(sql);
+   if(sql.includes("SELECT trim(receipt.request_sha256)"))return {rows:[],rowCount:0};
+   return {rows:[],rowCount:0};
+  },release:()=>{}};
+ }};
  const identityPool={query:async(_sql,args)=>{calls.queries++;assert.deepEqual(args,["actor-1"]);
   return {rows:[{tenant_id:"tenant-a",active,industry_ids:["construction"],permissions:["workflow:publish"]}]};
  }};
@@ -45,4 +53,15 @@ test("disabled feature flag denies publishing and never enters SQL",async()=>{
  const {gateway,calls}=make({enabled:false});
  assert.equal((await gateway(request())).status,404);
  assert.equal(calls.writes,0);
+});
+test("signed reconciliation reaches a receipt-only read transaction through the composed pipeline",async()=>{
+ const {gateway,calls}=make({reconciliationLookup:true});
+ const original=request();
+ original.path="/v1/workflow-templates/template/reconcile";
+ const result=await gateway(original);
+ assert.equal(result.status,404);
+ assert.deepEqual(JSON.parse(result.body),{error:"PUBLISH_REQUEST_NOT_FOUND"});
+ assert.equal(calls.queries,1);
+ assert.match(calls.workflowSQL[0],/READ ONLY/);
+ assert.equal(calls.workflowSQL.some(sql=>/\b(?:INSERT|UPDATE|DELETE)\b/.test(sql)),false);
 });

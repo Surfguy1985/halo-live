@@ -16,6 +16,8 @@ The SQL in `001_workflow_publishing.sql` creates tenant-scoped template identity
 6. Update the head using the expected revision fence, insert the idempotency receipt, then insert the audit row. Commit **all four changes together**. This ordering satisfies the audit foreign key to the receipt.
 7. Generate timestamps and actor ID on the trusted server. Keep all DB connections tenant-bound with a reviewed authorization/RLS strategy. Do not let clients set trusted session scope using arbitrary SQL session variables.
 
+An uncertain `COMMIT` is reconciled through a separate `READ ONLY` transaction under the SELECT-only `halo_workflow_receipt_reader` role. That lookup binds the current verified tenant, path template, original idempotency key, and allowed industry; reads the stored fingerprint and response; and returns the response only when the caller supplies the unchanged original proposal. Reconciliation must not call the publishing transaction because that path can create or update rows.
+
 ## Important limitations
 
 - SQL constraints do not validate workflow JSON semantics. The reference publisher is not yet connected to this migration.

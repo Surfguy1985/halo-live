@@ -42,6 +42,8 @@ test("Postgres: concurrent publish, durability, tenant isolation, rollback and r
     await client.query(rlsMigration);
     const runtimeMigration=await readFile(fileURLToPath(new URL("./migrations/004_runtime_role.sql",import.meta.url)),"utf8");
     await client.query(runtimeMigration);
+    const receiptReaderMigration=await readFile(fileURLToPath(new URL("./migrations/023_workflow_receipt_reader.sql",import.meta.url)),"utf8");
+    await client.query(receiptReaderMigration);
     const membershipMigration=await readFile(fileURLToPath(new URL("./migrations/003_identity_memberships.sql",import.meta.url)),"utf8");
     await client.query(membershipMigration);
     const publisher = new WorkflowTemplatePublisher(new PostgresWorkflowStore(pool));
@@ -72,6 +74,10 @@ test("Postgres: concurrent publish, durability, tenant isolation, rollback and r
       const key=keys.rows[0].idempotency_key;
       const result=await publisher.publish(request("tenant-a",key));
       assert.equal(result.revision,1);
+      const input=request("tenant-a",key);
+      const reconciled=await publisher.reconcile({session:input.session,templateID:input.templateID,
+        idempotencyKey:input.idempotencyKey,proposal:input.proposal});
+      assert.deepEqual(reconciled,{requestID:key,outcome:"COMMITTED",result});
       const audit=await pool.query("SELECT count(*)::integer AS n FROM halo_workflow.publish_audit WHERE tenant_id=$1",["tenant-a"]);
       assert.equal(audit.rows[0].n,1);
     });

@@ -42,8 +42,7 @@ export default function Onboard() {
         lines.push({
           familyId: paint.id,
           name: paint.name,
-          variantId: paint.variants[0].id,
-          variantLabel: paint.variants[0].label,
+          variantKey: paint.variants[0].key,
           priceCents: paint.variants[0].priceCents,
           durationHours: paint.variants[0].durationHours,
           cureHours: paint.variants[0].cureHours || 0,
@@ -54,8 +53,7 @@ export default function Onboard() {
         lines.push({
           familyId: clean.id,
           name: clean.name,
-          variantId: clean.variants[0].id,
-          variantLabel: clean.variants[0].label,
+          variantKey: clean.variants[0].key,
           priceCents: clean.variants[0].priceCents,
           durationHours: clean.variants[0].durationHours,
           cureHours: 0,

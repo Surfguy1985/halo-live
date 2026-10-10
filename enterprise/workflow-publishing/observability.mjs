@@ -15,9 +15,13 @@ export function createObservability({logger=()=>{},clock=()=>Date.now()}={}) {
     const status=Number.isInteger(result?.status)?result.status:500;
     if(status>=500)metrics.errors++;
     if(status===429)metrics.rateLimited++;
+    const route=/^\/v1\/workflow-templates\/[a-zA-Z0-9_-]{1,128}\/reconcile$/.test(req.path)
+     ? "workflow.reconcile"
+     : /^\/v1\/workflow-templates\/[a-zA-Z0-9_-]{1,128}\/publish$/.test(req.path)
+      ? "workflow.publish" : "workflow.unknown";
     try {logger({event:"halo.workflow.http",correlationID,status,
       durationMs:Math.max(0,clock()-start),method:req.method,
-      route:"workflow.publish"});} catch {/* logs never break requests */}
+      route});} catch {/* logs never break requests */}
     return {...result,headers:{...result?.headers,"x-correlation-id":correlationID}};
    };
   },

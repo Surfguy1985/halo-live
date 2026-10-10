@@ -13,7 +13,13 @@ const session = () => ({authenticated:true, tenantID:"alpha", actorID:"admin",
 const proposal = () => ({expectedRevision:0, layout:layout()});
 function store() {
   const state={template:null, keys:new Map(), audits:[]};
-  return {state, transaction:async (_tenant,_id,fn) => {
+  return {state,
+   findPublishReceipt:async (tenantID,templateID,key,industryIDs) => {
+    if(tenantID!=="alpha" || templateID!=="example" ||
+       !industryIDs.includes("construction")) return null;
+    return state.keys.get(key) ?? null;
+   },
+   transaction:async (_tenant,_id,fn) => {
     // Single-threaded test double only; NOT a concurrency-safe production store.
     const pending={template:state.template,keys:new Map(state.keys),audits:[...state.audits]};
     const tx={
@@ -100,4 +106,52 @@ test("last safe next revision publishes and idempotently replays once",async()=>
  assert.equal(result.revision,Number.MAX_SAFE_INTEGER);
  assert.deepEqual(await service.publish(input),result);
  assert.equal(db.state.audits.length,1);
+});
+
+test("reconciles the original request ID from its stored receipt without republishing",async()=>{
+ const db=store(),service=new WorkflowTemplatePublisher(db);
+ const published=await service.publish({session:session(),templateID:"example",
+  idempotencyKey:"original-request",proposal:proposal()});
+ const before={audits:db.state.audits.length,revision:db.state.template.revision,keys:db.state.keys.size};
+ const result=await service.reconcile({session:session(),templateID:"example",
+  idempotencyKey:"original-request",proposal:proposal()});
+ assert.deepEqual(result,{requestID:"original-request",outcome:"COMMITTED",result:published});
+ assert.deepEqual({audits:db.state.audits.length,revision:db.state.template.revision,keys:db.state.keys.size},before);
+});
+
+test("reconciliation fails closed for missing receipts and current scope loss",async()=>{
+ const db=store(),service=new WorkflowTemplatePublisher(db);
+ await rejects(()=>service.reconcile({session:session(),templateID:"example",
+  idempotencyKey:"never-seen",proposal:proposal()}),"PUBLISH_REQUEST_NOT_FOUND");
+ await rejects(()=>service.reconcile({session:{...session(),permissions:[]},templateID:"example",
+  idempotencyKey:"never-seen",proposal:proposal()}),"FORBIDDEN");
+ await rejects(()=>service.reconcile({session:{...session(),industryIDs:[]},templateID:"example",
+  idempotencyKey:"never-seen",proposal:proposal()}),"FORBIDDEN");
+});
+
+test("reconciliation rejects an altered proposal for an existing request ID",async()=>{
+ const db=store(),service=new WorkflowTemplatePublisher(db),original=proposal();
+ await service.publish({session:session(),templateID:"example",idempotencyKey:"bound-request",proposal:original});
+ await rejects(()=>service.reconcile({session:session(),templateID:"example",
+  idempotencyKey:"bound-request",proposal:{...original,expectedRevision:1}}),"IDEMPOTENCY_CONFLICT");
+ assert.equal(db.state.audits.length,1);
+ assert.equal(db.state.template.revision,1);
+});
+
+test("reconciliation rejects corrupted or mismatched stored response fields",async()=>{
+ const corruptions=[
+  response=>({...response,revision:2}),
+  response=>({...response,templateVersion:2}),
+  response=>({...response,templateID:"other"}),
+  response=>({...response,privateField:"must-not-leak"})
+ ];
+ for(const corrupt of corruptions){
+  const db=store(),service=new WorkflowTemplatePublisher(db),original=proposal();
+  await service.publish({session:session(),templateID:"example",idempotencyKey:"corrupt",proposal:original});
+  const receipt=db.state.keys.get("corrupt");
+  db.state.keys.set("corrupt",{...receipt,response:corrupt(receipt.response)});
+  await assert.rejects(()=>service.reconcile({session:session(),templateID:"example",
+   idempotencyKey:"corrupt",proposal:original}),/Invalid stored workflow publish receipt/);
+  assert.equal(db.state.audits.length,1);
+ }
 });

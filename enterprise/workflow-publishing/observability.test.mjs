@@ -18,3 +18,11 @@ test("converts unexpected failures to redacted errors and records them",async()=
  assert.equal(o.snapshot().errors,1);
  assert.ok(!r.body.includes("private"));
 });
+test("labels publish and reconciliation routes without logging resource identifiers",async()=>{
+ const logs=[],o=createObservability({logger:event=>logs.push(event)});
+ const wrapped=o.wrap(async()=>({status:200,body:"{}"}));
+ await wrapped({method:"POST",path:"/v1/workflow-templates/secret-template/reconcile"});
+ await wrapped({method:"POST",path:"/v1/workflow-templates/secret-template/publish"});
+ assert.deepEqual(logs.map(log=>log.route),["workflow.reconcile","workflow.publish"]);
+ assert.equal(JSON.stringify(logs).includes("secret-template"),false);
+});

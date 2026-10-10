@@ -3,7 +3,7 @@
  * Cure bands: shimmer + countdown, never spinner
  */
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, CircleMarker, Marker } from 'react-leaflet'
 import L from 'leaflet'
 import { ArrowLeft, Phone, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react'
@@ -98,7 +98,6 @@ export default function TrackWork() {
   const unitLabel = order?.unit || '1713'
   const etaDays = order?.lines?.length ? etaDaysFromLines(order.lines) : null
   const summary = order?.lines?.length ? etaSummary(order.lines) : null
-  const propLabel = order?.property || 'Thornbury at Chase Oaks'
   const [liveNote, setLiveNote] = useState<string | null>(null)
 
   useEffect(() => {

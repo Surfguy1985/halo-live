@@ -2,7 +2,7 @@
  * A6 · Review order — cart + schedule + gap check + send
  */
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Trash2 } from 'lucide-react'
 import {
   loadCart, saveCart, clearCart, cartTotalCents, formatMoney,

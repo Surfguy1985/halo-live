@@ -21,7 +21,10 @@ export function createEnterpriseWorkflowPipeline({
   loadMembership:subject=>trace("membership.load",null,()=>memberships.load(subject))
  });
  const basePublisher=new WorkflowTemplatePublisher(new PostgresWorkflowStore(workflowPool));
- const publisher={publish:input=>trace("workflow.publish",null,()=>basePublisher.publish(input))};
+ const publisher={
+  publish:input=>trace("workflow.publish",null,()=>basePublisher.publish(input)),
+  reconcile:input=>trace("workflow.reconcile",null,()=>basePublisher.reconcile(input))
+ };
  const publishHandler=createWorkflowPublishHandler({publisher,enabled});
  return createAuthenticatedWorkflowGateway({resolveSession,publishHandler});
 }

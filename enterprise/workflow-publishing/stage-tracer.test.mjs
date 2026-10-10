@@ -15,3 +15,9 @@ test("records failures without changing exceptions",async()=>{
  assert.equal(events[0].outcome,"error");
  assert.ok(!JSON.stringify(events).includes("private"));
 });
+test("accepts the read-only workflow reconciliation stage",async()=>{
+ const events=[],trace=createStageTracer({emit:event=>events.push(event)});
+ assert.equal(await trace("workflow.reconcile",null,async()=>"found"),"found");
+ assert.equal(events[0].name,"workflow.reconcile");
+ assert.equal(events[0].outcome,"ok");
+});

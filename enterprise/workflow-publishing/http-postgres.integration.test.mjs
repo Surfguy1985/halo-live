@@ -18,7 +18,7 @@ test("signed HTTP request publishes exactly one tenant-scoped revision", {skip:!
  let server;
  try {
   await admin.query("DROP SCHEMA IF EXISTS halo_workflow CASCADE");
-  for(const file of ["001_workflow_publishing.sql","002_tenant_rls.sql","003_identity_memberships.sql","004_runtime_role.sql"]){
+  for(const file of ["001_workflow_publishing.sql","002_tenant_rls.sql","003_identity_memberships.sql","004_runtime_role.sql","023_workflow_receipt_reader.sql"]){
    if(file==="002_tenant_rls.sql") await admin.query(
     "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='halo_workflow_executor') THEN CREATE ROLE halo_workflow_executor NOLOGIN NOBYPASSRLS; END IF; END $$");
    const sql=await readFile(fileURLToPath(new URL("./migrations/"+file,import.meta.url)),"utf8");
@@ -41,6 +41,7 @@ test("signed HTTP request publishes exactly one tenant-scoped revision", {skip:!
   server=createWorkflowHTTPServer({gateway,enabled:true});
   await new Promise(resolve=>server.listen(0,"127.0.0.1",resolve));
   const endpoint="http://127.0.0.1:"+server.address().port+"/v1/workflow-templates/demo/publish";
+  const reconcileEndpoint="http://127.0.0.1:"+server.address().port+"/v1/workflow-templates/demo/reconcile";
   const payload={requestID:"request-one",expectedRevision:0,
    layout:{schemaVersion:1,tenantID:"tenant-a",industryID:"construction",
     templateID:"demo",templateVersion:1,blocks:[]}};
@@ -51,6 +52,12 @@ test("signed HTTP request publishes exactly one tenant-scoped revision", {skip:!
   assert.equal(first.status,200,await first.text().catch(()=>"[body unavailable]"));
   const repeated=await send();
   assert.equal(repeated.status,200);
+  const reconciled=await fetch(reconcileEndpoint,{method:"POST",
+   headers:{"authorization":"Bearer "+jwt,"content-type":"application/json",
+    "idempotency-key":"request-one"},body:JSON.stringify(payload)});
+  assert.equal(reconciled.status,200);
+  assert.deepEqual(await reconciled.json(),{requestID:"request-one",outcome:"COMMITTED",
+   result:{templateID:"demo",revision:1,templateVersion:1}});
   const denied=await send(jwt,{...payload,layout:{...payload.layout,tenantID:"tenant-b"}});
   assert.equal(denied.status,403);
   const audits=await pool.query("SELECT count(*)::int AS n FROM halo_workflow.publish_audit WHERE tenant_id=$1",["tenant-a"]);

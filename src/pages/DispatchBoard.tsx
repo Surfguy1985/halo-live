@@ -4,7 +4,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PrimaryCTA } from '@/components/PrimaryCTA'
-import { cn } from '@/lib/cn'
 import { loadSharedOrder, queueCrewPing } from '@/lib/orderBus'
 import { useNavigate } from 'react-router-dom'
 import { getPlate, getWorkItems, getRoleFromStorage, type WorkItem } from '@/lib/api'

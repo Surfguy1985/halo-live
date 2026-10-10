@@ -20,6 +20,9 @@ function fakePool({ failAudit = false } = {}) {
       }
       if (sql.includes("SELECT industry_id,revision")) return {rows:[state.head],rowCount:1};
       if (sql.includes("SELECT request_sha256,response")) return {rows:state.receipt?[state.receipt]:[],rowCount:state.receipt?1:0};
+      if (sql.includes("SELECT trim(receipt.request_sha256)")) return {
+        rows:state.receipt?[{request_sha256:state.receipt.request_sha256,response:state.receipt.response}]:[],rowCount:state.receipt?1:0
+      };
       if (sql.includes("UPDATE halo_workflow.template_heads")) {
         if (state.head.revision !== Number(args[3])) return {rows:[],rowCount:0};
         state.head.revision=args[2];return {rows:[],rowCount:1};
@@ -147,4 +150,40 @@ test("BEGIN failure does not attempt ROLLBACK and discards connection if connect
   "construction","a1"),/begin rejected/);
  assert.equal(queries.length,1);
  assert.deepEqual(releases,[false]);
+});
+
+test("receipt reconciliation uses a tenant and industry-scoped read-only transaction",async()=>{
+ const db=fakePool();
+ const svc=new WorkflowTemplatePublisher(new PostgresWorkflowStore(db.pool));
+ const published=await svc.publish({session,templateID:"sample",idempotencyKey:"original-key",
+  proposal:{expectedRevision:0,layout}});
+ db.calls.length=0;
+ const reconciled=await svc.reconcile({session,templateID:"sample",idempotencyKey:"original-key",
+  proposal:{expectedRevision:0,layout}});
+ assert.deepEqual(reconciled,{requestID:"original-key",outcome:"COMMITTED",result:published});
+ assert.deepEqual(db.calls,[
+  "BEGIN ISOLATION LEVEL READ COMMITTED",
+  "SET LOCAL ROLE HALO_WORKFLOW_RECEIPT_READER",
+  "SELECT SET_CONFIG('HALO.TENANT_ID', $1, TRUE)",
+  "SELECT TRIM(RECEIPT.REQUEST_SHA256) AS REQUEST_SHA256, RECEIPT.RESPONSE",
+  "COMMIT"
+ ]);
+ assert.equal(db.released,2);
+});
+
+test("receipt lookup binds tenant, template, original key, and allowed industries",async()=>{
+ const queries=[];
+ const store=new PostgresWorkflowStore({connect:async()=>({
+  query:async(sql,args=[])=>{
+   queries.push({sql,args});
+   if(sql.includes("SELECT trim(receipt.request_sha256)"))return {rows:[],rowCount:0};
+   return {rows:[],rowCount:0};
+  },
+  release:()=>{}
+ })});
+ assert.equal(await store.findPublishReceipt("tenant-a","template-a","request-a",["construction"]),null);
+ const lookup=queries.find(call=>call.sql.includes("SELECT trim(receipt.request_sha256)"));
+ assert.deepEqual(lookup.args,["tenant-a","template-a","request-a",["construction"]]);
+ assert.match(lookup.sql,/head\.industry_id=ANY\(\$4::text\[\]\)/);
+ assert.equal(queries.some(call=>/\b(?:INSERT|UPDATE|DELETE)\b/.test(call.sql)),false);
 });

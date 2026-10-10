@@ -31,25 +31,7 @@ final class HaloStagingWorkflowClientTests: XCTestCase {
             XCTAssertEqual(request.url?.path, "/v1/workflow-templates/fleet-dispatch/publish")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer staging-test-token")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Idempotency-Key"), expected.requestID.uuidString)
-            // URLSession can surface uploaded JSON as httpBodyStream in URLProtocol.
-            let payload: Data
-            if let direct = request.httpBody {
-                payload = direct
-            } else if let stream = request.httpBodyStream {
-                stream.open()
-                defer { stream.close() }
-                var data = Data()
-                var buffer = [UInt8](repeating: 0, count: 4096)
-                while stream.hasBytesAvailable {
-                    let count = stream.read(&buffer, maxLength: buffer.count)
-                    if count < 0 { throw XCTBodyReadError.streamFailure }
-                    if count == 0 { break }
-                    data.append(contentsOf: buffer.prefix(count))
-                }
-                payload = data
-            } else {
-                throw XCTBodyReadError.missingBody
-            }
+            let payload = try requestBody(request)
             let raw = try XCTUnwrap(JSONSerialization.jsonObject(with: payload) as? [String: Any])
             XCTAssertEqual(raw["requestID"] as? String,
                            request.value(forHTTPHeaderField: "Idempotency-Key"))
@@ -134,17 +116,103 @@ final class HaloStagingWorkflowClientTests: XCTestCase {
         var calls = 0
         let original = proposal
         let client = try makeClient(status: 200,
-            payload: #"{"templateID":"fleet-dispatch","revision":8,"templateVersion":1}"#) { request in
+            payload: #"{"requestID":"AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE","outcome":"COMMITTED","result":{"templateID":"fleet-dispatch","revision":8,"templateVersion":1}}"#) { request in
             calls += 1
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"),
+                           "Bearer staging-test-token")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Idempotency-Key"),
                            original.requestID.uuidString)
             XCTAssertEqual(request.url?.path,
-                           "/v1/workflow-templates/fleet-dispatch/publish")
+                           "/v1/workflow-templates/fleet-dispatch/reconcile")
+            XCTAssertEqual(
+                try JSONDecoder().decode(
+                    HaloTemplatePublishing.Proposal.self,
+                    from: requestBody(request)
+                ),
+                original
+            )
         }
         let receipt = try await client.reconcileUncertainPublish(
             originalProposal: original, bearerToken: "staging-test-token")
         XCTAssertEqual(receipt.revision, original.expectedRevision + 1)
         XCTAssertEqual(calls, 1)
+    }
+
+    func testMissingReconciliationReceiptNeverFallsBackToPublish() async throws {
+        var calls = 0
+        let client = try makeClient(
+            status: 404,
+            payload: #"{"error":"PUBLISH_REQUEST_NOT_FOUND"}"#
+        ) { request in
+            calls += 1
+            XCTAssertEqual(request.url?.path,
+                           "/v1/workflow-templates/fleet-dispatch/reconcile")
+        }
+
+        do {
+            _ = try await client.reconcileUncertainPublish(
+                originalProposal: proposal,
+                bearerToken: "staging-test-token"
+            )
+            XCTFail("A missing receipt must remain unresolved, never trigger a publish")
+        } catch let error as HaloStagingWorkflowClient.Failure {
+            XCTAssertEqual(error, .publishRequestNotFound)
+        }
+        XCTAssertEqual(calls, 1)
+    }
+
+    func testReconciliationServiceFailureMakesOneRequestOnly() async throws {
+        var calls = 0
+        let client = try makeClient(status: 503, payload: #"{"error":"UNAVAILABLE"}"#) { request in
+            calls += 1
+            XCTAssertEqual(request.url?.path,
+                           "/v1/workflow-templates/fleet-dispatch/reconcile")
+        }
+
+        do {
+            _ = try await client.reconcileUncertainPublish(
+                originalProposal: proposal,
+                bearerToken: "staging-test-token"
+            )
+            XCTFail("An unavailable reconciliation endpoint is not success")
+        } catch let error as HaloStagingWorkflowClient.Failure {
+            XCTAssertEqual(error, .serviceUnavailable)
+        }
+        XCTAssertEqual(calls, 1, "Reconciliation must never retry automatically")
+    }
+
+    func testReconciliationRejectsReceiptForDifferentOriginalRequest() async throws {
+        let client = try makeClient(
+            status: 200,
+            payload: #"{"requestID":"11111111-2222-3333-4444-555555555555","outcome":"COMMITTED","result":{"templateID":"fleet-dispatch","revision":8,"templateVersion":1}}"#
+        )
+
+        do {
+            _ = try await client.reconcileUncertainPublish(
+                originalProposal: proposal,
+                bearerToken: "staging-test-token"
+            )
+            XCTFail("A receipt for another recovery ID must be rejected")
+        } catch let error as HaloStagingWorkflowClient.Failure {
+            XCTAssertEqual(error, .invalidResponse)
+        }
+    }
+
+    func testReconciliationRejectsMismatchedCommittedResult() async throws {
+        let client = try makeClient(
+            status: 200,
+            payload: #"{"requestID":"AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE","outcome":"COMMITTED","result":{"templateID":"fleet-dispatch","revision":9,"templateVersion":1}}"#
+        )
+
+        do {
+            _ = try await client.reconcileUncertainPublish(
+                originalProposal: proposal,
+                bearerToken: "staging-test-token"
+            )
+            XCTFail("A committed result must match the original expected next revision")
+        } catch let error as HaloStagingWorkflowClient.Failure {
+            XCTAssertEqual(error, .invalidResponse)
+        }
     }
 
     func testRejectsIdempotencyConflict() async throws {
@@ -281,4 +349,21 @@ private final class StagingWorkflowURLProtocol: URLProtocol {
 private enum XCTBodyReadError: Error {
     case missingBody
     case streamFailure
+}
+
+/// URLSession can surface uploaded JSON as httpBodyStream in URLProtocol.
+private func requestBody(_ request: URLRequest) throws -> Data {
+    if let direct = request.httpBody { return direct }
+    guard let stream = request.httpBodyStream else { throw XCTBodyReadError.missingBody }
+    stream.open()
+    defer { stream.close() }
+    var data = Data()
+    var buffer = [UInt8](repeating: 0, count: 4096)
+    while stream.hasBytesAvailable {
+        let count = stream.read(&buffer, maxLength: buffer.count)
+        if count < 0 { throw XCTBodyReadError.streamFailure }
+        if count == 0 { break }
+        data.append(contentsOf: buffer.prefix(count))
+    }
+    return data
 }

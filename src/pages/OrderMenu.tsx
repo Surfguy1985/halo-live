@@ -19,21 +19,21 @@ const PACKAGES = [
     name: 'Full Make-Ready',
     detail: 'Paint, carpet, clean, punch · 3-day turn',
     priceCents: 285000,
-    serviceIds: ['paint', 'carpet', 'clean', 'punch'] as string[],
+    serviceIds: ['paint', 'carpet', 'clean', 'punch_list'] as string[],
   },
   {
     id: 'pkg-punch',
     name: 'Punch + QC Walk',
     detail: 'Photo-documented · Same day',
     priceCents: 48000,
-    serviceIds: ['punch'] as string[],
+    serviceIds: ['punch_list'] as string[],
   },
   {
     id: 'pkg-emergency',
     name: 'Emergency Turn',
     detail: 'Crew dispatched within 2 hours',
     priceCents: 85000,
-    serviceIds: ['clean', 'punch'] as string[],
+    serviceIds: ['clean', 'punch_list'] as string[],
   },
 ]
 
@@ -69,7 +69,7 @@ export default function OrderMenu() {
 
   function addFamily(f: ServiceFamily) {
     const v = resolveVariant(f, unit.bedrooms)
-    const existing = cart.find((c) => c.familyId === f.id && c.variantId === v.id)
+    const existing = cart.find((c) => c.familyId === f.id && c.variantKey === v.key)
     if (existing) {
       persist(cart.map((c) => (c === existing ? { ...c, qty: c.qty + 1 } : c)))
     } else {
@@ -78,8 +78,7 @@ export default function OrderMenu() {
         {
           familyId: f.id,
           name: f.name,
-          variantId: v.id,
-          variantLabel: v.label,
+          variantKey: v.key,
           priceCents: v.priceCents,
           durationHours: v.durationHours,
           cureHours: v.cureHours || 0,
@@ -99,8 +98,7 @@ export default function OrderMenu() {
         next.push({
           familyId: f.id,
           name: f.name,
-          variantId: v.id,
-          variantLabel: v.label,
+          variantKey: v.key,
           priceCents: v.priceCents,
           durationHours: v.durationHours,
           cureHours: v.cureHours || 0,
@@ -196,7 +194,7 @@ export default function OrderMenu() {
 
         {gaps.length > 0 && (
           <div className="rounded-[12px] border border-warn/40 bg-warn/10 px-3 py-2 text-[13px] text-ink">
-            Suggested next: {gaps[0]}
+            Suggested next: {gaps[0].message}
           </div>
         )}
 
@@ -254,8 +252,20 @@ export default function OrderMenu() {
           family={detail}
           bedrooms={unit.bedrooms}
           onClose={() => setDetail(null)}
-          onAdd={(line) => {
-            persist([...cart.filter((c) => c.familyId !== line.familyId), line])
+          onAdd={(rooms, note) => {
+            const variant = resolveVariant(detail, unit.bedrooms)
+            const line: CartLine = {
+              familyId: detail.id,
+              name: detail.name,
+              variantKey: variant.key,
+              priceCents: variant.priceCents,
+              durationHours: variant.durationHours,
+              cureHours: variant.cureHours,
+              qty: 1,
+              rooms,
+              note: note.trim() || undefined,
+            }
+            persist([...cart.filter((c) => c.familyId !== detail.id), line])
             setDetail(null)
           }}
         />

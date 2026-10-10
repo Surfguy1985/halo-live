@@ -54,7 +54,7 @@ export function FieldPhotoGrid({
               >
                 <img
                   src={p.url}
-                  alt={p.note || p.phase}
+                  alt={p.caption || p.phase}
                   className="h-full w-full object-cover"
                   loading="lazy"
                   onError={(e) => {
@@ -82,7 +82,7 @@ export function FieldPhotoGrid({
           </button>
           <img
             src={lightbox.url}
-            alt={lightbox.note || lightbox.phase}
+            alt={lightbox.caption || lightbox.phase}
             className="max-h-[85vh] max-w-full rounded-2xl object-contain"
             onClick={(e) => e.stopPropagation()}
           />
@@ -90,7 +90,7 @@ export function FieldPhotoGrid({
             <span className="rounded-full bg-black/50 px-3 py-1.5 capitalize">
               {lightbox.phase}
               {lightbox.unitNo ? ` · #${lightbox.unitNo}` : ''}
-              {lightbox.note ? ` · ${lightbox.note}` : ''}
+              {lightbox.caption ? ` · ${lightbox.caption}` : ''}
             </span>
           </div>
         </div>

@@ -7,14 +7,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Camera, Check, Loader2, MapPin, HelpCircle } from 'lucide-react'
 import {
-  getWorkItems, getRoleFromStorage, FIELD_GUIDES, photoUrl,
+  getWorkItems, FIELD_GUIDES,
   type WorkItem, type PhotoStep,
 } from '@/lib/api'
 import {
   getStoredFieldToken, loadCheckinSession, uploadFieldPhoto, phaseForStep,
   fieldCheckout, getGps, type CheckinSession,
 } from '@/lib/fieldCompanion'
-import { cn } from '@/lib/cn'
 import { StatusChip } from '@/components/StatusChip'
 
 type Phase = 'pick' | 'intro' | 'zone' | 'done'

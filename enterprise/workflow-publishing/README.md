@@ -31,6 +31,10 @@ Create a durable uniqueness fence for concurrent first publication, e.g. a locke
 
 Authenticated request with an idempotency header (e.g. `Idempotency-Key`) and body `{requestID, expectedRevision, layout}`. The route must require that the header key equals requestID. Domain service takes that verified key and trusted session separately. Responses: 200 published revision, 403 forbidden, 409 revision/idempotency conflict, 422 invalid schema. Backend generates authoritative timestamps and permissions.
 
+`POST /v1/workflow-templates/:templateID/reconcile`
+
+Authenticated, read-only reconciliation accepts the same persisted original proposal body and the same `Idempotency-Key`; it does not accept request IDs as bearer secrets. The service recomputes the canonical publish fingerprint and compares it with the tenant-, template-, and industry-scoped PostgreSQL receipt. It never replays `publish`. Responses are stable: `200 {requestID, outcome:"COMMITTED", result}` for a matching durable receipt, `404 PUBLISH_REQUEST_NOT_FOUND` when no scoped receipt exists, `409 IDEMPOTENCY_CONFLICT` when the original ID is presented with an altered proposal, `403 FORBIDDEN` for current membership/scope failure, and redacted `500 INTERNAL` for storage corruption or unexpected failures.
+
 ## Next steps
 
 1. Implement PostgreSQL adapter and migrations with transaction, RLS policy and uniqueness guarantees.
