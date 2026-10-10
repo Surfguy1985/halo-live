@@ -12,7 +12,7 @@ const principalSQL=`SELECT
   WHERE membership.member=role.oid),'{}'::name[]) AS memberships,
  EXISTS (SELECT 1 FROM pg_class relation
   JOIN pg_namespace namespace ON namespace.oid=relation.relnamespace
-  CROSS JOIN LATERAL aclexplode(coalesce(relation.relacl,'{}'::aclitem[])) acl
+  CROSS JOIN LATERAL aclexplode(relation.relacl) acl
   WHERE namespace.nspname IN ('halo_workflow','halo_execution')
     AND acl.grantee=role.oid) AS direct_relation_acl
 FROM pg_roles role WHERE role.rolname=session_user`;
