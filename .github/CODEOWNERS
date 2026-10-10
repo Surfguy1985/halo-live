@@ -1,0 +1,7 @@
+# Default ownership for HALO changes.
+* @Surfguy1985
+
+# Release-critical boundaries require explicit owner review.
+/.github/workflows/ @Surfguy1985
+/enterprise/workflow-publishing/ @Surfguy1985
+/NativeiOS/ @Surfguy1985

@@ -1,6 +1,8 @@
 # HALO RC1 — release-scope audit
 
-Audit basis: GitHub comparison `main...release/halo-workflow-rc1-candidate` at `9c220ae54b3cf219b6315491d12eba1fc68ace2d`.
+Original audit basis: GitHub comparison `main...release/halo-workflow-rc1-candidate` at `9c220ae54b3cf219b6315491d12eba1fc68ace2d`.
+
+Current cumulative audit: `origin/main` at `905a6857348e4f9f18d19ec3b4c2d0c851050051` through `codex/halo-enterprise-reconciliation-rc1` at remediation commit `06b5a84`. See `RC1-FULL-STACK-AUDIT.md`.
 
 ## Scope confirmed
 - **531 commits ahead of main**, 0 behind.
@@ -11,7 +13,7 @@ Audit basis: GitHub comparison `main...release/halo-workflow-rc1-candidate` at `
 
 ## Release blockers and evidence required
 
-1. [ ] Review the **complete** 531-commit and 220-file cumulative diff against `main`, including third-party code, generated assets, secrets scanning, ownership, data handling, and licensing.
+1. [x] Review the current **complete** 555-commit and 261-file cumulative diff against `main`, including dependency licenses, generated/binary assets, high-confidence secrets scanning, ownership, migration safety, data boundaries, and helper-script behavior. Evidence and unresolved release decisions are recorded in `RC1-FULL-STACK-AUDIT.md`.
 2. [ ] Establish commit-specific Swift/Xcode build and XCTest results for the actual release SHA; validate signing entitlements and permissions.
 3. [x] Freeze dependency versions with npm lockfiles, enforce `npm ci`, and add repeatable vulnerability and license scanning. See `DEPENDENCY-SUPPLY-CHAIN.md`; production still requires explicit acceptance or replacement of the Hippocratic-2.1 map dependencies.
 4. [ ] Prove all SQL migrations are safe for a representative existing schema, with tenant-isolation/RLS tests, and rehearsed backup/recovery.
