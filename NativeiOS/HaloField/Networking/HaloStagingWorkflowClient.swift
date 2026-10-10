@@ -274,6 +274,26 @@ actor HaloStagingPublishRecoveryCoordinator {
         return receipt
     }
 
+    /// Opt-in startup entry point. The host must verify the active session
+    /// against the server before invoking this method. No automatic network
+    /// access is initiated by app launch or by journal initialization.
+    /// Only a server-verified tenant/actor identity may select the owner scope.
+    func recoverOnAuthenticatedStartup(
+        verifiedTenantID: String,
+        verifiedActorID: String,
+        bearerToken: String
+    ) async throws -> HaloStagingWorkflowClient.Receipt? {
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
+        guard !verifiedTenantID.isEmpty, verifiedTenantID.utf8.count <= 128,
+              verifiedTenantID.unicodeScalars.allSatisfy({ allowed.contains($0) }),
+              !verifiedActorID.isEmpty, verifiedActorID.utf8.count <= 128,
+              verifiedActorID.unicodeScalars.allSatisfy({ allowed.contains($0) }) else {
+            throw HaloStagingPublishRecoveryJournal.Failure.invalidScope
+        }
+        return try await recover(ownerScope: "\(verifiedTenantID):\(verifiedActorID)",
+                                 bearerToken: bearerToken)
+    }
+
     /// Called explicitly after restart or an uncertain response, once the
     /// authenticated principal has been verified again by the host application.
     /// A 404, transport error, or revoked membership keeps the journal intact.
