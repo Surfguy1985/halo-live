@@ -307,6 +307,70 @@ final class HaloStagingWorkflowClientTests: XCTestCase {
         XCTAssertEqual(retained, proposal)
     }
 
+    func testCoordinatorRecoversAfterRecreationWithoutRepublishing() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("halo-coordinator-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("pending.json")
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StagingWorkflowURLProtocol.self]
+        var publishes = 0
+        var reconciles = 0
+        StagingWorkflowURLProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path.hasSuffix("/publish") {
+                publishes += 1
+                throw URLError(.networkConnectionLost)
+            }
+            XCTAssertTrue(path.hasSuffix("/reconcile"))
+            reconciles += 1
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200,
+                httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
+            return (response, Data(#"{"status":"committed","receipt":{"templateID":"fleet-dispatch","revision":8,"templateVersion":1}}"#.utf8))
+        }
+        let client = try HaloStagingWorkflowClient(stagingURL: staging,
+            session: URLSession(configuration: configuration))
+        let original = HaloStagingPublishRecoveryCoordinator(client: client,
+            journal: HaloStagingPublishRecoveryJournal(fileURL: url))
+        do {
+            _ = try await original.publish(proposal: proposal,
+                ownerScope: "fleet-a:actor-1", bearerToken: "staging-test-token")
+            XCTFail("Lost receipt must remain unresolved")
+        } catch let error as URLError {
+            XCTAssertEqual(error.code, .networkConnectionLost)
+        }
+        let restarted = HaloStagingPublishRecoveryCoordinator(client: client,
+            journal: HaloStagingPublishRecoveryJournal(fileURL: url))
+        let receipt = try await restarted.recover(
+            ownerScope: "fleet-a:actor-1", bearerToken: "staging-test-token")
+        XCTAssertEqual(receipt?.revision, 8)
+        XCTAssertEqual(publishes, 1)
+        XCTAssertEqual(reconciles, 1)
+        let pending = try await HaloStagingPublishRecoveryJournal(fileURL: url)
+            .pending(ownerScope: "fleet-a:actor-1")
+        XCTAssertNil(pending)
+    }
+
+    func testCoordinatorKeepsJournalOnMissingReceipt() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("halo-coordinator-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("pending.json")
+        let journal = HaloStagingPublishRecoveryJournal(fileURL: url)
+        try await journal.save(proposal, ownerScope: "fleet-a:actor-1")
+        let client = try makeClient(status: 404, payload: #"{"error":"RECEIPT_NOT_FOUND"}"#)
+        let coordinator = HaloStagingPublishRecoveryCoordinator(client: client, journal: journal)
+        do {
+            _ = try await coordinator.recover(
+                ownerScope: "fleet-a:actor-1", bearerToken: "staging-test-token")
+            XCTFail("Missing receipt must remain pending")
+        } catch let error as HaloStagingWorkflowClient.Failure {
+            XCTAssertEqual(error, .receiptNotFound)
+        }
+        let retained = try await journal.pending(ownerScope: "fleet-a:actor-1")
+        XCTAssertEqual(retained, proposal)
+    }
+
     func testRejectsIdempotencyConflict() async throws {
         let client = try makeClient(status: 409, payload: #"{"error":"IDEMPOTENCY_CONFLICT"}"#)
         do {
