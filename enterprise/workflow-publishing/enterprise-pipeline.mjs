@@ -6,7 +6,7 @@ import {PostgresMembershipLoader} from "./membership-store.mjs";
 import {createTrustedSessionResolver,createAuthenticatedWorkflowGateway} from "./trusted-auth.mjs";
 import {PostgresWorkflowStore} from "./postgres-store.mjs";
 import {WorkflowTemplatePublisher} from "./publisher.mjs";
-import {createWorkflowPublishHandler} from "./api-handler.mjs";
+import {createWorkflowPublishHandler,createWorkflowReconcileHandler} from "./api-handler.mjs";
 import {createStageTracer} from "./stage-tracer.mjs";
 
 export function createEnterpriseWorkflowPipeline({
@@ -21,7 +21,11 @@ export function createEnterpriseWorkflowPipeline({
   loadMembership:subject=>trace("membership.load",null,()=>memberships.load(subject))
  });
  const basePublisher=new WorkflowTemplatePublisher(new PostgresWorkflowStore(workflowPool));
- const publisher={publish:input=>trace("workflow.publish",null,()=>basePublisher.publish(input))};
+ const publisher={
+  publish:input=>trace("workflow.publish",null,()=>basePublisher.publish(input)),
+  reconcile:input=>trace("workflow.reconcile",null,()=>basePublisher.reconcile(input))
+ };
  const publishHandler=createWorkflowPublishHandler({publisher,enabled});
- return createAuthenticatedWorkflowGateway({resolveSession,publishHandler});
+ const reconcileHandler=createWorkflowReconcileHandler({publisher,enabled});
+ return createAuthenticatedWorkflowGateway({resolveSession,publishHandler,reconcileHandler});
 }

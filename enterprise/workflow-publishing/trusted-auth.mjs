@@ -32,7 +32,7 @@ export function createTrustedSessionResolver({verifyBearer,loadMembership}={}) {
   };
 }
 // Framework-neutral adapter. Middleware owns request lifecycle and error translation.
-export function createAuthenticatedWorkflowGateway({resolveSession,publishHandler}={}) {
+export function createAuthenticatedWorkflowGateway({resolveSession,publishHandler,reconcileHandler}={}) {
   if (typeof resolveSession!=="function" || typeof publishHandler!=="function")
     throw new TypeError("Resolver and publish handler required");
   return async function handle(request) {
@@ -42,6 +42,9 @@ export function createAuthenticatedWorkflowGateway({resolveSession,publishHandle
       if (error instanceof AuthorizationError) return {status:403,body:JSON.stringify({error:"FORBIDDEN"})};
       return {status:401,body:JSON.stringify({error:"UNAUTHENTICATED"})};
     }
+    if (typeof request?.path==="string" && request.path.endsWith("/reconcile"))
+      return typeof reconcileHandler==="function" ? reconcileHandler(request,session) :
+        {status:404,body:JSON.stringify({error:"NOT_FOUND"})};
     return publishHandler(request,session);
   };
 }

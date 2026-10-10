@@ -97,6 +97,26 @@ test("Swift fixture crosses signed HTTP auth and durable tenant-scoped PostgreSQ
   const incorrectRetry=await send({...fixture,requestID:"incorrect-retry-new-key"});
   assert.equal(incorrectRetry.status,409);
   assert.deepEqual(await incorrectRetry.json(),{error:"REVISION_CONFLICT"});
+  const reconcileEndpoint=endpoint.replace(/\/publish$/,"/reconcile");
+  const check=(requestID,token=jwt)=>fetch(reconcileEndpoint,{
+   method:"POST",headers:{"authorization":"Bearer "+token,
+    "content-type":"application/json","idempotency-key":requestID},
+   body:JSON.stringify({requestID})
+  });
+  const confirmed=await check(fixture.requestID);
+  assert.equal(confirmed.status,200);
+  assert.deepEqual(await confirmed.json(),{status:"committed",receipt});
+  const missing=await check("not-published");
+  assert.equal(missing.status,404);
+  assert.deepEqual(await missing.json(),{error:"RECEIPT_NOT_FOUND"});
+  assert.equal((await check(fixture.requestID,"invalid.jwt.signature")).status,401);
+  const noWrite=await pool.query(`SELECT
+   (SELECT count(*)::int FROM halo_workflow.template_revisions WHERE tenant_id=$1) AS revisions,
+   (SELECT count(*)::int FROM halo_workflow.publish_audit WHERE tenant_id=$1) AS audits,
+   (SELECT count(*)::int FROM halo_workflow.publish_idempotency WHERE tenant_id=$1) AS receipts`,
+   [fixture.layout.tenantID]);
+  assert.deepEqual(noWrite.rows[0],{revisions:1,audits:1,receipts:1},
+   "reconciliation must not mutate durable workflow state");
   const altered=await send({...fixture,expectedRevision:1});
   assert.equal(altered.status,409,"same idempotency key cannot be reused for a different revision");
   assert.deepEqual(await altered.json(),{error:"IDEMPOTENCY_CONFLICT"});

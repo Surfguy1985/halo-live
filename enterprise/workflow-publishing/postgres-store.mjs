@@ -17,6 +17,34 @@ export class PostgresWorkflowStore {
     this.pool = pool;
   }
 
+  // Reconciliation never inserts a template head or modifies an idempotency row.
+  // The executor role and tenant scope remain transaction-local under RLS.
+  async reconcile(tenantID,templateID,key,industryIDs) {
+    if (![tenantID,templateID,key].every(x=>typeof x==="string" && /^[A-Za-z0-9_-]{1,128}$/.test(x)) ||
+        !Array.isArray(industryIDs) || !industryIDs.length ||
+        !industryIDs.every(x=>typeof x==="string" && x.length>0 && x.length<=128))
+      throw new TypeError("Trusted reconciliation scope required");
+    const client=await this.pool.connect();
+    let active=false,discard=false;
+    try {
+      await client.query("BEGIN READ ONLY");
+      active=true;
+      await client.query("SET LOCAL ROLE halo_workflow_executor");
+      await client.query("SELECT set_config('halo.tenant_id', $1, true)",[tenantID]);
+      const result=await client.query(`SELECT i.response FROM halo_workflow.publish_idempotency i
+        JOIN halo_workflow.template_heads h
+          ON h.tenant_id=i.tenant_id AND h.template_id=i.template_id
+        WHERE i.tenant_id=$1 AND i.template_id=$2 AND i.idempotency_key=$3
+          AND h.industry_id=ANY($4::text[])`,[tenantID,templateID,key,industryIDs]);
+      await client.query("COMMIT");
+      active=false;
+      return result.rows[0]?.response ?? null;
+    }catch(error){
+      if(active){try{await client.query("ROLLBACK");}catch{discard=true;}}
+      throw error;
+    }finally{client.release(discard);}
+  }
+
   async transaction(tenantID, templateID, callback, industryID, actorID) {
     if (![tenantID, templateID, industryID].every(x => typeof x === "string" && x.trim()))
       throw new TypeError("Trusted tenant/template/industry required");

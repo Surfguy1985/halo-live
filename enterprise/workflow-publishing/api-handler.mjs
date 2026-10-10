@@ -67,3 +67,37 @@ export function createWorkflowPublishHandler({publisher, enabled=false}={}) {
     }
   };
 }
+
+/**
+ * Read-only recovery of a previously committed publish receipt. A missing
+ * receipt is NOT proof that a prior in-flight transaction rolled back.
+ */
+export function createWorkflowReconcileHandler({publisher,enabled=false}={}) {
+  if(typeof publisher?.reconcile!=="function")throw new TypeError("reconcile service required");
+  return async function reconcile(request,session){
+    if(!enabled)return jsonResponse(404,{error:"NOT_FOUND"});
+    const match=typeof request?.path==="string" &&
+      request.path.match(/^\/v1\/workflow-templates\/([A-Za-z0-9_-]{1,128})\/reconcile$/);
+    if(!match)return jsonResponse(404,{error:"NOT_FOUND"});
+    if(request.method!=="POST")return jsonResponse(405,{error:"METHOD_NOT_ALLOWED"});
+    if(request.headers?.["content-type"]?.split(";")[0]?.trim().toLowerCase()!=="application/json")
+      return jsonResponse(415,{error:"UNSUPPORTED_MEDIA_TYPE"});
+    if(!session?.authenticated || !session.actorID || !session.tenantID ||
+       !session.permissions?.includes("workflow:publish") || !Array.isArray(session.industryIDs))
+      return jsonResponse(403,{error:"FORBIDDEN"});
+    if(typeof request.body!=="string" && !Buffer.isBuffer(request.body))
+      return jsonResponse(422,{error:"INVALID_BODY"});
+    const raw=Buffer.isBuffer(request.body)?request.body:Buffer.from(request.body,"utf8");
+    if(raw.byteLength>LIMIT_BYTES)return jsonResponse(413,{error:"PAYLOAD_TOO_LARGE"});
+    let body;
+    try{body=JSON.parse(raw.toString("utf8"));}catch{return jsonResponse(400,{error:"INVALID_JSON"});}
+    if(!object(body) || Object.keys(body).length!==1 || !token(body.requestID) ||
+       request.headers?.["idempotency-key"]!==body.requestID)
+      return jsonResponse(422,{error:"INVALID_REQUEST"});
+    try{
+      const receipt=await publisher.reconcile({session,templateID:match[1],idempotencyKey:body.requestID});
+      return receipt ? jsonResponse(200,{status:"committed",receipt}) :
+        jsonResponse(404,{error:"RECEIPT_NOT_FOUND"});
+    }catch{return jsonResponse(500,{error:"INTERNAL"});}
+  };
+}

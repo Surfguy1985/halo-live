@@ -17,6 +17,15 @@ export const validateLayout = validateLayoutV1;
 
 export class WorkflowTemplatePublisher {
   constructor(store) { this.store = store; }
+  async reconcile({session,templateID,idempotencyKey}) {
+    if (!session?.authenticated || !text(session.tenantID) ||
+        !Array.isArray(session.permissions) || !session.permissions.includes("workflow:publish") ||
+        !Array.isArray(session.industryIDs) || !session.industryIDs.length ||
+        !/^[A-Za-z0-9_-]{1,128}$/.test(templateID ?? "") ||
+        !/^[A-Za-z0-9_-]{1,128}$/.test(idempotencyKey ?? ""))
+      throw new PublishError("FORBIDDEN","Reconciliation scope denied");
+    return this.store.reconcile(session.tenantID,templateID,idempotencyKey,session.industryIDs);
+  }
   async publish({session, templateID, idempotencyKey, proposal}) {
     // Session must originate in verified middleware, never request JSON.
     if (!session?.authenticated || !text(session.tenantID) || !text(session.actorID) ||
