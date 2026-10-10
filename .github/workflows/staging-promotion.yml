@@ -55,11 +55,11 @@ jobs:
     env:
       HALO_EXPECTED_RELEASE_SHA: ${{ github.sha }}
       HALO_DEPLOYMENT_ENV: ci
-      HALO_WORKFLOW_PUBLISH_ENABLED: 'true'
+      HALO_WORKFLOW_PUBLISH_ENABLED: "true"
       HALO_WORKFLOW_DEPLOYMENT_APPROVED: ephemeral-ci-only
-      HALO_WORKFLOW_EPHEMERAL_TEST_ONLY: 'true'
+      HALO_WORKFLOW_EPHEMERAL_TEST_ONLY: "true"
       HALO_WORKFLOW_BIND_HOST: 127.0.0.1
-      HALO_WORKFLOW_PORT: '0'
+      HALO_WORKFLOW_PORT: "0"
       HALO_WORKFLOW_DATABASE_USER: halo_workflow_runtime
       HALO_IDENTITY_DATABASE_USER: halo_identity_runtime
       HALO_WORKFLOW_PUBLIC_URL: https://workflow.staging.invalid/
@@ -67,10 +67,10 @@ jobs:
       HALO_WORKFLOW_AUTH_AUDIENCE: halo-staging-ci
       HALO_WORKFLOW_DATABASE_URL: postgresql://postgres:staging-ci-only@127.0.0.1:5432/halo_staging_ci?sslmode=disable
       HALO_WORKFLOW_REDIS_URL: redis://127.0.0.1:6379/0
-      HALO_PAYMENTS_ENABLED: 'false'
-      HALO_WEBHOOKS_ENABLED: 'false'
-      HALO_DISPATCH_ENABLED: 'false'
-      HALO_ENFORCER_ENABLED: 'false'
+      HALO_PAYMENTS_ENABLED: "false"
+      HALO_WEBHOOKS_ENABLED: "false"
+      HALO_DISPATCH_ENABLED: "false"
+      HALO_ENFORCER_ENABLED: "false"
       HALO_OUTBOUND_SIDE_EFFECTS: disabled
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -78,7 +78,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: "22"
       - name: Install locked isolated dependencies
         run: npm ci --prefix enterprise/workflow-publishing --no-audit --no-fund
       - name: Verify the checked-out promotion SHA
@@ -109,11 +109,11 @@ jobs:
     env:
       HALO_EXPECTED_RELEASE_SHA: ${{ github.sha }}
       HALO_DEPLOYMENT_ENV: ci
-      HALO_WORKFLOW_PUBLISH_ENABLED: 'true'
+      HALO_WORKFLOW_PUBLISH_ENABLED: "true"
       HALO_WORKFLOW_DEPLOYMENT_APPROVED: ephemeral-ci-only
-      HALO_WORKFLOW_EPHEMERAL_TEST_ONLY: 'true'
+      HALO_WORKFLOW_EPHEMERAL_TEST_ONLY: "true"
       HALO_WORKFLOW_BIND_HOST: 127.0.0.1
-      HALO_WORKFLOW_PORT: '0'
+      HALO_WORKFLOW_PORT: "0"
       HALO_WORKFLOW_DATABASE_USER: halo_workflow_runtime
       HALO_IDENTITY_DATABASE_USER: halo_identity_runtime
       HALO_WORKFLOW_PUBLIC_URL: https://workflow.staging.invalid/
@@ -121,10 +121,10 @@ jobs:
       HALO_WORKFLOW_AUTH_AUDIENCE: halo-staging-ci
       HALO_WORKFLOW_DATABASE_URL: postgresql://postgres:staging-ci-only@127.0.0.1:5432/halo_staging_ci?sslmode=disable
       HALO_WORKFLOW_REDIS_URL: redis://127.0.0.1:6379/0
-      HALO_PAYMENTS_ENABLED: 'false'
-      HALO_WEBHOOKS_ENABLED: 'false'
-      HALO_DISPATCH_ENABLED: 'false'
-      HALO_ENFORCER_ENABLED: 'false'
+      HALO_PAYMENTS_ENABLED: "false"
+      HALO_WEBHOOKS_ENABLED: "false"
+      HALO_DISPATCH_ENABLED: "false"
+      HALO_ENFORCER_ENABLED: "false"
       HALO_OUTBOUND_SIDE_EFFECTS: disabled
       HALO_REHEARSAL_APPROVED: ephemeral-ci-backup-restore-rollback
     steps:
@@ -133,10 +133,117 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '22'
+          node-version: "22"
       - name: Install locked isolated dependencies
         run: npm ci --prefix enterprise/workflow-publishing --no-audit --no-fund
       - name: Verify the checked-out recovery SHA
         run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
       - name: Rehearse backup, migration, rollback, restore, and reapply
         run: node enterprise/workflow-publishing/staging-ci-rehearsal.mjs
+
+  swift-https-security-signoff:
+    needs: [rehearse-backup-restore-rollback]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16@sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: staging-ci-only
+          POSTGRES_DB: halo_staging_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d halo_staging_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+      redis:
+        image: redis:7.4-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      HALO_EXPECTED_RELEASE_SHA: ${{ github.sha }}
+      HALO_DEPLOYMENT_ENV: ci
+      HALO_WORKFLOW_PUBLISH_ENABLED: "true"
+      HALO_WORKFLOW_DEPLOYMENT_APPROVED: ephemeral-ci-only
+      HALO_WORKFLOW_EPHEMERAL_TEST_ONLY: "true"
+      HALO_WORKFLOW_BIND_HOST: 127.0.0.1
+      HALO_WORKFLOW_PORT: "0"
+      HALO_WORKFLOW_DATABASE_USER: halo_workflow_runtime
+      HALO_IDENTITY_DATABASE_USER: halo_identity_runtime
+      HALO_WORKFLOW_PUBLIC_URL: https://workflow.staging.invalid/
+      HALO_WORKFLOW_AUTH_ISSUER: https://identity.staging.invalid/ci
+      HALO_WORKFLOW_AUTH_AUDIENCE: halo-staging-ci
+      HALO_WORKFLOW_DATABASE_URL: postgresql://postgres:staging-ci-only@127.0.0.1:5432/halo_staging_ci?sslmode=disable
+      HALO_WORKFLOW_REDIS_URL: redis://127.0.0.1:6379/0
+      HALO_PAYMENTS_ENABLED: "false"
+      HALO_WEBHOOKS_ENABLED: "false"
+      HALO_DISPATCH_ENABLED: "false"
+      HALO_ENFORCER_ENABLED: "false"
+      HALO_OUTBOUND_SIDE_EFFECTS: disabled
+      HALO_SWIFT_HTTPS_SIGNOFF_APPROVED: ephemeral-ci-https-only
+      HALO_SWIFT_STAGING_HOST: workflow.staging.invalid
+      HALO_SWIFT_SIGNOFF_EXECUTABLE: ${{ runner.temp }}/halo-swift-https-signoff
+      HALO_SWIFT_TLS_CERTIFICATE: ${{ runner.temp }}/halo-swift-server.crt
+      HALO_SWIFT_TLS_PRIVATE_KEY: ${{ runner.temp }}/halo-swift-server.key
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+      - name: Install locked isolated dependencies
+        run: npm ci --prefix enterprise/workflow-publishing --no-audit --no-fund
+      - name: Verify the checked-out signoff SHA
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Compile the production Swift staging client
+        run: |
+          swift --version
+          swiftc \
+            NativeiOS/HaloField/Domain/HaloWorkflowBlocks.swift \
+            NativeiOS/HaloField/Domain/HaloTemplatePublishing.swift \
+            NativeiOS/HaloField/Networking/HaloStagingWorkflowClient.swift \
+            NativeiOS/TestsSupport/StagingHTTPSIntegration.swift \
+            -o "$HALO_SWIFT_SIGNOFF_EXECUTABLE"
+      - name: Create and trust the ephemeral staging TLS identity
+        run: |
+          openssl req -x509 -newkey rsa:2048 -nodes \
+            -keyout "$RUNNER_TEMP/halo-swift-ca.key" \
+            -out "$RUNNER_TEMP/halo-swift-ca.crt" -days 1 \
+            -subj "/CN=HALO Ephemeral CI CA" \
+            -addext "basicConstraints=critical,CA:TRUE" \
+            -addext "keyUsage=critical,keyCertSign,cRLSign"
+          openssl req -newkey rsa:2048 -nodes \
+            -keyout "$HALO_SWIFT_TLS_PRIVATE_KEY" \
+            -out "$RUNNER_TEMP/halo-swift-server.csr" \
+            -subj "/CN=$HALO_SWIFT_STAGING_HOST" \
+            -addext "subjectAltName=DNS:$HALO_SWIFT_STAGING_HOST" \
+            -addext "extendedKeyUsage=serverAuth"
+          openssl x509 -req -in "$RUNNER_TEMP/halo-swift-server.csr" \
+            -CA "$RUNNER_TEMP/halo-swift-ca.crt" \
+            -CAkey "$RUNNER_TEMP/halo-swift-ca.key" -CAcreateserial \
+            -out "$HALO_SWIFT_TLS_CERTIFICATE" -days 1 -copy_extensions copy
+          chmod 0600 "$RUNNER_TEMP/halo-swift-ca.key" "$HALO_SWIFT_TLS_PRIVATE_KEY"
+          openssl verify -CAfile "$RUNNER_TEMP/halo-swift-ca.crt" "$HALO_SWIFT_TLS_CERTIFICATE"
+          openssl x509 -in "$HALO_SWIFT_TLS_CERTIFICATE" -checkhost "$HALO_SWIFT_STAGING_HOST" -noout
+          sudo install -m 0644 "$RUNNER_TEMP/halo-swift-ca.crt" \
+            /usr/local/share/ca-certificates/halo-ci-swift-https.crt
+          sudo update-ca-certificates
+          printf '127.0.0.1 %s\n' "$HALO_SWIFT_STAGING_HOST" | sudo tee -a /etc/hosts >/dev/null
+      - name: Run Swift-to-backend HTTPS security signoff
+        run: node enterprise/workflow-publishing/staging-ci-swift-https.mjs
+      - name: Remove the ephemeral runner trust anchor
+        if: ${{ always() }}
+        run: |
+          sudo rm -f /usr/local/share/ca-certificates/halo-ci-swift-https.crt
+          sudo update-ca-certificates

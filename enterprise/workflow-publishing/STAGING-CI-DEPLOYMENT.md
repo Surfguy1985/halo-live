@@ -10,7 +10,8 @@ For a push to `codex/halo-enterprise-reconciliation-rc1`, the workflow runs the
 reusable web, PostgreSQL 16, and native iOS gates against the same Git commit.
 The isolated staging job can start only when all three succeed and the commit
 message contains `[staging]`. The recovery rehearsal can start only after that
-isolated staging job succeeds.
+isolated staging job succeeds. The Swift HTTPS security signoff can start only
+after the recovery rehearsal succeeds.
 
 The job uses a fresh PostgreSQL database and Redis instance pinned by image
 digest, synthetic local credentials, a generated RSA key pair, and a loopback
@@ -35,9 +36,27 @@ GitHub environment, or OIDC authority.
   readiness failure, one durable revision/audit/receipt, and zero dispatch or
   integration side effects.
 
-This gate proves the backend contract over loopback HTTP. It does **not** prove
-the Swift client's final HTTPS deployment path, certificate chain, redirects,
-or a real `stage`/`staging` hostname; those remain later Phase 5 evidence.
+## Swift HTTPS security signoff
+
+The final job compiles the production `HaloStagingWorkflowClient` and connects
+it to the actual isolated backend through `workflow.staging.invalid`. The
+hostname is mapped to loopback only inside the disposable runner. An ephemeral
+CA and leaf certificate are generated for that exact DNS name, the CA is added
+to the runner trust store for the job, and it is removed in an `always()`
+cleanup step. The Swift client uses ordinary `URLSession` trust evaluation; it
+has no certificate bypass or redirect override.
+
+The signoff proves a TLS 1.2-or-newer handshake, zero redirects, successful
+publish, exact idempotent replay, read-only reconciliation, invalid-token
+rejection, revision conflict handling, one durable revision/audit/idempotency
+record, and zero outbound side effects. Its additional admission marker cannot
+weaken the base exact-repository, branch, SHA, service, or feature-disable
+constraints.
+
+The trusted hostname and certificate are synthetic and runner-local. This is
+integration/security evidence for the isolated Phase 5 staging boundary, not a
+public or production certificate, real customer environment, or production
+change authorization.
 
 ## Recovery rehearsal
 

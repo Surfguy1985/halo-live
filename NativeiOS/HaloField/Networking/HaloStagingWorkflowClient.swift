@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Explicitly configured staging-only transport for enterprise workflow publishing.
 /// Not referenced by HaloAPI, live Base44, or any application view.

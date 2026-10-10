@@ -11,7 +11,7 @@ import {createCIStagingRedis} from "./staging-ci-redis.mjs";
 const jsonClone=value=>JSON.parse(JSON.stringify(value));
 const b64=value=>Buffer.from(JSON.stringify(value)).toString("base64url");
 
-async function migrate(admin){
+export async function migrateCIStagingDatabase(admin){
  await admin.query("DROP SCHEMA IF EXISTS halo_execution CASCADE");
  await admin.query("DROP SCHEMA IF EXISTS halo_workflow CASCADE");
  await admin.query(`DO $$ BEGIN
@@ -29,7 +29,7 @@ async function migrate(admin){
  }
 }
 
-const signToken=(privateKey,config,subject="staging-actor")=>{
+export const signCIStagingToken=(privateKey,config,subject="staging-actor")=>{
  const now=Math.floor(Date.now()/1000);
  const unsigned=b64({alg:"RS256",typ:"JWT",kid:"ci-ephemeral"})+"."+
   b64({iss:config.HALO_WORKFLOW_AUTH_ISSUER,aud:config.HALO_WORKFLOW_AUTH_AUDIENCE,
@@ -48,7 +48,7 @@ export async function runCIStagingDeployment(config=process.env){
  const admin=new Pool({connectionString:config.HALO_WORKFLOW_DATABASE_URL,max:3});
  let identityPool,workflowPool,app;
  try{
-  await migrate(admin);
+  await migrateCIStagingDatabase(admin);
   const workflowPassword=randomBytes(32).toString("hex");
   const identityPassword=randomBytes(32).toString("hex");
   await admin.query(`ALTER ROLE halo_workflow_runtime PASSWORD '${workflowPassword}'`);
@@ -83,7 +83,7 @@ export async function runCIStagingDeployment(config=process.env){
   const ready=await fetch(base+"/health/ready");
   assert.equal(ready.status,200);assert.deepEqual(await responseJSON(ready),{status:"ready"});
 
-  const jwt=signToken(keys.privateKey,config);
+  const jwt=signCIStagingToken(keys.privateKey,config);
   const route=`/v1/workflow-templates/${fixture.layout.templateID}`;
   const send=async({body=fixture,key=body.requestID,token=jwt,action="publish"}={})=>{
    const response=await fetch(base+route+"/"+action,{method:"POST",headers:{
