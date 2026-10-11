@@ -30,6 +30,66 @@ struct JobsView: View {
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.65))
                 }.padding(.vertical, 8)
+#if DEBUG
+                NavigationLink {
+                    HaloMarketplaceExploreView()
+                } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "map.fill")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(HaloMarketplaceDesign.steelBlue)
+                            .frame(width: 52, height: 52)
+                            .background(HaloMarketplaceDesign.pearl, in: RoundedRectangle(cornerRadius: 14))
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Explore HALO Marketplace")
+                                .font(HaloType.body(15, weight: .semibold))
+                                .foregroundStyle(.white)
+                            Text("Native SwiftUI · Figma design preview")
+                                .font(HaloType.body(11))
+                                .foregroundStyle(.white.opacity(0.6))
+                        }
+                        Spacer(minLength: 8)
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(HaloTheme.lime)
+                    }
+                    .padding(12)
+                    .haloDarkCard()
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Open the Xcode-only HALO marketplace MapKit preview")
+
+                NavigationLink {
+                    HaloFigmaScreenLibraryView()
+                } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "square.grid.3x3.topleft.filled")
+                            .font(.system(size: 21, weight: .semibold))
+                            .foregroundStyle(HaloMarketplaceDesign.steelBlue)
+                            .frame(width: 52, height: 52)
+                            .background(
+                                HaloMarketplaceDesign.pearl,
+                                in: RoundedRectangle(cornerRadius: 14)
+                            )
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("HALO 84-Screen Figma Library")
+                                .font(HaloType.body(15, weight: .semibold))
+                                .foregroundStyle(.white)
+                            Text("Full screen map · Native design previews")
+                                .font(HaloType.body(11))
+                                .foregroundStyle(.white.opacity(0.6))
+                        }
+                        Spacer(minLength: 8)
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(HaloTheme.lime)
+                    }
+                    .padding(12)
+                    .haloDarkCard()
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("View all 84 Figma screen specifications and available SwiftUI previews")
+#endif
                 if availableScopes.count > 1 {
                     Picker("Job board", selection: $scope) {
                         ForEach(availableScopes) { Text($0.rawValue).tag($0) }
