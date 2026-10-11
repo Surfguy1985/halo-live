@@ -27,8 +27,10 @@ struct StagingHTTPSIntegration {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.urlCache = nil
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-        let session = URLSession(configuration: configuration)
-        let client = try HaloStagingWorkflowClient(stagingURL: stagingURL, session: session)
+        let client = try HaloStagingWorkflowClient(
+            stagingURL: stagingURL,
+            sessionConfiguration: configuration
+        )
 
         let expected = HaloStagingWorkflowClient.Receipt(
             templateID: proposal.layout.templateID,

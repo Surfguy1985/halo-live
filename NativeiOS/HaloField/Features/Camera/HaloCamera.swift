@@ -152,7 +152,6 @@ final class HaloCameraController: NSObject, ObservableObject, AVCapturePhotoCapt
 
             self.session.beginConfiguration()
             self.session.sessionPreset = .photo
-            defer { self.session.commitConfiguration() }
 
             let preferred = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: self.cameraPosition)
             let fallbackPosition: AVCaptureDevice.Position = self.cameraPosition == .front ? .back : .front
@@ -164,6 +163,7 @@ final class HaloCameraController: NSObject, ObservableObject, AVCapturePhotoCapt
                 self.session.canAddInput(input),
                 self.session.canAddOutput(self.output)
             else {
+                self.session.commitConfiguration()
                 Task { @MainActor in
                     self.errorMessage = "HALO could not initialize this camera."
                     self.isReady = false
@@ -175,6 +175,7 @@ final class HaloCameraController: NSObject, ObservableObject, AVCapturePhotoCapt
             self.session.addInput(input)
             self.session.addOutput(self.output)
             self.output.maxPhotoQualityPrioritization = .quality
+            self.session.commitConfiguration()
             self.session.startRunning()
 
             Task { @MainActor in

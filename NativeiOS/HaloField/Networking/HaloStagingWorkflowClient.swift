@@ -31,7 +31,10 @@ struct HaloStagingWorkflowClient {
     private let baseURL: URL
     private let session: URLSession
 
-    init(stagingURL: URL, session: URLSession = .shared) throws {
+    init(
+        stagingURL: URL,
+        sessionConfiguration: URLSessionConfiguration = .ephemeral
+    ) throws {
         guard stagingURL.scheme?.lowercased() == "https",
               let host = stagingURL.host?.lowercased(),
               host.split(separator: ".").contains(where: { $0 == "staging" || $0 == "stage" }),
@@ -41,7 +44,11 @@ struct HaloStagingWorkflowClient {
             throw Failure.invalidStagingURL
         }
         self.baseURL = stagingURL
-        self.session = session
+        self.session = URLSession(
+            configuration: sessionConfiguration,
+            delegate: NoRedirects(),
+            delegateQueue: nil
+        )
     }
 
     func publish(
@@ -55,7 +62,7 @@ struct HaloStagingWorkflowClient {
         )
 
         // Never forward bearer credentials to another host through an HTTP redirect.
-        let (data, response) = try await session.data(for: request, delegate: NoRedirects())
+        let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw Failure.invalidResponse }
         switch http.statusCode {
         case 200:
@@ -90,7 +97,7 @@ struct HaloStagingWorkflowClient {
             proposal: originalProposal,
             bearerToken: bearerToken
         )
-        let (data, response) = try await session.data(for: request, delegate: NoRedirects())
+        let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw Failure.invalidResponse }
         switch http.statusCode {
         case 200:
@@ -184,7 +191,7 @@ struct HaloStagingWorkflowClient {
         let error: String
     }
 
-    private final class NoRedirects: NSObject, URLSessionTaskDelegate {
+    private final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
         func urlSession(
             _ session: URLSession,
             task: URLSessionTask,

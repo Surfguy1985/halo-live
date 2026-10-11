@@ -2,16 +2,6 @@ import XCTest
 @testable import HaloField
 
 final class HaloAPITests: XCTestCase {
-    override class func setUp() {
-        super.setUp()
-        URLProtocol.registerClass(MockURLProtocol.self)
-    }
-
-    override class func tearDown() {
-        URLProtocol.unregisterClass(MockURLProtocol.self)
-        super.tearDown()
-    }
-
     func testValidateActivationUsesNativeGateway() async throws {
         let payload = #"{"ok":true,"crew":{"id":"crew-1","name":"Field Crew"},"capabilities":{"nativePushDeliveryConfigured":false}}"#.data(using: .utf8)!
         let info = try await makeAPI(status: 200, data: payload).validateActivation(token: "test-token-1234567890")
@@ -250,12 +240,10 @@ final class HaloAPITests: XCTestCase {
 
     @MainActor
     func testClearedSessionIgnoresAnInflightJobResponse() async throws {
-        let api = makeAPI(status: 200, data: Data())
         let started = expectation(description: "Request started")
-        let release = DispatchSemaphore(value: 0)
-        MockURLProtocol.handler = { request in
-            started.fulfill()
-            _ = release.wait(timeout: .now() + 5)
+        let responseGate = TestResponseGate()
+        let api = makeAPI { request in
+            responseGate.waitUntilOpen { started.fulfill() }
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, Data(#"{"jobs":[{"id":"previous-account","status":"scheduled"}]}"#.utf8))
         }
@@ -263,7 +251,7 @@ final class HaloAPITests: XCTestCase {
         let refresh = Task { await store.refresh(activationToken: "test-token-1234567890") }
         await fulfillment(of: [started], timeout: 3)
         store.clear()
-        release.signal()
+        responseGate.open()
         await refresh.value
         XCTAssertTrue(store.jobs.isEmpty)
         XCTAssertNil(store.lastSyncedAt)
@@ -278,11 +266,7 @@ final class HaloAPITests: XCTestCase {
     }
 
     private func makeAPI(status: Int, data: Data) -> HaloAPI {
-        let config = URLSessionConfiguration.ephemeral
-        config.protocolClasses = [MockURLProtocol.self]
-        let session = URLSession(configuration: config)
-
-        MockURLProtocol.handler = { request in
+        makeAPI { request in
             XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/json")
             XCTAssertEqual(request.value(forHTTPHeaderField: "X-Halo-Activation"), "test-token-1234567890")
             XCTAssertNil(request.value(forHTTPHeaderField: "Authorization"), "Crew tokens must not be interpreted as Base44 user credentials")
@@ -297,20 +281,64 @@ final class HaloAPITests: XCTestCase {
             )!
             return (response, data)
         }
+    }
 
+    private func makeAPI(
+        handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
+    ) -> HaloAPI {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        let testID = UUID().uuidString
+        config.httpAdditionalHeaders = ["X-Halo-Test-ID": testID]
+        let session = URLSession(configuration: config)
+        MockURLProtocol.register(handler: handler, for: testID)
         return HaloAPI(baseURL: URL(string: "https://example.test")!, session: session)
     }
 }
 
-final class MockURLProtocol: URLProtocol {
-    static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+private final class TestResponseGate: @unchecked Sendable {
+    private let condition = NSCondition()
+    private var didReportStart = false
+    private var isOpen = false
 
-    override class func canInit(with request: URLRequest) -> Bool { true }
+    func waitUntilOpen(reportStarted: () -> Void) {
+        condition.lock()
+        if !didReportStart {
+            didReportStart = true
+            reportStarted()
+        }
+        let deadline = Date().addingTimeInterval(5)
+        while !isOpen, condition.wait(until: deadline) {}
+        condition.unlock()
+    }
+
+    func open() {
+        condition.lock()
+        isOpen = true
+        condition.broadcast()
+        condition.unlock()
+    }
+}
+
+final class MockURLProtocol: URLProtocol {
+    private static let router = TestRequestRouter()
+
+    static func register(
+        handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data),
+        for testID: String
+    ) {
+        router.register(handler: handler, for: testID)
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        request.value(forHTTPHeaderField: "X-Halo-Test-ID") != nil
+    }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
-        guard let handler = Self.handler else {
-            XCTFail("MockURLProtocol.handler was not set")
+        guard let testID = request.value(forHTTPHeaderField: "X-Halo-Test-ID"),
+              let handler = Self.router.handler(for: testID) else {
+            XCTFail("MockURLProtocol handler was not registered for this test session")
             return
         }
         do {
@@ -324,4 +352,23 @@ final class MockURLProtocol: URLProtocol {
     }
 
     override func stopLoading() {}
+}
+
+private final class TestRequestRouter: @unchecked Sendable {
+    typealias Handler = (URLRequest) throws -> (HTTPURLResponse, Data)
+
+    private let lock = NSLock()
+    private var handlers: [String: Handler] = [:]
+
+    func register(handler: @escaping Handler, for testID: String) {
+        lock.lock()
+        handlers[testID] = handler
+        lock.unlock()
+    }
+
+    func handler(for testID: String) -> Handler? {
+        lock.lock()
+        defer { lock.unlock() }
+        return handlers[testID]
+    }
 }

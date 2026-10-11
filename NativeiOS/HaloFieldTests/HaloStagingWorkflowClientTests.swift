@@ -324,8 +324,10 @@ final class HaloStagingWorkflowClientTests: XCTestCase {
                                            httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
             return (response, Data(payload.utf8))
         }
-        return try HaloStagingWorkflowClient(stagingURL: staging,
-                                             session: URLSession(configuration: configuration))
+        return try HaloStagingWorkflowClient(
+            stagingURL: staging,
+            sessionConfiguration: configuration
+        )
     }
 }
 
