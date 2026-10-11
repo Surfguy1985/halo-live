@@ -5,10 +5,10 @@ import SwiftUI
 /// This DEBUG integration uses clearly labeled preview opportunities only.
 /// It never calls Base44 activation endpoints or pretends a job is assigned.
 struct HaloMarketplaceExploreView: View {
-    @State private var filter = HaloMarketplaceFilter()
+    @State private var filter: HaloMarketplaceFilter
     @State private var selectedID: String?
-    @State private var showingList = false
-    @State private var showingFilters = false
+    @State private var showingList: Bool
+    @State private var showingFilters: Bool
     @State private var detail: HaloMarketplaceOpportunity?
     @State private var cameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
@@ -17,6 +17,25 @@ struct HaloMarketplaceExploreView: View {
         )
     )
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Figma 73–75 and industry variants 81–84 reuse one tested MapKit
+    /// surface. Each variant sets genuine native state, not a screenshot.
+    init(
+        industry: HaloMarketplaceIndustry = .all,
+        startsAsList: Bool = false,
+        savedOnly: Bool = false,
+        showsIndustryFilters: Bool = false
+    ) {
+        _filter = State(initialValue: HaloMarketplaceFilter(
+            industry: industry,
+            query: "",
+            minimumCompensationMinor: 0,
+            savedIDs: savedOnly ? ["demo-paint", "demo-construction"] : [],
+            savedOnly: savedOnly
+        ))
+        _showingList = State(initialValue: startsAsList)
+        _showingFilters = State(initialValue: showsIndustryFilters)
+    }
 
     private var jobs: [HaloMarketplaceOpportunity] {
         filter.apply(to: HaloMarketplacePreview.opportunities)
