@@ -4,12 +4,15 @@ import XCTest
 final class HaloMarketplaceTests: XCTestCase {
     func testFigmaIndustryFiltersWorkAcrossContractorCategories() {
         let all = HaloMarketplacePreview.opportunities
-        XCTAssertEqual(all.count, 5)
+        XCTAssertEqual(all.count, 6)
         XCTAssertTrue(all.allSatisfy(\.previewOnly))
 
         var filter = HaloMarketplaceFilter()
         filter.industry = .construction
         XCTAssertEqual(filter.apply(to: all).map(\.id), ["demo-construction"])
+
+        filter.industry = .gigServices
+        XCTAssertEqual(filter.apply(to: all).map(\.id), ["demo-gig"])
 
         filter.industry = .transportation
         XCTAssertEqual(filter.apply(to: all).map(\.id), ["demo-delivery"])
