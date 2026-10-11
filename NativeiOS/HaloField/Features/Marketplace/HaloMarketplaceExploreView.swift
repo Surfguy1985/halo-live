@@ -214,9 +214,8 @@ struct HaloMarketplaceExploreView: View {
             }
 
             if let job = featured {
-                Button { detail = job } label: {
-                    VStack(alignment: .leading, spacing: 9) {
-                        HStack {
+                VStack(alignment: .leading, spacing: 9) {
+                    HStack {
                             Text("ILLUSTRATIVE OPPORTUNITY")
                                 .font(HaloMarketplaceDesign.font(10, weight: .semibold))
                                 .tracking(0.4)
@@ -236,6 +235,7 @@ struct HaloMarketplaceExploreView: View {
                             .buttonStyle(.plain)
                             .accessibilityLabel("Save opportunity")
                         }
+                    Button { detail = job } label: {
                         HStack(alignment: .firstTextBaseline) {
                             VStack(alignment: .leading, spacing: 5) {
                                 Text(job.title)
@@ -251,9 +251,9 @@ struct HaloMarketplaceExploreView: View {
                                 .foregroundStyle(HaloMarketplaceDesign.earningGreen)
                         }
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Open opportunity details; job is preview only")
                 }
-                .buttonStyle(.plain)
-                .accessibilityHint("Open opportunity details; job is preview only")
             } else {
                 Text("No jobs match your filters. Try another industry.")
                     .font(HaloMarketplaceDesign.font(13))
