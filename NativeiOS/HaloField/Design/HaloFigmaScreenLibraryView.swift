@@ -143,7 +143,7 @@ struct HaloFigmaScreenLibraryView: View {
         case 83:
             HaloMarketplaceExploreView(industry: .transportation)
         case 84:
-            HaloMarketplaceExploreView(industry: .cleaning)
+            HaloMarketplaceExploreView(industry: .gigServices)
         default:
             notYetImplemented(screen)
         }
