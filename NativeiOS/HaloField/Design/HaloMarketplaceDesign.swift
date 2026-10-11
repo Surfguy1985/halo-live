@@ -22,9 +22,9 @@ enum HaloMarketplaceDesign {
     }
 }
 
-/// The Figma screens use the EXACT source-image HALO wing, not a drawn proxy.
-/// Export the original image into HALOWing.imageset before visual sign-off.
-/// Until then this reserves the design slot without substituting a fake logo.
+/// The Figma screens use the ORIGINAL HALO silver wing, not a drawn proxy.
+/// Its exact PNG bytes are committed in HALOWing.imageset from the approved
+/// branded-design artifact; no temporary Figma URL or substitute is used.
 struct HaloMarketplaceWing: View {
     var body: some View {
         Group {
