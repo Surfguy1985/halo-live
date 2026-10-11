@@ -9,6 +9,7 @@ enum HaloMarketplaceIndustry: String, CaseIterable, Identifiable, Sendable {
     case hospitality = "Hospitality"
     case cleaning = "Cleaning"
     case security = "Security"
+    case gigServices = "Gig Services"
     case other = "Other"
 
     var id: String { rawValue }
@@ -83,6 +84,9 @@ enum HaloMarketplacePreview {
         sample("demo-service", title: "Restaurant deep clean", industry: .cleaning,
                locality: "McKinney, TX", lat: 33.1972, lon: -96.6397, dollars: 560,
                scope: ["Kitchen and common-area cleaning", "Commercial cleaning experience"]),
+        sample("demo-gig", title: "Event setup and guest services", industry: .gigServices,
+               locality: "Dallas, TX", lat: 32.785, lon: -96.801, dollars: 260,
+               scope: ["Four-hour event shift", "Customer-facing hospitality experience"]),
     ]
 
     private static func sample(
