@@ -1,7 +1,7 @@
 import CoreLocation
 import Foundation
 
-enum HaloMarketplaceIndustry: String, CaseIterable, Identifiable {
+enum HaloMarketplaceIndustry: String, CaseIterable, Identifiable, Sendable {
     case all = "All"
     case construction = "Construction"
     case property = "Property"
@@ -24,7 +24,7 @@ enum HaloMarketplaceIndustry: String, CaseIterable, Identifiable {
 
 /// The marketplace domain is separate from already ASSIGNED field jobs.
 /// A request receipt is never an assignment, work authorization, or payout.
-struct HaloMarketplaceOpportunity: Identifiable, Hashable {
+struct HaloMarketplaceOpportunity: Identifiable, Hashable, Sendable {
     let id: String
     let publisherOrganizationID: String
     let title: String
