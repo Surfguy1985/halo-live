@@ -105,6 +105,7 @@ struct HaloMarketplaceAvailabilityPreviewView: View {
         .construction, .property
     ]
     @State private var radiusMiles = 25.0
+    @State private var savedInPreview = false
 
     private let availableIndustries: [HaloMarketplaceIndustry] = [
         .construction, .property, .cleaning, .transportation, .security, .hospitality
@@ -201,10 +202,15 @@ struct HaloMarketplaceAvailabilityPreviewView: View {
                 .padding(18)
                 .background(.white, in: RoundedRectangle(cornerRadius: 20))
 
-                HaloMarketplacePrimaryButton(title: "Save preview preferences") {
-                    // Deliberately UI-only. No persisted or server mutation.
+                HaloMarketplacePrimaryButton(
+                    title: savedInPreview ? "Preview preferences saved" : "Save preview preferences"
+                ) {
+                    // Confirm only local SwiftUI preview state, never a server mutation.
+                    savedInPreview = true
                 }
-                Text("Preferences are temporary design-preview state. Your real profile is unchanged.")
+                Text(savedInPreview
+                     ? "Saved in this preview only. Your real worker availability and credentials were not changed."
+                     : "Preferences are temporary design-preview state. Your real profile is unchanged.")
                     .font(HaloMarketplaceDesign.font(12))
                     .foregroundStyle(HaloMarketplaceDesign.slate)
                     .multilineTextAlignment(.center)
